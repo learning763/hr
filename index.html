@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>HRMS | Army Personnel Portal</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            transition: all 0.3s ease;
+        }
+
+        /* Signup gets wider */
+        #signupCard.active-form {
+            max-width: 880px;
+            width: 880px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 920px) {
+            #signupCard.active-form {
+                width: 95%;
+                max-width: 95%;
+            }
+        }
+
+        .form-card {
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+            overflow: hidden;
+            transition: all 0.25s ease;
+        }
+
+        /* Header - clean minimal */
+        .form-header {
+            background: #ffffff;
+            padding: 32px 32px 20px 32px;
+            text-align: center;
+            border-bottom: 1px solid #eef2f6;
+        }
+
+        .form-header h3 {
+            font-size: 26px;
+            font-weight: 600;
+            letter-spacing: -0.3px;
+            color: #1a2c3e;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .form-header h3 i {
+            color: #2c5f4e;
+            font-size: 26px;
+        }
+
+        .form-header p {
+            font-size: 14px;
+            color: #6c7a8e;
+            margin-top: 6px;
+        }
+
+        form {
+            padding: 28px 32px 36px;
+        }
+
+        /* Grid for signup - two columns */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px 24px;
+        }
+
+        .full-width {
+            grid-column: span 2;
+        }
+
+        /* Label styling */
+        .input-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+        }
+
+        .input-field label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            letter-spacing: -0.2px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .input-field label i {
+            font-size: 12px;
+            color: #6c7a8e;
+        }
+
+        .input-field .required-star {
+            color: #c2410c;
+            font-size: 12px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .input-wrapper i.input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9aa9bc;
+            font-size: 15px;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .input-wrapper input, .input-wrapper select {
+            width: 100%;
+            padding: 12px 16px 12px 42px;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 14px;
+            font-size: 14px;
+            transition: all 0.2s;
+            outline: none;
+            background: #ffffff;
+            font-family: inherit;
+            color: #1e2a3e;
+            font-weight: 450;
+        }
+
+        .input-wrapper select {
+            padding: 12px 36px 12px 42px;
+            cursor: pointer;
+            appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23899ab3" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>');
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+
+        .input-wrapper input:focus, .input-wrapper select:focus {
+            border-color: #2c5f4e;
+            box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+        }
+
+        .toggle-eye {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #9aa9bc;
+            font-size: 15px;
+            z-index: 3;
+            transition: 0.2s;
+        }
+
+        .toggle-eye:hover {
+            color: #2c5f4e;
+        }
+
+        /* Strength meter */
+        .strength-wrapper {
+            margin-top: 8px;
+        }
+        .strength-bar {
+            height: 4px;
+            background: #edf2f7;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .strength-fill {
+            width: 0%;
+            height: 100%;
+            transition: width 0.2s;
+            background: #cbd5e1;
+        }
+        .strength-label {
+            font-size: 10px;
+            margin-top: 6px;
+            color: #7c8ba0;
+            display: block;
+            text-align: right;
+            font-weight: 500;
+        }
+
+        .match-hint {
+            font-size: 11px;
+            margin-top: 6px;
+            display: block;
+        }
+
+        /* Options row */
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 18px 0 24px;
+            font-size: 13px;
+        }
+
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: #4a5a72;
+        }
+
+        .checkbox input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #2c5f4e;
+        }
+
+        .link-btn {
+            color: #5c6f87;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: 0.2s;
+        }
+
+        .link-btn:hover {
+            color: #2c5f4e;
+            text-decoration: underline;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 13px;
+            background: #1e3a32;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-submit:hover {
+            background: #14362c;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+        }
+
+        .terms-box {
+            margin: 18px 0 6px;
+        }
+
+        .switch-text {
+            text-align: center;
+            font-size: 13.5px;
+            color: #6a7b94;
+            margin-top: 28px;
+            padding-top: 4px;
+        }
+
+        .switch-text a {
+            color: #1e3a32;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .switch-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Loading state */
+        .btn-submit.loading {
+            position: relative;
+            color: transparent !important;
+            pointer-events: none;
+        }
+        .btn-submit.loading::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            top: 50%;
+            left: 50%;
+            margin-left: -9px;
+            margin-top: -9px;
+            border: 2px solid rgba(255,255,255,0.7);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 700px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            .full-width {
+                grid-column: span 1;
+            }
+            form {
+                padding: 24px 22px;
+            }
+            .form-header h3 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- LOGIN CARD -->
+    <div class="form-card" id="loginCard">
+        <div class="form-header">
+            <h3><i class="fas fa-shield-alt"></i> HR Access</h3>
+        </div>
+        <form id="loginForm">
+            <div class="input-field">
+                <label><i class="fas fa-envelope"></i> Email Address <span class="required-star">*</span></label>
+                <div class="input-wrapper">
+                    <i class="fas fa-envelope input-icon"></i>
+                    <input type="email" id="loginEmail" placeholder="your.email@domain.com" autocomplete="email" required>
+                </div>
+            </div>
+            <div class="input-field">
+                <label><i class="fas fa-lock"></i> Password <span class="required-star">*</span></label>
+                <div class="input-wrapper">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="loginPassword" placeholder="Enter your password" autocomplete="current-password" required>
+                    <i class="fas fa-eye-slash toggle-eye" data-target="loginPassword"></i>
+                </div>
+            </div>
+            <div class="form-options">
+                <label class="checkbox">
+                    <input type="checkbox" id="rememberMe"> Keep me signed in
+                </label>
+                <a href="#" class="link-btn" id="forgotBtn">Forgot password?</a>
+            </div>
+            <button type="submit" class="btn-submit"><i class="fas fa-arrow-right-to-bracket"></i> Login</button>
+            <div class="switch-text">
+                New to HRMS? <a id="goToSignup">Create account →</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- SIGNUP CARD (wider, with army fields + labels) -->
+    <div class="form-card" id="signupCard" style="display: none;">
+        <div class="form-header">
+            <h3><i class="fas fa-user-check"></i> Registration</h3>
+        </div>
+        <form id="signupForm">
+            <div class="form-grid">
+                <!-- Full name -->
+                <div class="input-field">
+                    <label><i class="fas fa-user"></i> Full Name <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" id="fullName" placeholder="e.g., Rajveer Singh" required>
+                    </div>
+                </div>
+                <!-- Email -->
+                <div class="input-field">
+                    <label><i class="fas fa-envelope"></i> Email Address <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-envelope input-icon"></i>
+                        <input type="email" id="signupEmail" placeholder="official@email.com" required>
+                    </div>
+                </div>
+                <!-- Rank dropdown -->
+                <div class="input-field">
+                    <label><i class="fas fa-star-of-life"></i> Rank <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-star-of-life input-icon"></i>
+                        <select id="armyRank" required>
+                            <option value="" disabled selected>Select rank</option>
+                            <option>General</option><option>Lieutenant General</option><option>Major General</option>
+                            <option>Brigadier</option><option>Colonel</option><option>Lieutenant Colonel</option>
+                            <option>Major</option><option>Captain</option><option>Lieutenant</option>
+                            <option>Subedar Major</option><option>Subedar</option><option>Naib Subedar</option>
+                            <option>Havildar</option><option>Naik</option><option>Lance Naik</option><option>Sepoy</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Branch / Unit (Arm) -->
+                <div class="input-field">
+                    <label><i class="fas fa-gun"></i> Branch / Arm <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-gun input-icon"></i>
+                        <select id="branchArm" required>
+                            <option value="" disabled selected>Select branch</option>
+                            <option>Infantry</option><option>Armoured Corps</option><option>Artillery</option>
+                            <option>Corps of Engineers</option><option>Signals</option><option>Army Aviation</option>
+                            <option>Intelligence</option><option>Medical Corps</option><option>Ordnance</option>
+                            <option>EME</option><option>Education Corps</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Service Number -->
+                <div class="input-field">
+                    <label><i class="fas fa-id-card"></i> Personnel Number <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-id-card input-icon"></i>
+                        <input type="text" id="serviceNo" placeholder="e.g., IC-12345" required>
+                    </div>
+                </div>
+                <!-- Date of commission -->
+                <div class="input-field">
+                    <label><i class="fas fa-calendar"></i> Commission Date <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-calendar input-icon"></i>
+                        <input type="date" id="commissionDate" required>
+                    </div>
+                </div>
+                <!-- Password (full width) -->
+                <div class="input-field full-width">
+                    <label><i class="fas fa-key"></i> Password <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" id="signupPassword" placeholder="Minimum 6 characters" required>
+                        <i class="fas fa-eye-slash toggle-eye" data-target="signupPassword"></i>
+                    </div>
+                    <div class="strength-wrapper">
+                        <div class="strength-bar">
+                            <div class="strength-fill" id="strengthFill"></div>
+                        </div>
+                        <span class="strength-label" id="strengthText">Use 6+ characters</span>
+                    </div>
+                </div>
+                <!-- Confirm password -->
+                <div class="input-field full-width">
+                    <label><i class="fas fa-check-double"></i> Confirm Password <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-check-circle input-icon"></i>
+                        <input type="password" id="confirmPassword" placeholder="Re-enter password" required>
+                        <i class="fas fa-eye-slash toggle-eye" data-target="confirmPassword"></i>
+                    </div>
+                    <div id="matchHint" class="match-hint"></div>
+                </div>
+                <!-- Terms and conditions -->
+                <div class="input-field full-width terms-box">
+                    <label class="checkbox">
+                        <input type="checkbox" id="termsCheck" required>
+                        <span>I accept the <a href="#" style="color:#2c5f4e;">Terms of Service</a> and <a href="#" style="color:#2c5f4e;">Privacy Policy</a></span>
+                    </label>
+                </div>
+            </div>
+            <button type="submit" class="btn-submit"><i class="fas fa-user-plus"></i> Register</button>
+            <div class="switch-text">
+                Already registered? <a id="goToLogin">Sign in →</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="helper/toast.js"></script>
+<script>
+    // Wait for toast.js to load
+    document.addEventListener('DOMContentLoaded', function() {
+        // ========== TOGGLE FORMS ==========
+        const loginCard = document.getElementById('loginCard');
+        const signupCard = document.getElementById('signupCard');
+        const container = document.querySelector('.container');
+
+        function showLoginForm() {
+            loginCard.style.display = 'block';
+            signupCard.style.display = 'none';
+            container.style.maxWidth = '500px';
+            signupCard.classList.remove('active-form');
+            document.querySelectorAll('.btn-submit').forEach(btn => btn.classList.remove('loading'));
+        }
+        
+        function showSignupForm() {
+            loginCard.style.display = 'none';
+            signupCard.style.display = 'block';
+            container.style.maxWidth = '880px';
+            signupCard.classList.add('active-form');
+            document.querySelectorAll('.btn-submit').forEach(btn => btn.classList.remove('loading'));
+            if(document.getElementById('signupPassword')) updateStrengthMeter('');
+            checkMatch();
+        }
+
+        document.getElementById('goToSignup')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            showSignupForm();
+        });
+        
+        document.getElementById('goToLogin')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            showLoginForm();
+        });
+
+        // ========== PASSWORD TOGGLE ==========
+        document.querySelectorAll('.toggle-eye').forEach(icon => {
+            icon.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                const input = document.getElementById(targetId);
+                if(input) {
+                    const type = input.type === 'password' ? 'text' : 'password';
+                    input.type = type;
+                    this.classList.toggle('fa-eye-slash');
+                    this.classList.toggle('fa-eye');
+                }
+            });
+        });
+
+        // ========== PASSWORD STRENGTH ==========
+        function updateStrengthMeter(pwd) {
+            const fill = document.getElementById('strengthFill');
+            const textSpan = document.getElementById('strengthText');
+            if (!fill) return;
+            let score = 0;
+            if(pwd.length >= 6) score += 1;
+            if(pwd.length >= 9) score += 1;
+            if(/[A-Z]/.test(pwd)) score += 1;
+            if(/[0-9]/.test(pwd)) score += 1;
+            if(/[^A-Za-z0-9]/.test(pwd)) score += 1;
+            let percent = Math.min(100, score * 20);
+            fill.style.width = percent + '%';
+            if(percent <= 20) {
+                fill.style.backgroundColor = '#c2410c';
+                if(textSpan) textSpan.innerText = 'Weak';
+            } else if(percent <= 60) {
+                fill.style.backgroundColor = '#eab308';
+                if(textSpan) textSpan.innerText = 'Medium';
+            } else {
+                fill.style.backgroundColor = '#2c5f4e';
+                if(textSpan) textSpan.innerText = 'Strong';
+            }
+            if(pwd.length === 0 && textSpan) textSpan.innerText = 'Use 6+ characters';
+        }
+
+        function checkMatch() {
+            const pwd = document.getElementById('signupPassword')?.value || '';
+            const confirm = document.getElementById('confirmPassword')?.value || '';
+            const hint = document.getElementById('matchHint');
+            if(!hint) return;
+            if(confirm.length === 0) { hint.innerHTML = ''; return; }
+            if(pwd === confirm) {
+                hint.innerHTML = '✓ Passwords match';
+                hint.style.color = '#2c5f4e';
+            } else {
+                hint.innerHTML = '✗ Passwords do not match';
+                hint.style.color = '#c2410c';
+            }
+        }
+
+        const pwdField = document.getElementById('signupPassword');
+        if(pwdField) {
+            pwdField.addEventListener('input', (e) => {
+                updateStrengthMeter(e.target.value);
+                checkMatch();
+            });
+        }
+        
+        const confirmField = document.getElementById('confirmPassword');
+        if(confirmField) confirmField.addEventListener('input', checkMatch);
+
+        // ========== LOGIN HANDLER ==========
+        const loginFormElem = document.getElementById('loginForm');
+        loginFormElem.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const remember = document.getElementById('rememberMe').checked;
+            
+            if(!email || !password) {
+                showToast('Please enter email and password', 'error');
+                return;
+            }
+            if(!email.includes('@')) {
+                showToast('Valid email required', 'error');
+                return;
+            }
+            
+            const btn = loginFormElem.querySelector('.btn-submit');
+            btn.classList.add('loading');
+            
+            try {
+                const formData = new URLSearchParams();
+                formData.append('email', email);
+                formData.append('password', password);
+                formData.append('remember', remember);
+                
+                const response = await fetch('login.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData.toString()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    
+                    // Store user info
+                    sessionStorage.setItem('user_email', result.user.email);
+                    sessionStorage.setItem('user_name', result.user.name);
+                    sessionStorage.setItem('user_rank', result.user.rank);
+                    sessionStorage.setItem('user_unit', result.user.unit);
+                    sessionStorage.setItem('hrms_logged_in', 'true');
+                    
+                    if(remember) {
+                        localStorage.setItem('hrms_email', email);
+                        localStorage.setItem('hrms_logged_in', 'true');
+                    } else {
+                        localStorage.removeItem('hrms_email');
+                        localStorage.removeItem('hrms_logged_in');
+                    }
+                    
+                    // Redirect to dashboard
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.php';
+                    }, 1500);
+                } else {
+                    showToast(result.error, 'error');
+                    btn.classList.remove('loading');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Login failed. Please try again.', 'error');
+                btn.classList.remove('loading');
+            }
+        });
+
+        // ========== SIGNUP HANDLER ==========
+        const signupFormElem = document.getElementById('signupForm');
+        signupFormElem.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fullName = document.getElementById('fullName').value.trim();
+            const email = document.getElementById('signupEmail').value.trim();
+            const rank = document.getElementById('armyRank').value;
+            const branch = document.getElementById('branchArm').value;
+            const serviceNo = document.getElementById('serviceNo').value.trim();
+            const commissionDate = document.getElementById('commissionDate').value;
+            const password = document.getElementById('signupPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const terms = document.getElementById('termsCheck').checked;
+
+            if(!fullName || !email || !rank || !branch || !serviceNo || !commissionDate) {
+                showToast('All fields are required', 'error');
+                return;
+            }
+            if(!email.includes('@')) {
+                showToast('Enter valid email address', 'error');
+                return;
+            }
+            if(password.length < 6) {
+                showToast('Password must be at least 6 characters', 'error');
+                return;
+            }
+            if(password !== confirm) {
+                showToast('Passwords do not match', 'error');
+                return;
+            }
+            if(!terms) {
+                showToast('Please accept the terms', 'error');
+                return;
+            }
+
+            const btn = signupFormElem.querySelector('.btn-submit');
+            btn.classList.add('loading');
+            
+            try {
+                const formData = new URLSearchParams();
+                formData.append('full_name', fullName);
+                formData.append('email', email);
+                formData.append('rank', rank);
+                formData.append('unit', branch);
+                formData.append('personnel_number', serviceNo);
+                formData.append('joint_date', commissionDate);
+                formData.append('password', password);
+                formData.append('confirm_password', confirm);
+                
+                const response = await fetch('signup.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData.toString()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    
+                    // Auto-fill login form with registered email
+                    const loginEmailInput = document.getElementById('loginEmail');
+                    if(loginEmailInput) loginEmailInput.value = email;
+                    
+                    // Reset signup form
+                    document.getElementById('fullName').value = '';
+                    document.getElementById('signupEmail').value = '';
+                    document.getElementById('armyRank').value = '';
+                    document.getElementById('branchArm').value = '';
+                    document.getElementById('serviceNo').value = '';
+                    document.getElementById('commissionDate').value = '';
+                    document.getElementById('signupPassword').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                    document.getElementById('termsCheck').checked = false;
+                    if(pwdField) updateStrengthMeter('');
+                    document.getElementById('matchHint').innerHTML = '';
+                    
+                    // Switch to login form after delay
+                    setTimeout(() => {
+                        showLoginForm();
+                        showToast('Please login with your credentials', 'success');
+                    }, 1500);
+                } else {
+                    showToast(result.error, 'error');
+                    btn.classList.remove('loading');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Registration failed. Please try again.', 'error');
+                btn.classList.remove('loading');
+            }
+        });
+
+        // Forgot password handler
+        document.getElementById('forgotBtn')?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            if(!email) {
+                showToast('Please enter your email address', 'error');
+                return;
+            }
+            showToast('Password reset link sent to your email', 'success');
+        });
+
+        // Check if already logged in
+        async function checkAuth() {
+            try {
+                const response = await fetch('check_auth.php');
+                const result = await response.json();
+                if (result.authenticated) {
+                    window.location.href = 'dashboard.php';
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                // If session check fails, check localStorage/sessionStorage as fallback
+                if(sessionStorage.getItem('hrms_logged_in') === 'true' || localStorage.getItem('hrms_logged_in') === 'true') {
+                    window.location.href = 'dashboard.php';
+                }
+            }
+        }
+        
+        checkAuth();
+
+        // Auto-fill remembered email
+        const remembered = localStorage.getItem('hrms_email');
+        if(remembered) {
+            const emailField = document.getElementById('loginEmail');
+            if(emailField) emailField.value = remembered;
+            const checkRemember = document.getElementById('rememberMe');
+            if(checkRemember) checkRemember.checked = true;
+        }
+
+        // Initialize strength meter
+        if(pwdField) updateStrengthMeter('');
+        checkMatch();
+    });
+</script>
+</body>
+</html>
