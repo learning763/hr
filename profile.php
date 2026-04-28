@@ -1,5 +1,6 @@
 <?php
 session_start();
+include ('helper/rank.php');
 
 // // Check if user is logged in
 // if (!isset($_SESSION['user_id']) && !isset($_SESSION['personnel_number'])) {
@@ -573,8 +574,17 @@ ob_start();
                         </div>
                         <div class="input-field">
                             <label>Rank</label>
-                            <input type="text" id="editRank" name="rank" value="<?php echo htmlspecialchars($selectedPersonnel['rank'] ?? ''); ?>">
+                            <select id="editRank" name="rank" required>
+                                <option value="">Select Rank</option>
+                                <?php foreach ($nepal_army_ranks as $rank): ?>
+                                    <option value="<?php echo htmlspecialchars($rank); ?>" 
+                                        <?php echo (isset($selectedPersonnel['rank']) && $selectedPersonnel['rank'] == $rank) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($rank); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
+
                         <div class="input-field">
                             <label>Religion</label>
                             <input type="text" id="editReligion" name="religion" value="<?php echo htmlspecialchars($selectedPersonnel['religion'] ?? 'Hindu'); ?>">

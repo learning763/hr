@@ -1,5 +1,7 @@
 <?php
 include('includes/config.php');
+include ('helper/rank.php');
+
 
 $pageTitle = "Military Personnel Status Register";
 $pageSubtitle = "Track attendance, leave, work status of military personnel with date/time stamps.";
@@ -149,7 +151,14 @@ ob_start();
                     </div>
                     <div class="input-field">
                         <label><i class="fas fa-star-of-life"></i> Rank <span class="required-star">*</span></label>
-                        <input type="text" id="rank" placeholder="e.g., Colonel, Major, Captain" required>
+                        <select id="rank" name="rank" required>
+                            <option value="">Select Rank</option>
+                            <?php foreach ($nepal_army_ranks as $rank): ?>
+                                <option value="<?php echo htmlspecialchars($rank); ?>">
+                                    <?php echo htmlspecialchars($rank); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="input-field">
                         <label><i class="fas fa-calendar-alt"></i> Date <span class="required-star">*</span></label>
