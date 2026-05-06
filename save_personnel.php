@@ -19,6 +19,7 @@ try {
     $recruitmentDate = $_POST['recruitmentDate'] ?? '';
     $commissionDate = $_POST['commissionDate'] ?? '';
     $status = $_POST['status'] ?? '';
+    $role = $_POST['role'] ?? 0;  // ✅ ADDED: Get role value
     $email = $_POST['email'] ?? '';
     $contact = $_POST['contact'] ?? '';
     $phone = $_POST['phone'] ?? '';
@@ -45,7 +46,7 @@ try {
     $training2Address = $_POST['training2Address'] ?? '';
     
     if ($editId) {
-        // Update existing personnel
+        // Update existing personnel - ✅ ADDED role column
         $sql = "UPDATE personnel SET 
                     personnel_number = :serviceNo,
                     full_name_en = :fullName,
@@ -58,6 +59,7 @@ try {
                     recruitment_date = :recruitmentDate,
                     commission_date = :commissionDate,
                     current_status = :status,
+                    role = :role,
                     email = :email,
                     contact = :contact,
                     phone = :phone,
@@ -98,6 +100,7 @@ try {
             ':recruitmentDate' => !empty($recruitmentDate) ? $recruitmentDate : null,
             ':commissionDate' => !empty($commissionDate) ? $commissionDate : null,
             ':status' => $status,
+            ':role' => $role,  // ✅ ADDED: Role parameter
             ':email' => $email,
             ':contact' => $contact,
             ':phone' => $phone,
@@ -148,7 +151,7 @@ try {
             }
         }
         
-        // Insert new personnel
+        // Insert new personnel - ✅ ADDED role column
         $sql = "INSERT INTO personnel (
                     personnel_number, 
                     full_name_en, 
@@ -160,7 +163,8 @@ try {
                     unit, 
                     recruitment_date,
                     commission_date,
-                    current_status, 
+                    current_status,
+                    role,
                     email, 
                     contact,
                     phone,
@@ -196,7 +200,8 @@ try {
                     :branch, 
                     :recruitmentDate,
                     :commissionDate,
-                    :status, 
+                    :status,
+                    :role,
                     :email, 
                     :contact,
                     :phone,
@@ -236,6 +241,7 @@ try {
             ':recruitmentDate' => !empty($recruitmentDate) ? $recruitmentDate : null,
             ':commissionDate' => !empty($commissionDate) ? $commissionDate : null,
             ':status' => $status,
+            ':role' => $role,  // ✅ ADDED: Role parameter
             ':email' => $email,
             ':contact' => $contact,
             ':phone' => $phone,

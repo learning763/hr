@@ -3,6 +3,9 @@
 session_start();
 require_once 'includes/config.php';
 
+// Get current user's role from session
+$current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
+
 $pageTitle = "Personnel Directory";
 $pageSubtitle = "Complete list of commissioned officers and jawans.";
 $activePage = "personnel";
@@ -38,7 +41,7 @@ try {
     if ($page < 1) $page = 1;
     if ($page > $total_pages && $total_pages > 0) $page = $total_pages;
     
-    // Fetch personnel with pagination - Updated to use recruitment_date and commission_date
+    // Fetch personnel with pagination - including role column
     $sql = "SELECT * FROM personnel $search_condition ORDER BY created_at DESC LIMIT ? OFFSET ?";
     $stmt = $pdo->prepare($sql);
     
@@ -74,23 +77,30 @@ ob_start();
             <?php endif; ?>
         </form>
     </div>
-    <button class="btn-add" id="addPersonnelBtn">
-        <i class="fas fa-user-plus"></i> Add Personnel
-    </button>
+    
+    <!-- Only show Add Personnel button for Super Admin -->
+    <?php if ($current_user_role == 2): ?>
+        <button class="btn-add" id="addPersonnelBtn">
+            <i class="fas fa-user-plus"></i> Add Personnel
+        </button>
+    <?php endif; ?>
 </div>
 
 <div class="data-table">
     <table id="personnelTable">
         <thead>
             <tr>
-                <th style="width: 60px;">S.No.</th>
+                <th style="width: 50px;">S.No.</th>
                 <th>Personnel No.</th>
                 <th>Name</th>
                 <th>Rank</th>
                 <th>Branch</th>
                 <th>Recruitment Date</th>
                 <th>Status</th>
-                <th style="width: 100px;">Actions</th>
+                <?php if ($current_user_role == 2): ?>
+                    <th>Role</th>
+                    <th style="width: 100px;">Actions</th>
+                <?php endif; ?>
             </tr>
         </thead>
         <tbody id="personnelTableBody">
@@ -109,19 +119,50 @@ ob_start();
                                 <?php echo htmlspecialchars($personnel['current_status']); ?>
                             </span>
                         </td>
-                        <td>
-                            <button class="btn-icon edit-btn" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn-icon delete-btn" onclick="deletePersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
+                        <?php if ($current_user_role == 2): ?>
+                            <td>
+                                <?php
+                                $role = isset($personnel['role']) ? (int)$personnel['role'] : 0;
+                                $roleClass = '';
+                                $roleText = '';
+                                
+                                switch($role) {
+                                    case 2:
+                                        $roleClass = 'role-superadmin';
+                                        $roleText = 'Super Admin';
+                                        break;
+                                    case 1:
+                                        $roleClass = 'role-admin';
+                                        $roleText = 'Admin';
+                                        break;
+                                    default:
+                                        $roleClass = 'role-user';
+                                        $roleText = 'User';
+                                        break;
+                                }
+                                ?>
+                                <span class="role-badge <?php echo $roleClass; ?>">
+                                    <?php echo $roleText; ?>
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn-icon edit-btn" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn-icon delete-btn" onclick="deletePersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        <?php endif; ?>
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="8" style="text-align: center; padding: 40px;">No personnel records found.</td>
+                    <?php
+                    $colspan = 7; // Base columns
+                    if ($current_user_role == 2) $colspan += 2; // Add Role and Actions columns
+                    ?>
+                    <td colspan="<?php echo $colspan; ?>" style="text-align: center; padding: 40px;">No personnel records found.</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -190,7 +231,8 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<!-- Modal for Add/Edit Personnel - Updated with new fields -->
+<!-- Modal for Add/Edit Personnel - Only show for Super Admin -->
+<?php if ($current_user_role == 2): ?>
 <div id="personnelModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -243,7 +285,7 @@ ob_start();
                     <div class="input-field">
                         <label><i class="fas fa-star-of-life"></i> Rank <span class="required-star">*</span></label>
                         <select id="rank" name="rank" required>
-                            <option value="" disabled selected>Select rank</option>
+                            <option value="">Select rank</option>
                             <option>General</option>
                             <option>Lieutenant General</option>
                             <option>Major General</option>
@@ -265,7 +307,7 @@ ob_start();
                     <div class="input-field">
                         <label><i class="fas fa-gun"></i> Unit/Branch <span class="required-star">*</span></label>
                         <select id="branch" name="branch" required>
-                            <option value="" disabled selected>Select branch</option>
+                            <option value="">Select branch</option>
                             <option>Infantry</option>
                             <option>Armoured Corps</option>
                             <option>Artillery</option>
@@ -295,6 +337,14 @@ ob_start();
                             <option value="Leave">Leave</option>
                             <option value="Retired">Retired</option>
                             <option value="Training">Training</option>
+                        </select>
+                    </div>
+                    <div class="input-field">
+                        <label><i class="fas fa-user-shield"></i> User Role</label>
+                        <select id="role" name="role">
+                            <option value="0">User</option>
+                            <option value="1">Admin</option>
+                            <option value="2">Super Admin</option>
                         </select>
                     </div>
                     <div class="input-field">
@@ -349,6 +399,7 @@ ob_start();
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Toast Notification -->
 <div id="toast" class="toast" style="display: none;">
@@ -472,6 +523,30 @@ ob_start();
     .delete-btn:hover {
         background: #fff0ed;
         transform: scale(1.1);
+    }
+    
+    /* Role Badge Styles */
+    .role-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .role-superadmin {
+        background: #8b5cf6;
+        color: white;
+    }
+    
+    .role-admin {
+        background: #3b82f6;
+        color: white;
+    }
+    
+    .role-user {
+        background: #6b7280;
+        color: white;
     }
     
     /* Table Styles */
@@ -829,6 +904,9 @@ const recordsPerPageSelect = document.getElementById('recordsPerPage');
 
 let isEditing = false;
 
+// Get current user role from PHP
+const currentUserRole = <?php echo $current_user_role; ?>;
+
 // Toast function
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
@@ -879,6 +957,8 @@ if (searchForm) {
     });
 }
 
+// Only initialize modal functions if user is Super Admin
+<?php if ($current_user_role == 2): ?>
 // Open modal for adding
 if (addBtn) {
     addBtn.onclick = function() {
@@ -886,6 +966,7 @@ if (addBtn) {
         modalTitle.innerHTML = '<i class="fas fa-user-plus"></i> Add New Personnel';
         form.reset();
         document.getElementById('editId').value = '';
+        document.getElementById('role').value = '0';
         modal.style.display = 'block';
     }
 }
@@ -911,7 +992,7 @@ window.onclick = function(event) {
     }
 }
 
-// Edit personnel function with AJAX - Updated with new field names
+// Edit personnel function
 function editPersonnel(personnelNumber) {
     fetch(`get_personnel.php?id=${personnelNumber}`)
         .then(response => response.json())
@@ -932,6 +1013,7 @@ function editPersonnel(personnelNumber) {
                 document.getElementById('recruitmentDate').value = data.data.recruitment_date || '';
                 document.getElementById('commissionDate').value = data.data.commission_date || '';
                 document.getElementById('status').value = data.data.current_status || 'Active';
+                document.getElementById('role').value = data.data.role || 0;
                 document.getElementById('email').value = data.data.email || '';
                 document.getElementById('contact').value = data.data.contact || '';
                 document.getElementById('phone').value = data.data.phone || '';
@@ -982,12 +1064,11 @@ function deletePersonnel(serviceNo, name) {
     }
 }
 
-// Handle form submission - Updated with all new fields
+// Handle form submission
 if (form) {
     form.onsubmit = function(e) {
         e.preventDefault();
         
-        // Get form values
         const editId = document.getElementById('editId').value;
         const serviceNo = document.getElementById('serviceNo').value;
         const fullName = document.getElementById('fullName').value;
@@ -1000,6 +1081,7 @@ if (form) {
         const recruitmentDate = document.getElementById('recruitmentDate').value;
         const commissionDate = document.getElementById('commissionDate').value;
         const status = document.getElementById('status').value;
+        const role = document.getElementById('role').value;
         const email = document.getElementById('email').value;
         const contact = document.getElementById('contact').value;
         const phone = document.getElementById('phone').value;
@@ -1011,13 +1093,11 @@ if (form) {
         const training = document.getElementById('training').value;
         const foreignTraining = document.getElementById('foreignTraining').value;
         
-        // Validate required fields
         if(!serviceNo || !fullName || !rank || !branch || !recruitmentDate || !status) {
             showToast('Please fill all required fields', 'error');
             return;
         }
         
-        // Prepare form data
         const formData = new URLSearchParams();
         formData.append('editId', editId);
         formData.append('serviceNo', serviceNo);
@@ -1031,6 +1111,7 @@ if (form) {
         formData.append('recruitmentDate', recruitmentDate);
         formData.append('commissionDate', commissionDate);
         formData.append('status', status);
+        formData.append('role', role);
         formData.append('email', email);
         formData.append('contact', contact);
         formData.append('phone', phone);
@@ -1042,7 +1123,6 @@ if (form) {
         formData.append('training', training);
         formData.append('foreignTraining', foreignTraining);
         
-        // Submit via AJAX to save_personnel.php
         fetch('save_personnel.php', {
             method: 'POST',
             headers: {
@@ -1068,6 +1148,7 @@ if (form) {
         });
     }
 }
+<?php endif; ?>
 </script>
 
 <?php

@@ -1,4 +1,5 @@
 <?php
+session_start(); // Make sure session is started
 header('Content-Type: application/json');
 require_once 'includes/config.php';
 
@@ -19,7 +20,7 @@ if (empty($email)) {
     exit;
 }
 if (empty($password)) {
-    echo json_encode(['success' => false, 'error' => 'Password is required']);
+    echo json_encode(['success' => false, 'error' => 'Password is required']); // FIXED: added '=>'
     exit;
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -44,12 +45,13 @@ try {
         exit;
     }
     
-    // Set session variables
+    // Set session variables - ADDED ROLE HERE
     $_SESSION['user_id'] = $user['personnel_number'];
     $_SESSION['user_email'] = $user['email'];
     $_SESSION['user_name'] = $user['full_name_en'];
     $_SESSION['user_rank'] = $user['rank'];
     $_SESSION['user_unit'] = $user['unit'];
+    $_SESSION['user_role'] = isset($user['role']) ? (int)$user['role'] : 0;
     $_SESSION['logged_in'] = true;
     
     // Set remember me cookie if checked (30 days)
@@ -71,7 +73,8 @@ try {
             'name' => $user['full_name_en'],
             'email' => $user['email'],
             'rank' => $user['rank'],
-            'unit' => $user['unit']
+            'unit' => $user['unit'],
+            'role' => (int)$user['role']
         ]
     ]);
     
