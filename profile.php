@@ -458,11 +458,11 @@ ob_start();
         </div>
         <div class="official-details">
             <div class="detail-row">
-                <div class="detail-label">a) Date of Recruitment:</div>
+                <div class="detail-label">a) Enrollment Date:</div>
                 <div class="detail-value"><?php echo $selectedPersonnel['recruitment_date'] ? date('Y/m/d', strtotime($selectedPersonnel['recruitment_date'])) : 'N/A'; ?></div>
             </div>
             <div class="detail-row">
-                <div class="detail-label">b) Date of Commission:</div>
+                <div class="detail-label">b) Departure Date:</div>
                 <div class="detail-value"><?php echo $selectedPersonnel['commission_date'] ? date('Y/m/d', strtotime($selectedPersonnel['commission_date'])) : 'N/A'; ?></div>
             </div>
         </div>
@@ -655,11 +655,11 @@ ob_start();
                 <div class="tab-content" id="official-tab">
                     <div class="form-grid">
                         <div class="input-field">
-                            <label>Date of Recruitment</label>
+                            <label>Enrollment Date</label>
                             <input type="date" id="editRecruitmentDate" name="recruitment_date" value="<?php echo $selectedPersonnel['recruitment_date'] ?? ''; ?>">
                         </div>
                         <div class="input-field">
-                            <label>Date of Commission</label>
+                            <label>Departure Date</label>
                             <input type="date" id="editCommissionDate" name="commission_date" value="<?php echo $selectedPersonnel['commission_date'] ?? ''; ?>">
                         </div>
                     </div>

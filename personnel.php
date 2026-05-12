@@ -3,6 +3,12 @@
 session_start();
 require_once 'includes/config.php';
 
+// Check if user is logged in
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
+
 // Get current user's role from session
 $current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
 
@@ -10,20 +16,26 @@ $pageTitle = "Personnel Directory";
 $pageSubtitle = "Complete list of commissioned officers and jawans.";
 $activePage = "personnel";
 
+// Check permissions
+$isAdmin = ($current_user_role >= 1); // Admin (1) or Super Admin (2)
+$isSuperAdmin = ($current_user_role === 2); // Super Admin only
+
 // Pagination configuration
-$records_per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 7;
+$records_per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $records_per_page;
 
 // Get search term if any
-$search_term = isset($_GET['search']) ? $_GET['search'] : '';
+$search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// Build search condition
 $search_condition = "";
 $params = [];
 
 if (!empty($search_term)) {
-    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ?";
+    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ?";
     $search_param = "%$search_term%";
-    $params = [$search_param, $search_param, $search_param, $search_param];
+    $params = [$search_param, $search_param, $search_param, $search_param, $search_param];
 }
 
 // Get total records for pagination
@@ -40,8 +52,9 @@ try {
     // Adjust page if out of range
     if ($page < 1) $page = 1;
     if ($page > $total_pages && $total_pages > 0) $page = $total_pages;
+    $offset = ($page - 1) * $records_per_page;
     
-    // Fetch personnel with pagination - including role column
+    // Fetch personnel with pagination
     $sql = "SELECT * FROM personnel $search_condition ORDER BY created_at DESC LIMIT ? OFFSET ?";
     $stmt = $pdo->prepare($sql);
     
@@ -55,7 +68,7 @@ try {
     
     $personnel_list = $stmt->fetchAll();
 } catch(PDOException $e) {
-    $error_message = "Error fetching data: " . $e->getMessage();
+    error_log("Personnel fetch error: " . $e->getMessage());
     $personnel_list = [];
     $total_pages = 0;
 }
@@ -64,13 +77,45 @@ try {
 ob_start();
 ?>
 
+<!-- Statistics Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-user-friends"></i></div>
+        <div>
+            <div class="stat-value"><?php echo $total_records; ?></div>
+            <div class="stat-label">Total Personnel</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+        <div>
+            <div class="stat-value" id="activeCount">--</div>
+            <div class="stat-label">Active Personnel</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-user-graduate"></i></div>
+        <div>
+            <div class="stat-value" id="officerCount">--</div>
+            <div class="stat-label">Commissioned Officers</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-building"></i></div>
+        <div>
+            <div class="stat-value" id="unitCount">--</div>
+            <div class="stat-label">Units/Branches</div>
+        </div>
+    </div>
+</div>
+
 <!-- Search and Add Personnel Section -->
-<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
+<div class="search-section">
     <div class="search-container">
         <i class="fas fa-search search-icon"></i>
         <form method="GET" action="" id="searchForm" style="flex: 1;">
             <input type="text" name="search" id="searchInput" class="search-input" 
-                   placeholder="Search by name, service no., rank or branch..." 
+                   placeholder="Search by name, service no., rank, branch or email..." 
                    value="<?php echo htmlspecialchars($search_term); ?>">
             <?php if (!empty($search_term)): ?>
                 <button type="button" id="clearSearch" class="clear-search">✕</button>
@@ -78,80 +123,98 @@ ob_start();
         </form>
     </div>
     
-    <!-- Only show Add Personnel button for Super Admin -->
-    <?php if ($current_user_role == 2): ?>
+    <?php if ($isSuperAdmin): ?>
         <button class="btn-add" id="addPersonnelBtn">
             <i class="fas fa-user-plus"></i> Add Personnel
         </button>
     <?php endif; ?>
 </div>
 
+<!-- Personnel Table -->
 <div class="data-table">
-    <table id="personnelTable">
+    <table>
         <thead>
             <tr>
                 <th style="width: 50px;">S.No.</th>
                 <th>Personnel No.</th>
                 <th>Name</th>
+                <th>Email</th>
                 <th>Rank</th>
                 <th>Branch</th>
                 <th>Recruitment Date</th>
                 <th>Status</th>
-                <?php if ($current_user_role == 2): ?>
+                <?php if ($isAdmin): ?>
                     <th>Role</th>
-                    <th style="width: 100px;">Actions</th>
+                <?php endif; ?>
+                <?php if ($isSuperAdmin): ?>
+                    <th style="width: 120px;">Actions</th>
                 <?php endif; ?>
             </tr>
         </thead>
-        <tbody id="personnelTableBody">
+        <tbody>
             <?php if (!empty($personnel_list)): ?>
                 <?php $counter = $offset + 1; ?>
                 <?php foreach ($personnel_list as $personnel): ?>
-                    <tr data-id="<?php echo htmlspecialchars($personnel['personnel_number']); ?>">
+                    <tr>
                         <td><?php echo $counter++; ?></td>
                         <td><?php echo htmlspecialchars($personnel['personnel_number']); ?></td>
                         <td><?php echo htmlspecialchars($personnel['full_name_en']); ?></td>
+                        <td>
+                            <?php if (!empty($personnel['email'])): ?>
+                                <a href="mailto:<?php echo htmlspecialchars($personnel['email']); ?>" style="color: #2c5f4e; text-decoration: none;">
+                                    <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($personnel['email']); ?>
+                                </a>
+                            <?php else: ?>
+                                <span style="color: #9aa9bc;">—</span>
+                            <?php endif; ?>
+                        </td>
                         <td><?php echo htmlspecialchars($personnel['rank']); ?></td>
                         <td><?php echo htmlspecialchars($personnel['unit']); ?></td>
                         <td><?php echo $personnel['recruitment_date'] ? date('Y-m-d', strtotime($personnel['recruitment_date'])) : 'N/A'; ?></td>
                         <td>
-                            <span class="badge <?php echo strtolower($personnel['current_status']) == 'active' ? '' : 'leave'; ?>">
-                                <?php echo htmlspecialchars($personnel['current_status']); ?>
+                            <?php
+                            $status_class = 'badge-active';
+                            $status_lower = strtolower($personnel['current_status'] ?? 'active');
+                            if ($status_lower == 'leave') $status_class = 'badge-leave';
+                            elseif ($status_lower == 'retired') $status_class = 'badge-retired';
+                            elseif ($status_lower == 'training') $status_class = 'badge-training';
+                            ?>
+                            <span class="badge <?php echo $status_class; ?>">
+                                <?php echo htmlspecialchars($personnel['current_status'] ?? 'Active'); ?>
                             </span>
                         </td>
-                        <?php if ($current_user_role == 2): ?>
+                        <?php if ($isAdmin): ?>
                             <td>
                                 <?php
                                 $role = isset($personnel['role']) ? (int)$personnel['role'] : 0;
                                 $roleClass = '';
                                 $roleText = '';
-                                
                                 switch($role) {
-                                    case 2:
-                                        $roleClass = 'role-superadmin';
-                                        $roleText = 'Super Admin';
-                                        break;
-                                    case 1:
-                                        $roleClass = 'role-admin';
-                                        $roleText = 'Admin';
-                                        break;
-                                    default:
-                                        $roleClass = 'role-user';
-                                        $roleText = 'User';
-                                        break;
+                                    case 2: $roleClass = 'role-superadmin'; $roleText = 'Super Admin'; break;
+                                    case 1: $roleClass = 'role-admin'; $roleText = 'Admin'; break;
+                                    default: $roleClass = 'role-user'; $roleText = 'User'; break;
                                 }
                                 ?>
                                 <span class="role-badge <?php echo $roleClass; ?>">
                                     <?php echo $roleText; ?>
                                 </span>
                             </td>
+                        <?php endif; ?>
+                        <?php if ($isSuperAdmin): ?>
                             <td>
-                                <button class="btn-icon edit-btn" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-icon delete-btn" onclick="deletePersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                <div class="action-buttons">
+                                    <button class="btn-icon btn-edit" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn-icon btn-reset" onclick="resetPassword('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')" title="Reset Password">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                    <?php if ($personnel['personnel_number'] !== ($_SESSION['user_id'] ?? '')): ?>
+                                        <button class="btn-icon btn-delete" onclick="deletePersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
                             </td>
                         <?php endif; ?>
                     </tr>
@@ -159,17 +222,20 @@ ob_start();
             <?php else: ?>
                 <tr>
                     <?php
-                    $colspan = 7; // Base columns
-                    if ($current_user_role == 2) $colspan += 2; // Add Role and Actions columns
+                    $colspan = 8;
+                    if ($isAdmin) $colspan++;
+                    if ($isSuperAdmin) $colspan++;
                     ?>
-                    <td colspan="<?php echo $colspan; ?>" style="text-align: center; padding: 40px;">No personnel records found.</td>
+                    <td colspan="<?php echo $colspan; ?>" style="text-align: center; padding: 40px;">
+                        No personnel records found.
+                    </td>
                 </tr>
             <?php endif; ?>
         </tbody>
     </table>
 </div>
 
-<!-- Pagination Section -->
+<!-- Pagination -->
 <?php if ($total_pages > 1): ?>
 <div class="pagination-container">
     <div class="pagination-info">
@@ -186,13 +252,10 @@ ob_start();
         <?php endif; ?>
         
         <?php
-        // Calculate page range to display
         $start_page = max(1, $page - 2);
         $end_page = min($total_pages, $page + 2);
         
-        if ($start_page > 1) {
-            echo '<span class="pagination-dots">...</span>';
-        }
+        if ($start_page > 1) echo '<span class="page-dots">...</span>';
         
         for ($i = $start_page; $i <= $end_page; $i++):
         ?>
@@ -203,7 +266,7 @@ ob_start();
         <?php endfor; ?>
         
         <?php if ($end_page < $total_pages): ?>
-            <span class="pagination-dots">...</span>
+            <span class="page-dots">...</span>
         <?php endif; ?>
         
         <?php if ($page < $total_pages): ?>
@@ -220,7 +283,6 @@ ob_start();
     <div class="records-per-page">
         <label>Show:</label>
         <select id="recordsPerPage">
-            <option value="7" <?php echo $records_per_page == 7 ? 'selected' : ''; ?>>7</option>
             <option value="10" <?php echo $records_per_page == 10 ? 'selected' : ''; ?>>10</option>
             <option value="25" <?php echo $records_per_page == 25 ? 'selected' : ''; ?>>25</option>
             <option value="50" <?php echo $records_per_page == 50 ? 'selected' : ''; ?>>50</option>
@@ -231,8 +293,8 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<!-- Modal for Add/Edit Personnel - Only show for Super Admin -->
-<?php if ($current_user_role == 2): ?>
+<!-- Add/Edit Personnel Modal (Super Admin only) -->
+<?php if ($isSuperAdmin): ?>
 <div id="personnelModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -245,15 +307,11 @@ ob_start();
                 <div class="form-grid">
                     <div class="input-field">
                         <label><i class="fas fa-id-card"></i> Personnel No. <span class="required-star">*</span></label>
-                        <input type="text" id="serviceNo" name="serviceNo" placeholder="e.g., 7997" required>
+                        <input type="text" id="serviceNo" name="serviceNo" required>
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-user"></i> Full Name (English) <span class="required-star">*</span></label>
-                        <input type="text" id="fullName" name="fullName" placeholder="e.g., Parbhojimal" required>
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-user"></i> Full Name (Nepali)</label>
-                        <input type="text" id="fullNameNe" name="fullNameNe" placeholder="e.g., पर्भोजीमाल">
+                        <label><i class="fas fa-user"></i> Full Name <span class="required-star">*</span></label>
+                        <input type="text" id="fullName" name="fullName" required>
                     </div>
                     <div class="input-field">
                         <label><i class="fas fa-calendar"></i> Date of Birth</label>
@@ -262,7 +320,7 @@ ob_start();
                     <div class="input-field">
                         <label><i class="fas fa-venus-mars"></i> Gender</label>
                         <select id="gender" name="gender">
-                            <option value="">Select Gender</option>
+                            <option value="">Select</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                             <option value="Other">Other</option>
@@ -271,7 +329,7 @@ ob_start();
                     <div class="input-field">
                         <label><i class="fas fa-tint"></i> Blood Group</label>
                         <select id="bloodGroup" name="bloodGroup">
-                            <option value="">Select Blood Group</option>
+                            <option value="">Select</option>
                             <option value="A+">A+</option>
                             <option value="A-">A-</option>
                             <option value="B+">B+</option>
@@ -284,55 +342,19 @@ ob_start();
                     </div>
                     <div class="input-field">
                         <label><i class="fas fa-star-of-life"></i> Rank <span class="required-star">*</span></label>
-                        <select id="rank" name="rank" required>
-                            <option value="">Select rank</option>
-                            <option>General</option>
-                            <option>Lieutenant General</option>
-                            <option>Major General</option>
-                            <option>Brigadier</option>
-                            <option>Colonel</option>
-                            <option>Lieutenant Colonel</option>
-                            <option>Major</option>
-                            <option>Captain</option>
-                            <option>Lieutenant</option>
-                            <option>Subedar Major</option>
-                            <option>Subedar</option>
-                            <option>Naib Subedar</option>
-                            <option>Havildar</option>
-                            <option>Naik</option>
-                            <option>Lance Naik</option>
-                            <option>Sepoy</option>
-                        </select>
+                        <input type="text" id="rank" name="rank" required placeholder="e.g., Captain">
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-gun"></i> Unit/Branch <span class="required-star">*</span></label>
-                        <select id="branch" name="branch" required>
-                            <option value="">Select branch</option>
-                            <option>Infantry</option>
-                            <option>Armoured Corps</option>
-                            <option>Artillery</option>
-                            <option>Corps of Engineers</option>
-                            <option>Signals</option>
-                            <option>Army Aviation</option>
-                            <option>Intelligence</option>
-                            <option>Medical Corps</option>
-                            <option>Ordnance</option>
-                            <option>EME</option>
-                            <option>Education Corps</option>
-                            <option>Cyber Security Directorate</option>
-                        </select>
+                        <label><i class="fas fa-building"></i> Unit/Branch <span class="required-star">*</span></label>
+                        <input type="text" id="branch" name="branch" required placeholder="e.g., Infantry">
                     </div>
                     <div class="input-field">
                         <label><i class="fas fa-calendar-alt"></i> Recruitment Date <span class="required-star">*</span></label>
                         <input type="date" id="recruitmentDate" name="recruitmentDate" required>
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-calendar-check"></i> Commission Date</label>
-                        <input type="date" id="commissionDate" name="commissionDate">
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-flag-checkered"></i> Status <span class="required-star">*</span></label>
-                        <select id="status" name="status" required>
+                        <label><i class="fas fa-flag-checkered"></i> Status</label>
+                        <select id="status" name="status">
                             <option value="Active">Active</option>
                             <option value="Leave">Leave</option>
                             <option value="Retired">Retired</option>
@@ -349,46 +371,15 @@ ob_start();
                     </div>
                     <div class="input-field">
                         <label><i class="fas fa-envelope"></i> Email</label>
-                        <input type="email" id="email" name="email" placeholder="official@nepalarmy.mil.np">
+                        <input type="email" id="email" name="email">
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-phone"></i> Contact Number</label>
-                        <input type="tel" id="contact" name="contact" placeholder="98XXXXXXXX">
+                        <label><i class="fas fa-phone"></i> Contact</label>
+                        <input type="tel" id="contact" name="contact">
                     </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-phone-alt"></i> Phone (Alternate)</label>
-                        <input type="tel" id="phone" name="phone" placeholder="01-XXXXXXX">
-                    </div>
-                    <div class="input-field">
+                    <div class="input-field full-width">
                         <label><i class="fas fa-home"></i> Address</label>
-                        <input type="text" id="address" name="address" placeholder="Tripurapur, Kathmandu">
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-pray"></i> Religion</label>
-                        <input type="text" id="religion" name="religion" placeholder="Hindu">
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-heart"></i> Military Status</label>
-                        <select id="militaryStatus" name="militaryStatus">
-                            <option value="Single">Single</option>
-                            <option value="Married">Married</option>
-                        </select>
-                    </div>
-                    <div class="input-field full-width">
-                        <label><i class="fas fa-graduation-cap"></i> Academic Qualifications</label>
-                        <textarea id="education" name="education" rows="2" placeholder="e.g., B.E Computer Engineering"></textarea>
-                    </div>
-                    <div class="input-field full-width">
-                        <label><i class="fas fa-chalkboard-user"></i> Military Trainings</label>
-                        <textarea id="militaryTrainings" name="militaryTrainings" rows="2" placeholder="e.g., Basic Cybersecurity O (7) MCTE Mhow Indore MP"></textarea>
-                    </div>
-                    <div class="input-field full-width">
-                        <label><i class="fas fa-chalkboard-user"></i> Professional Training</label>
-                        <textarea id="training" name="training" rows="2" placeholder="e.g., Professional training details"></textarea>
-                    </div>
-                    <div class="input-field full-width">
-                        <label><i class="fas fa-globe"></i> Foreign Training</label>
-                        <textarea id="foreignTraining" name="foreignTraining" rows="2" placeholder="e.g., Basic Cybersecurity O (7) MCTE Mhow Indore MP"></textarea>
+                        <input type="text" id="address" name="address">
                     </div>
                 </div>
                 <div class="modal-buttons">
@@ -401,16 +392,60 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<!-- Toast Notification -->
-<div id="toast" class="toast" style="display: none;">
-    <div class="toast-content">
-        <i class="fas fa-check-circle" id="toastIcon"></i>
-        <span id="toastMessage"></span>
-    </div>
-</div>
-
 <style>
-    /* Search Container Styles */
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #eef2f6;
+    }
+    
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        background: #e8f5f0;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        color: #2c5f4e;
+    }
+    
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #1a2c3e;
+    }
+    
+    .stat-label {
+        font-size: 13px;
+        color: #6c7a8e;
+        margin-top: 4px;
+    }
+    
+    /* Search Section */
+    .search-section {
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+    
     .search-container {
         position: relative;
         flex: 1;
@@ -464,7 +499,6 @@ ob_start();
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.2s;
     }
     
     .clear-search:hover {
@@ -472,7 +506,7 @@ ob_start();
         color: #c2410c;
     }
     
-    /* Button Styles */
+    /* Buttons */
     .btn-add {
         background: #1e3a32;
         color: white;
@@ -486,7 +520,6 @@ ob_start();
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        white-space: nowrap;
     }
     
     .btn-add:hover {
@@ -495,37 +528,66 @@ ob_start();
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     
-    /* Action Buttons */
-    .btn-icon {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 5px 8px;
-        margin: 0 3px;
-        border-radius: 4px;
-        transition: all 0.2s;
+    /* Table */
+    .data-table {
+        background: white;
+        border-radius: 12px;
+        overflow-x: auto;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #eef2f6;
+    }
+    
+    .data-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .data-table th {
+        text-align: left;
+        padding: 15px;
+        background: #f8fafc;
+        border-bottom: 2px solid #e2e8f0;
+        font-weight: 600;
+        color: #1a2c3e;
+        font-size: 13px;
+    }
+    
+    .data-table td {
+        padding: 15px;
+        border-bottom: 1px solid #eef2f6;
         font-size: 14px;
     }
     
-    .edit-btn {
-        color: #2c5f4e;
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
     }
     
-    .edit-btn:hover {
-        background: #e8f5f0;
-        transform: scale(1.1);
+    .badge-active {
+        background: #d1fae5;
+        color: #065f46;
     }
     
-    .delete-btn {
-        color: #c2410c;
+    .badge-leave {
+        background: #fef3c7;
+        color: #92400e;
     }
     
-    .delete-btn:hover {
-        background: #fff0ed;
-        transform: scale(1.1);
+    .badge-retired {
+        background: #fee2e2;
+        color: #991b1b;
     }
     
-    /* Role Badge Styles */
+    .badge-training {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    
+    /* Role Badges */
     .role-badge {
         display: inline-block;
         padding: 4px 10px;
@@ -549,45 +611,47 @@ ob_start();
         color: white;
     }
     
-    /* Table Styles */
-    .data-table {
-        overflow-x: auto;
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 5px;
     }
     
-    .data-table table {
-        width: 100%;
-        border-collapse: collapse;
+    .btn-icon {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 6px 10px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-size: 14px;
     }
     
-    .data-table th {
-        text-align: left;
-        padding: 12px;
-        background: #f8fafc;
-        border-bottom: 2px solid #e2e8f0;
-        font-weight: 600;
-        color: #1a2c3e;
+    .btn-edit {
+        color: #2c5f4e;
     }
     
-    .data-table td {
-        padding: 12px;
-        border-bottom: 1px solid #eef2f6;
+    .btn-edit:hover {
+        background: #e8f5f0;
     }
     
-    .badge {
-        display: inline-block;
-        padding: 4px 10px;
-        background: #10b981;
-        color: white;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 500;
+    .btn-reset {
+        color: #f59e0b;
     }
     
-    .badge.leave {
-        background: #f59e0b;
+    .btn-reset:hover {
+        background: #fef3c7;
     }
     
-    /* Pagination Styles */
+    .btn-delete {
+        color: #c2410c;
+    }
+    
+    .btn-delete:hover {
+        background: #fff0ed;
+    }
+    
+    /* Pagination */
     .pagination-container {
         margin-top: 24px;
         padding-top: 20px;
@@ -596,7 +660,6 @@ ob_start();
         align-items: center;
         flex-wrap: wrap;
         gap: 15px;
-        border-top: 1px solid #eef2f6;
     }
     
     .pagination-info {
@@ -626,7 +689,6 @@ ob_start();
         font-size: 14px;
         font-weight: 500;
         transition: all 0.2s;
-        cursor: pointer;
     }
     
     .pagination-link:hover {
@@ -641,7 +703,7 @@ ob_start();
         color: white;
     }
     
-    .pagination-dots {
+    .page-dots {
         padding: 0 5px;
         color: #9aa9bc;
     }
@@ -659,16 +721,10 @@ ob_start();
         border: 1.5px solid #e2e8f0;
         border-radius: 6px;
         background: white;
-        font-size: 14px;
         cursor: pointer;
-        outline: none;
     }
     
-    .records-per-page select:focus {
-        border-color: #2c5f4e;
-    }
-    
-    /* Modal Styles */
+    /* Modal */
     .modal {
         display: none;
         position: fixed;
@@ -682,14 +738,14 @@ ob_start();
     }
     
     .modal-content {
-        background-color: #fff;
-        margin: 3% auto;
+        background-color: white;
+        margin: 5% auto;
         width: 90%;
-        max-width: 900px;
+        max-width: 700px;
         border-radius: 16px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         animation: slideDown 0.3s;
-        max-height: 90vh;
+        max-height: 85vh;
         overflow-y: auto;
     }
     
@@ -718,18 +774,16 @@ ob_start();
         position: sticky;
         top: 0;
         background: white;
-        z-index: 10;
     }
     
     .modal-header h3 {
-        margin: 0;
-        color: #1a2c3e;
         font-size: 20px;
+        color: #1a2c3e;
+        margin: 0;
     }
     
     .close {
         font-size: 28px;
-        font-weight: bold;
         cursor: pointer;
         color: #9aa9bc;
         transition: 0.2s;
@@ -761,17 +815,18 @@ ob_start();
         color: #334155;
     }
     
-    .input-field input, .input-field select, .input-field textarea {
+    .input-field input,
+    .input-field select {
         padding: 10px 12px;
         border: 1.5px solid #e2e8f0;
         border-radius: 8px;
         font-size: 14px;
         transition: all 0.2s;
         outline: none;
-        font-family: inherit;
     }
     
-    .input-field input:focus, .input-field select:focus, .input-field textarea:focus {
+    .input-field input:focus,
+    .input-field select:focus {
         border-color: #2c5f4e;
         box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
     }
@@ -801,11 +856,6 @@ ob_start();
         cursor: pointer;
         font-size: 14px;
         font-weight: 500;
-        transition: 0.2s;
-    }
-    
-    .btn-cancel:hover {
-        background: #e9ecef;
     }
     
     .btn-submit {
@@ -817,7 +867,6 @@ ob_start();
         cursor: pointer;
         font-size: 14px;
         font-weight: 600;
-        transition: 0.2s;
     }
     
     .btn-submit:hover {
@@ -829,30 +878,14 @@ ob_start();
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 1100;
-        animation: slideInRight 0.3s;
-    }
-    
-    .toast-content {
+        background: #1e3a32;
+        color: white;
         padding: 12px 20px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    .toast-content i {
-        font-size: 20px;
-    }
-    
-    .toast.success .toast-content i {
-        color: #10b981;
-    }
-    
-    .toast.error .toast-content i {
-        color: #c2410c;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 1100;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideInRight 0.3s;
     }
     
     @keyframes slideInRight {
@@ -866,7 +899,8 @@ ob_start();
         }
     }
     
-    @media (max-width: 700px) {
+    /* Responsive */
+    @media (max-width: 768px) {
         .form-grid {
             grid-template-columns: 1fr;
         }
@@ -880,6 +914,9 @@ ob_start();
         .search-container {
             max-width: 100%;
         }
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
         .pagination-container {
             flex-direction: column;
             align-items: center;
@@ -890,265 +927,264 @@ ob_start();
     }
 </style>
 
+<!-- Toast Notification -->
+<div id="toast" class="toast" style="display: none;">
+    <span id="toastMessage"></span>
+</div>
+
 <script>
-// Modal elements
-const modal = document.getElementById('personnelModal');
-const addBtn = document.getElementById('addPersonnelBtn');
-const closeBtn = document.querySelector('.close');
-const cancelBtn = document.getElementById('cancelBtn');
-const modalTitle = document.getElementById('modalTitle');
-const form = document.getElementById('personnelForm');
-const searchInput = document.getElementById('searchInput');
-const clearSearchBtn = document.getElementById('clearSearch');
-const recordsPerPageSelect = document.getElementById('recordsPerPage');
+    // DOM Elements
+    const modal = document.getElementById('personnelModal');
+    const addBtn = document.getElementById('addPersonnelBtn');
+    const closeBtn = document.querySelector('.close');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const modalTitle = document.getElementById('modalTitle');
+    const form = document.getElementById('personnelForm');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const recordsPerPageSelect = document.getElementById('recordsPerPage');
 
-let isEditing = false;
+    let isEditing = false;
+    const isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
+    const isAdmin = <?php echo $isAdmin ? 'true' : 'false'; ?>;
 
-// Get current user role from PHP
-const currentUserRole = <?php echo $current_user_role; ?>;
-
-// Toast function
-function showToast(message, type = 'success') {
-    const toast = document.getElementById('toast');
-    const toastIcon = document.getElementById('toastIcon');
-    const toastMessage = document.getElementById('toastMessage');
-    
-    toast.className = `toast ${type}`;
-    toastIcon.className = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
-    toastMessage.textContent = message;
-    toast.style.display = 'block';
-    
-    setTimeout(() => {
-        toast.style.display = 'none';
-    }, 3000);
-}
-
-// Handle records per page change
-if (recordsPerPageSelect) {
-    recordsPerPageSelect.addEventListener('change', function() {
-        const url = new URL(window.location.href);
-        url.searchParams.set('per_page', this.value);
-        url.searchParams.set('page', 1);
-        window.location.href = url.toString();
-    });
-}
-
-// Clear search
-if (clearSearchBtn) {
-    clearSearchBtn.addEventListener('click', function() {
-        window.location.href = window.location.pathname;
-    });
-}
-
-// Handle search form submission
-const searchForm = document.getElementById('searchForm');
-if (searchForm) {
-    searchForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const searchValue = searchInput.value.trim();
-        const url = new URL(window.location.href);
-        if (searchValue) {
-            url.searchParams.set('search', searchValue);
-        } else {
-            url.searchParams.delete('search');
+    // Load statistics
+    async function loadStatistics() {
+        try {
+            const response = await fetch('get_personnel_stats.php');
+            const data = await response.json();
+            if (data.success) {
+                if (document.getElementById('activeCount')) document.getElementById('activeCount').textContent = data.active_count || 0;
+                if (document.getElementById('officerCount')) document.getElementById('officerCount').textContent = data.officer_count || 0;
+                if (document.getElementById('unitCount')) document.getElementById('unitCount').textContent = data.unit_count || 0;
+            }
+        } catch (error) {
+            console.error('Error loading stats:', error);
         }
-        url.searchParams.set('page', 1);
-        window.location.href = url.toString();
-    });
-}
+    }
 
-// Only initialize modal functions if user is Super Admin
-<?php if ($current_user_role == 2): ?>
-// Open modal for adding
-if (addBtn) {
-    addBtn.onclick = function() {
-        isEditing = false;
-        modalTitle.innerHTML = '<i class="fas fa-user-plus"></i> Add New Personnel';
+    // Toast notification
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        if (!toast || !toastMessage) return;
+        
+        toastMessage.textContent = message;
+        toast.style.backgroundColor = type === 'success' ? '#1e3a32' : '#dc2626';
+        toast.style.display = 'block';
+        
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3000);
+    }
+
+    // Handle records per page change
+    if (recordsPerPageSelect) {
+        recordsPerPageSelect.addEventListener('change', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', this.value);
+            url.searchParams.set('page', 1);
+            window.location.href = url.toString();
+        });
+    }
+
+    // Clear search
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', function() {
+            window.location.href = window.location.pathname + '?per_page=' + (recordsPerPageSelect?.value || 10);
+        });
+    }
+
+    // Handle search form submission
+    const searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const searchValue = searchInput.value.trim();
+            const url = new URL(window.location.href);
+            if (searchValue) {
+                url.searchParams.set('search', searchValue);
+            } else {
+                url.searchParams.delete('search');
+            }
+            url.searchParams.set('page', 1);
+            window.location.href = url.toString();
+        });
+    }
+
+    // Reset Password
+    function resetPassword(serviceNo, name) {
+        if(confirm(`Are you sure you want to reset password for ${name} (${serviceNo})?\n\nPassword will be set to: reset@123`)) {
+            fetch('reset_password.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `personnel_no=${encodeURIComponent(serviceNo)}&password=reset@123`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Password for ${name} has been reset to: reset@123`, 'success');
+                } else {
+                    showToast(data.message || 'Error resetting password', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error resetting password', 'error');
+            });
+        }
+    }
+
+    <?php if ($isSuperAdmin): ?>
+    // Open modal for adding
+    if (addBtn) {
+        addBtn.onclick = function() {
+            isEditing = false;
+            modalTitle.innerHTML = '<i class="fas fa-user-plus"></i> Add New Personnel';
+            form.reset();
+            document.getElementById('editId').value = '';
+            document.getElementById('role').value = '0';
+            if (modal) modal.style.display = 'block';
+        }
+    }
+
+    // Close modal
+    function closeModal() {
+        if (modal) modal.style.display = 'none';
         form.reset();
-        document.getElementById('editId').value = '';
-        document.getElementById('role').value = '0';
-        modal.style.display = 'block';
+        isEditing = false;
     }
-}
 
-// Close modal
-function closeModal() {
-    modal.style.display = 'none';
-    form.reset();
-    isEditing = false;
-}
+    if (closeBtn) closeBtn.onclick = closeModal;
+    if (cancelBtn) cancelBtn.onclick = closeModal;
 
-if (closeBtn) {
-    closeBtn.onclick = closeModal;
-}
-if (cancelBtn) {
-    cancelBtn.onclick = closeModal;
-}
-
-// Close modal when clicking outside
-window.onclick = function(event) {
-    if (event.target == modal) {
-        closeModal();
+    window.onclick = function(event) {
+        if (event.target == modal) closeModal();
     }
-}
 
-// Edit personnel function
-function editPersonnel(personnelNumber) {
-    fetch(`get_personnel.php?id=${personnelNumber}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                isEditing = true;
-                modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Personnel';
-                
-                document.getElementById('editId').value = data.data.personnel_number;
-                document.getElementById('serviceNo').value = data.data.personnel_number;
-                document.getElementById('fullName').value = data.data.full_name_en || '';
-                document.getElementById('fullNameNe').value = data.data.full_name_ne || '';
-                document.getElementById('dob').value = data.data.dob || '';
-                document.getElementById('gender').value = data.data.gender || '';
-                document.getElementById('bloodGroup').value = data.data.blood_group || '';
-                document.getElementById('rank').value = data.data.rank || '';
-                document.getElementById('branch').value = data.data.unit || '';
-                document.getElementById('recruitmentDate').value = data.data.recruitment_date || '';
-                document.getElementById('commissionDate').value = data.data.commission_date || '';
-                document.getElementById('status').value = data.data.current_status || 'Active';
-                document.getElementById('role').value = data.data.role || 0;
-                document.getElementById('email').value = data.data.email || '';
-                document.getElementById('contact').value = data.data.contact || '';
-                document.getElementById('phone').value = data.data.phone || '';
-                document.getElementById('address').value = data.data.address || '';
-                document.getElementById('religion').value = data.data.religion || '';
-                document.getElementById('militaryStatus').value = data.data.military_status || 'Single';
-                document.getElementById('education').value = data.data.higher_education || '';
-                document.getElementById('militaryTrainings').value = data.data.military_trainings || '';
-                document.getElementById('training').value = data.data.training || '';
-                document.getElementById('foreignTraining').value = data.data.foreign_training || '';
-                
-                modal.style.display = 'block';
-            } else {
+    // Edit personnel
+    function editPersonnel(personnelNumber) {
+        fetch(`get_personnel.php?id=${personnelNumber}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isEditing = true;
+                    modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Personnel';
+                    
+                    document.getElementById('editId').value = data.data.personnel_number;
+                    document.getElementById('serviceNo').value = data.data.personnel_number;
+                    document.getElementById('fullName').value = data.data.full_name_en || '';
+                    document.getElementById('dob').value = data.data.dob || '';
+                    document.getElementById('gender').value = data.data.gender || '';
+                    document.getElementById('bloodGroup').value = data.data.blood_group || '';
+                    document.getElementById('rank').value = data.data.rank || '';
+                    document.getElementById('branch').value = data.data.unit || '';
+                    document.getElementById('recruitmentDate').value = data.data.recruitment_date || '';
+                    document.getElementById('status').value = data.data.current_status || 'Active';
+                    document.getElementById('role').value = data.data.role || 0;
+                    document.getElementById('email').value = data.data.email || '';
+                    document.getElementById('contact').value = data.data.contact || '';
+                    document.getElementById('address').value = data.data.address || '';
+                    
+                    if (modal) modal.style.display = 'block';
+                } else {
+                    showToast('Error loading personnel data', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
                 showToast('Error loading personnel data', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error loading personnel data', 'error');
-        });
-}
-
-// Delete personnel function
-function deletePersonnel(serviceNo, name) {
-    if(confirm(`Are you sure you want to delete ${name} (${serviceNo})?`)) {
-        fetch('delete_personnel.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `id=${encodeURIComponent(serviceNo)}`
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(`Personnel ${name} deleted successfully`, 'success');
-                setTimeout(() => {
-                    location.reload();
-                }, 1000);
-            } else {
-                showToast(data.message || 'Error deleting personnel', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error deleting personnel', 'error');
-        });
+            });
     }
-}
 
-// Handle form submission
-if (form) {
-    form.onsubmit = function(e) {
-        e.preventDefault();
-        
-        const editId = document.getElementById('editId').value;
-        const serviceNo = document.getElementById('serviceNo').value;
-        const fullName = document.getElementById('fullName').value;
-        const fullNameNe = document.getElementById('fullNameNe').value;
-        const dob = document.getElementById('dob').value;
-        const gender = document.getElementById('gender').value;
-        const bloodGroup = document.getElementById('bloodGroup').value;
-        const rank = document.getElementById('rank').value;
-        const branch = document.getElementById('branch').value;
-        const recruitmentDate = document.getElementById('recruitmentDate').value;
-        const commissionDate = document.getElementById('commissionDate').value;
-        const status = document.getElementById('status').value;
-        const role = document.getElementById('role').value;
-        const email = document.getElementById('email').value;
-        const contact = document.getElementById('contact').value;
-        const phone = document.getElementById('phone').value;
-        const address = document.getElementById('address').value;
-        const religion = document.getElementById('religion').value;
-        const militaryStatus = document.getElementById('militaryStatus').value;
-        const education = document.getElementById('education').value;
-        const militaryTrainings = document.getElementById('militaryTrainings').value;
-        const training = document.getElementById('training').value;
-        const foreignTraining = document.getElementById('foreignTraining').value;
-        
-        if(!serviceNo || !fullName || !rank || !branch || !recruitmentDate || !status) {
-            showToast('Please fill all required fields', 'error');
-            return;
+    // Delete personnel
+    function deletePersonnel(serviceNo, name) {
+        if(confirm(`Are you sure you want to delete ${name} (${serviceNo})? This action cannot be undone.`)) {
+            fetch('delete_personnel.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `id=${encodeURIComponent(serviceNo)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Personnel ${name} deleted successfully`, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.message || 'Error deleting personnel', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error deleting personnel', 'error');
+            });
         }
-        
-        const formData = new URLSearchParams();
-        formData.append('editId', editId);
-        formData.append('serviceNo', serviceNo);
-        formData.append('fullName', fullName);
-        formData.append('fullNameNe', fullNameNe);
-        formData.append('dob', dob);
-        formData.append('gender', gender);
-        formData.append('bloodGroup', bloodGroup);
-        formData.append('rank', rank);
-        formData.append('branch', branch);
-        formData.append('recruitmentDate', recruitmentDate);
-        formData.append('commissionDate', commissionDate);
-        formData.append('status', status);
-        formData.append('role', role);
-        formData.append('email', email);
-        formData.append('contact', contact);
-        formData.append('phone', phone);
-        formData.append('address', address);
-        formData.append('religion', religion);
-        formData.append('militaryStatus', militaryStatus);
-        formData.append('education', education);
-        formData.append('militaryTrainings', militaryTrainings);
-        formData.append('training', training);
-        formData.append('foreignTraining', foreignTraining);
-        
-        fetch('save_personnel.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: formData.toString()
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showToast(data.message, 'success');
-                closeModal();
-                setTimeout(() => {
-                    location.reload();
-                }, 1000);
-            } else {
-                showToast(data.message || 'Error saving personnel', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error saving personnel', 'error');
-        });
     }
-}
-<?php endif; ?>
+
+    // Handle form submission
+    if (form) {
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            
+            const serviceNo = document.getElementById('serviceNo').value;
+            const fullName = document.getElementById('fullName').value;
+            const rank = document.getElementById('rank').value;
+            const branch = document.getElementById('branch').value;
+            const recruitmentDate = document.getElementById('recruitmentDate').value;
+            
+            if(!serviceNo || !fullName || !rank || !branch || !recruitmentDate) {
+                showToast('Please fill all required fields', 'error');
+                return;
+            }
+            
+            const formData = new URLSearchParams();
+            formData.append('action', 'save_personnel');
+            formData.append('editId', document.getElementById('editId').value);
+            formData.append('serviceNo', serviceNo);
+            formData.append('fullName', fullName);
+            formData.append('dob', document.getElementById('dob').value);
+            formData.append('gender', document.getElementById('gender').value);
+            formData.append('bloodGroup', document.getElementById('bloodGroup').value);
+            formData.append('rank', rank);
+            formData.append('branch', branch);
+            formData.append('recruitmentDate', recruitmentDate);
+            formData.append('status', document.getElementById('status').value);
+            formData.append('role', document.getElementById('role').value);
+            formData.append('email', document.getElementById('email').value);
+            formData.append('contact', document.getElementById('contact').value);
+            formData.append('address', document.getElementById('address').value);
+            
+            fetch('save_personnel.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData.toString()
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    closeModal();
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.message || 'Error saving personnel', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error saving personnel', 'error');
+            });
+        }
+    }
+    <?php endif; ?>
+
+    // Load statistics on page load
+    loadStatistics();
 </script>
 
 <?php

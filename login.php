@@ -1,68 +1,82 @@
 <?php
-session_start(); // Make sure session is started
+session_start();
 header('Content-Type: application/json');
 require_once 'includes/config.php';
 
-// Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'error' => 'Invalid request method']);
     exit;
 }
 
-// Get POST data
 $email = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
 $remember = isset($_POST['remember']) ? filter_var($_POST['remember'], FILTER_VALIDATE_BOOLEAN) : false;
 
-// Validation
 if (empty($email)) {
     echo json_encode(['success' => false, 'error' => 'Email is required']);
     exit;
 }
 if (empty($password)) {
-    echo json_encode(['success' => false, 'error' => 'Password is required']); // FIXED: added '=>'
-    exit;
-}
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    echo json_encode(['success' => false, 'error' => 'Invalid email format']);
+    echo json_encode(['success' => false, 'error' => 'Password is required']);
     exit;
 }
 
 try {
-    // Get user by email
-    $stmt = $pdo->prepare("SELECT * FROM personnel WHERE email = ?");
+    // Get user from personnel table
+    $stmt = $pdo->prepare("
+        SELECT p.*, mps.id as military_personnel_id
+        FROM personnel p
+        LEFT JOIN military_personnel_status mps ON p.personnel_number = mps.personnel_number
+        WHERE p.email = ?
+    ");
     $stmt->execute([$email]);
-    $user = $stmt->fetch();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$user) {
         echo json_encode(['success' => false, 'error' => 'Invalid email or password']);
         exit;
     }
     
-    // Verify password
     if (!password_verify($password, $user['password'])) {
         echo json_encode(['success' => false, 'error' => 'Invalid email or password']);
         exit;
     }
     
-    // Set session variables - ADDED ROLE HERE
+    // If no military_personnel_status record exists, create one
+    $personnel_id = $user['military_personnel_id'];
+    if (!$personnel_id) {
+        $stmt2 = $pdo->prepare("
+            INSERT INTO military_personnel_status (personnel_name, rank, status, record_date, personnel_number, remarks) 
+            VALUES (?, ?, 'present', CURDATE(), ?, 'Auto-created from login')
+        ");
+        $stmt2->execute([$user['full_name_en'], $user['rank'], $user['personnel_number']]);
+        $personnel_id = $pdo->lastInsertId();
+    }
+    
+    // Store role as INTEGER (0=User, 1=Admin, 2=Super Admin)
+    $user_role_int = (int)($user['role'] ?? 0);
+    
+    // Clear any existing session data
+    $_SESSION = array();
+    
+    // Set session variables
     $_SESSION['user_id'] = $user['personnel_number'];
     $_SESSION['user_email'] = $user['email'];
     $_SESSION['user_name'] = $user['full_name_en'];
     $_SESSION['user_rank'] = $user['rank'];
     $_SESSION['user_unit'] = $user['unit'];
-    $_SESSION['user_role'] = isset($user['role']) ? (int)$user['role'] : 0;
+    $_SESSION['user_role'] = $user_role_int;  // INTEGER: 0, 1, or 2
+    $_SESSION['user_role_string'] = $user_role_int == 2 ? 'supervisor' : ($user_role_int == 1 ? 'admin' : 'user');
+    $_SESSION['user_personnel_id'] = $personnel_id;
     $_SESSION['logged_in'] = true;
+    $_SESSION['login_time'] = time();
     
-    // Set remember me cookie if checked (30 days)
+    // Remember me logic
     if ($remember) {
         $token = bin2hex(random_bytes(32));
-        $expiry = time() + (86400 * 30); // 30 days
-        
-        // Store token in database
+        $expiry = time() + (86400 * 30);
         $stmt = $pdo->prepare("UPDATE personnel SET remember_token = ? WHERE personnel_number = ?");
         $stmt->execute([$token, $user['personnel_number']]);
-        
         setcookie('remember_token', $token, $expiry, '/', '', false, true);
     }
     
@@ -73,12 +87,14 @@ try {
             'name' => $user['full_name_en'],
             'email' => $user['email'],
             'rank' => $user['rank'],
-            'unit' => $user['unit'],
-            'role' => (int)$user['role']
+            'role' => $user_role_int,
+            'role_text' => $user_role_int == 2 ? 'Super Admin' : ($user_role_int == 1 ? 'Admin' : 'User'),
+            'personnel_id' => $personnel_id
         ]
     ]);
     
 } catch(PDOException $e) {
-    echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
+    error_log("Login error: " . $e->getMessage());
+    echo json_encode(['success' => false, 'error' => 'Database error occurred']);
 }
 ?>
