@@ -13,7 +13,7 @@ $pageTitle = "Leave Management";
 $pageSubtitle = "Manage military personnel leave requests, approvals, and tracking";
 $activePage = "leave";
 
-// Get user role from session
+// Get user role from session (from personnel table)
 $user_role_int = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
 $user_role_string = '';
 if ($user_role_int === 2) {
@@ -24,7 +24,7 @@ if ($user_role_int === 2) {
     $user_role_string = 'user';
 }
 
-// Get current user's personnel ID
+// Get current user's personnel ID from session
 $current_personnel_id = isset($_SESSION['user_personnel_id']) ? (int)$_SESSION['user_personnel_id'] : 0;
 
 // First, establish database connection
@@ -35,7 +35,18 @@ try {
     die("Connection failed: " . $e->getMessage());
 }
 
-// For testing - find a valid personnel
+// Get current user's personnel ID from personnel table if not set
+if ($current_personnel_id == 0 && isset($_SESSION['user_id'])) {
+    $stmt = $pdo->prepare("SELECT id FROM military_personnel_status WHERE personnel_number = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $personnel = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($personnel) {
+        $_SESSION['user_personnel_id'] = $personnel['id'];
+        $current_personnel_id = $personnel['id'];
+    }
+}
+
+// For testing - find a valid personnel if still not set
 if ($current_personnel_id == 0) {
     $stmt = $pdo->prepare("SELECT id FROM military_personnel_status LIMIT 1");
     $stmt->execute();
@@ -45,44 +56,6 @@ if ($current_personnel_id == 0) {
         $current_personnel_id = $first['id'];
     }
 }
-
-// Create leave_balance table if not exists with proper UNIQUE constraint
-$pdo->exec("CREATE TABLE IF NOT EXISTS leave_balance (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    personnel_id INT NOT NULL,
-    gharpari_bida_days DECIMAL(5,1) DEFAULT 15,
-    parba_bida_days DECIMAL(5,1) DEFAULT 12,
-    bhaeepari_bida_days DECIMAL(5,1) DEFAULT 10,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_personnel (personnel_id)
-)");
-
-// Create leave_settings table
-$pdo->exec("CREATE TABLE IF NOT EXISTS leave_settings (
-    id INT PRIMARY KEY DEFAULT 1,
-    gharpari_bida_default DECIMAL(5,1) DEFAULT 15,
-    parba_bida_default DECIMAL(5,1) DEFAULT 12,
-    bhaeepari_bida_default DECIMAL(5,1) DEFAULT 10,
-    updated_by INT,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-)");
-
-// Insert default settings if not exists
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM leave_settings WHERE id = 1");
-$stmt->execute();
-if ($stmt->fetchColumn() == 0) {
-    $pdo->exec("INSERT INTO leave_settings (id, gharpari_bida_default, parba_bida_default, bhaeepari_bida_default) VALUES (1, 15, 12, 10)");
-}
-
-// Ensure leave_balance has record for all personnel
-$stmt = $pdo->prepare("
-    INSERT IGNORE INTO leave_balance (personnel_id, gharpari_bida_days, parba_bida_days, bhaeepari_bida_days)
-    SELECT mps.id, 15, 12, 10
-    FROM military_personnel_status mps
-    LEFT JOIN leave_balance lb ON mps.id = lb.personnel_id
-    WHERE lb.id IS NULL
-");
-$stmt->execute();
 
 // Generate CSRF token
 if (empty($_SESSION['csrf_token'])) {
@@ -116,18 +89,19 @@ function getAllPersonnelBalances($pdo, $page = 1, $per_page = 10, $search = '') 
                    COALESCE(lb.bhaeepari_bida_days, 10) as bhaeepari_bida_days,
                    COALESCE(lb.last_updated, mps.created_at) as last_updated
             FROM military_personnel_status mps
-            LEFT JOIN leave_balance lb ON mps.id = lb.personnel_id
-            GROUP BY mps.id";
+            LEFT JOIN leave_balance lb ON mps.id = lb.personnel_id";
     
-    $count_sql = "SELECT COUNT(DISTINCT mps.id) as total FROM military_personnel_status mps";
+    $count_sql = "SELECT COUNT(*) as total FROM military_personnel_status mps";
     $params = [];
     
     if (!empty($search)) {
-        $sql .= " HAVING mps.personnel_name LIKE ? OR mps.rank LIKE ?";
+        $sql .= " WHERE mps.personnel_name LIKE ? OR mps.rank LIKE ?";
         $count_sql .= " WHERE mps.personnel_name LIKE ? OR mps.rank LIKE ?";
         $searchTerm = "%$search%";
         $params = [$searchTerm, $searchTerm];
     }
+    
+    $sql .= " GROUP BY mps.id";
     
     $count_stmt = $pdo->prepare($count_sql);
     $count_stmt->execute($params);
@@ -374,7 +348,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $total_records = $count_stmt->fetch(PDO::FETCH_ASSOC)['total'];
             $total_pages = ceil($total_records / $per_page);
             
-            $sql .= " ORDER BY lr.created_at DESC LIMIT ? OFFSET ?";
+            $sql .= " ORDER BY 
+                        CASE lr.status 
+                            WHEN 'pending' THEN 1 
+                            WHEN 'forwarded' THEN 2 
+                            ELSE 3 
+                        END, 
+                        lr.created_at ASC";
+            
+            $sql .= " LIMIT ? OFFSET ?";
             
             $stmt = $pdo->prepare($sql);
             $param_index = 1;
@@ -439,7 +421,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 SELECT COUNT(*) as count 
                 FROM leave_requests 
                 WHERE personnel_id = ? 
-                AND status IN ('pending', 'approved')
+                AND status IN ('pending', 'approved', 'forwarded')
                 AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?))
             ");
             $stmt->execute([$personnel_id, $end_date, $start_date, $end_date, $start_date]);
@@ -456,13 +438,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
             ");
             
-            $result = $stmt->execute([$personnel_id, $leave_type, $start_date, $end_date, $leave_days, $reason, $_SESSION['user_id'] ?? $personnel_id]);
+            $result = $stmt->execute([$personnel_id, $leave_type, $start_date, $end_date, $leave_days, $reason, $_SESSION['user_personnel_id'] ?? $personnel_id]);
             
             if ($result) {
                 echo json_encode(['success' => true]);
             } else {
                 echo json_encode(['success' => false, 'error' => 'Failed to submit leave request']);
             }
+            exit;
+        }
+        
+        // Forward leave request to superadmin
+        if ($action === 'forward_leave') {
+            if ($user_role_int != 1) {
+                echo json_encode(['success' => false, 'error' => 'Only admin can forward requests']);
+                exit;
+            }
+            
+            $id = intval($_POST['id'] ?? 0);
+            $forward_remarks = trim($_POST['forward_remarks'] ?? '');
+            
+            if (empty($forward_remarks)) {
+                echo json_encode(['success' => false, 'error' => 'Forward remarks are required']);
+                exit;
+            }
+            
+            $stmt = $pdo->prepare("SELECT status FROM leave_requests WHERE id = ?");
+            $stmt->execute([$id]);
+            $leave = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$leave) {
+                echo json_encode(['success' => false, 'error' => 'Leave request not found']);
+                exit;
+            }
+            
+            if ($leave['status'] !== 'pending') {
+                echo json_encode(['success' => false, 'error' => 'Only pending requests can be forwarded']);
+                exit;
+            }
+            
+            $stmt = $pdo->prepare("
+                UPDATE leave_requests 
+                SET status = 'forwarded', 
+                    forwarded_by = ?, 
+                    forwarded_at = NOW(),
+                    forward_remarks = ?
+                WHERE id = ?
+            ");
+            $result = $stmt->execute([$current_personnel_id, $forward_remarks, $id]);
+            echo json_encode(['success' => $result]);
             exit;
         }
         
@@ -481,6 +505,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             
             if ($leave['status'] === 'approved') {
                 echo json_encode(['success' => false, 'error' => 'Leave request already approved']);
+                exit;
+            }
+            
+            // Admin can approve pending, Superadmin can approve forwarded
+            if ($user_role_int == 1 && $leave['status'] !== 'pending') {
+                echo json_encode(['success' => false, 'error' => 'Admin can only approve pending requests']);
+                exit;
+            }
+            
+            if ($user_role_int == 2 && $leave['status'] !== 'forwarded') {
+                echo json_encode(['success' => false, 'error' => 'Superadmin can only approve forwarded requests']);
                 exit;
             }
             
@@ -511,7 +546,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     approver_remarks = ?
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$_SESSION['user_id'] ?? 1, $approver_remarks, $id]);
+            $result = $stmt->execute([$current_personnel_id, $approver_remarks, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
@@ -525,6 +560,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
+            $stmt = $pdo->prepare("SELECT status FROM leave_requests WHERE id = ?");
+            $stmt->execute([$id]);
+            $leave = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$leave) {
+                echo json_encode(['success' => false, 'error' => 'Leave request not found']);
+                exit;
+            }
+            
+            // Admin can reject pending, Superadmin can reject forwarded
+            if ($user_role_int == 1 && $leave['status'] !== 'pending') {
+                echo json_encode(['success' => false, 'error' => 'Admin can only reject pending requests']);
+                exit;
+            }
+            
+            if ($user_role_int == 2 && $leave['status'] !== 'forwarded') {
+                echo json_encode(['success' => false, 'error' => 'Superadmin can only reject forwarded requests']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("
                 UPDATE leave_requests 
                 SET status = 'rejected', 
@@ -533,7 +588,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     approver_remarks = ?
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$_SESSION['user_id'] ?? 1, $rejection_reason, $id]);
+            $result = $stmt->execute([$current_personnel_id, $rejection_reason, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
@@ -550,6 +605,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
+            // Only the requester or admin can cancel pending requests
             if ($leave['status'] === 'approved') {
                 addBackLeaveBalance($pdo, $leave['personnel_id'], $leave['leave_type'], $leave['leave_days']);
             }
@@ -566,6 +622,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE status = 'pending'");
             $stmt->execute();
             $stats['pending'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE status = 'forwarded'");
+            $stmt->execute();
+            $stats['forwarded'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
             
             $stmt = $pdo->prepare("SELECT COALESCE(SUM(leave_days), 0) as total_days FROM leave_requests WHERE status = 'approved' AND MONTH(start_date) = MONTH(CURDATE()) AND YEAR(start_date) = YEAR(CURDATE())");
             $stmt->execute();
@@ -601,6 +661,10 @@ $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE status
 $stmt->execute();
 $pendingCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
+$stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE status = 'forwarded'");
+$stmt->execute();
+$forwardedCount = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
 $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE status = 'approved' AND DATE(approved_at) = CURDATE()");
 $stmt->execute();
 $approvedToday = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
@@ -632,7 +696,6 @@ ob_start();
             color: #1a2c3e;
         }
         
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -712,7 +775,6 @@ ob_start();
             transition: width 0.5s ease;
         }
         
-        /* Admin Section */
         .admin-section {
             background: #f8fafc;
             border-radius: 20px;
@@ -758,7 +820,6 @@ ob_start();
             transform: translateY(-1px);
         }
         
-        /* Search Container */
         .search-container {
             position: relative;
             max-width: 400px;
@@ -812,7 +873,6 @@ ob_start();
             color: #c2410c;
         }
         
-        /* Filter Buttons */
         .filter-btn {
             padding: 8px 18px;
             border: 1.5px solid #e2e8f0;
@@ -835,7 +895,6 @@ ob_start();
             border-color: #1e3a32;
         }
         
-        /* Buttons */
         .btn-add, .btn-export {
             padding: 10px 22px;
             border-radius: 10px;
@@ -871,7 +930,6 @@ ob_start();
             transform: translateY(-1px);
         }
         
-        /* Data Table */
         .data-table {
             overflow-x: auto;
             background: white;
@@ -903,7 +961,6 @@ ob_start();
             font-size: 14px;
         }
         
-        /* Badges */
         .status-badge {
             padding: 5px 14px;
             border-radius: 30px;
@@ -915,6 +972,7 @@ ob_start();
         }
         
         .status-pending { background: #fef3c7; color: #92400e; }
+        .status-forwarded { background: #e0e7ff; color: #3730a3; }
         .status-approved { background: #d1fae5; color: #065f46; }
         .status-rejected { background: #fee2e2; color: #991b1b; }
         .status-cancelled { background: #f3f4f6; color: #4b5563; }
@@ -931,7 +989,6 @@ ob_start();
         .balance-low { background: #fef3c7; color: #92400e; }
         .balance-critical { background: #fee2e2; color: #991b1b; }
         
-        /* Action Buttons */
         .action-buttons {
             display: flex;
             gap: 6px;
@@ -966,10 +1023,11 @@ ob_start();
         .btn-approve:hover { background: #a7f3d0; }
         .btn-reject { background: #fee2e2; color: #991b1b; }
         .btn-reject:hover { background: #fecaca; }
+        .btn-forward { background: #fef3c7; color: #92400e; }
+        .btn-forward:hover { background: #fde68a; }
         .btn-cancel-action { background: #f3f4f6; color: #4b5563; }
         .btn-cancel-action:hover { background: #e5e7eb; }
         
-        /* Pagination */
         .pagination-container {
             margin-top: 24px;
             padding-top: 20px;
@@ -1039,7 +1097,6 @@ ob_start();
             outline: none;
         }
         
-        /* Modal */
         .modal {
             display: none;
             position: fixed;
@@ -1095,7 +1152,7 @@ ob_start();
             gap: 10px;
         }
         
-        .close, .close-action, .close-details, .close-edit, .close-global {
+        .close, .close-action, .close-details, .close-edit, .close-global, .close-forward {
             font-size: 28px;
             font-weight: bold;
             cursor: pointer;
@@ -1103,7 +1160,7 @@ ob_start();
             transition: 0.2s;
         }
         
-        .close:hover, .close-action:hover, .close-details:hover, .close-edit:hover, .close-global:hover {
+        .close:hover, .close-action:hover, .close-details:hover, .close-edit:hover, .close-global:hover, .close-forward:hover {
             color: #c2410c;
         }
         
@@ -1113,7 +1170,6 @@ ob_start();
             overflow-y: auto;
         }
         
-        /* Form Elements */
         .input-field {
             margin-bottom: 20px;
             display: flex;
@@ -1186,7 +1242,6 @@ ob_start();
             background: #14362c;
         }
         
-        /* Toast Notification */
         .toast {
             position: fixed;
             bottom: 30px;
@@ -1207,7 +1262,6 @@ ob_start();
             to { transform: translateX(0); opacity: 1; }
         }
         
-        /* Responsive */
         @media (max-width: 768px) {
             .stats-grid, .stats-grid-second {
                 grid-template-columns: 1fr;
@@ -1232,7 +1286,6 @@ ob_start();
             }
         }
         
-        /* Loading Spinner */
         .loading-spinner {
             display: inline-block;
             width: 20px;
@@ -1247,7 +1300,6 @@ ob_start();
             to { transform: rotate(360deg); }
         }
         
-        /* Info Box */
         .info-box {
             background: #e0e7ff;
             padding: 12px 16px;
@@ -1263,7 +1315,6 @@ ob_start();
 </head>
 <body>
 
-<!-- Statistics Cards -->
 <div class="stats-grid">
     <div class="stat-card category-card">
         <div class="stat-icon"><i class="fas fa-home"></i></div>
@@ -1303,6 +1354,13 @@ ob_start();
         </div>
     </div>
     <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-share"></i></div>
+        <div>
+            <div class="stat-value" id="forwardedCount"><?php echo $forwardedCount; ?></div>
+            <div class="stat-label">Forwarded to Superadmin</div>
+        </div>
+    </div>
+    <div class="stat-card">
         <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
         <div>
             <div class="stat-value" id="approvedToday"><?php echo $approvedToday; ?></div>
@@ -1316,17 +1374,9 @@ ob_start();
             <div class="stat-label">On Leave Today</div>
         </div>
     </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
-        <div>
-            <div class="stat-value" id="monthlyLeave">0</div>
-            <div class="stat-label">Leave Days (This Month)</div>
-        </div>
-    </div>
 </div>
 
 <?php if ($user_role_int >= 1): ?>
-<!-- Admin Section -->
 <div class="admin-section">
     <div class="admin-header">
         <h2><i class="fas fa-users"></i> Personnel Leave Management</h2>
@@ -1362,7 +1412,7 @@ ob_start();
                 </tr>
             </thead>
             <tbody id="personnelTableBody">
-                <tr><td colspan="8" style="text-align:center"><div class="loading-spinner"></div> Loading personnel...</td><ee
+                <tr><td colspan="8" style="text-align:center"><div class="loading-spinner"></div> Loading personnel...<\/td><ee
             </tbody>
         </table>
     </div>
@@ -1380,7 +1430,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Edit Personnel Modal -->
 <div id="editPersonnelModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -1423,7 +1472,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Global Settings Modal -->
 <div id="globalSettingsModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -1466,7 +1514,6 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<!-- Search and Filter Section -->
 <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
     <div class="search-container">
         <i class="fas fa-search search-icon"></i>
@@ -1485,16 +1532,15 @@ ob_start();
     </div>
 </div>
 
-<!-- Status Filter Buttons -->
 <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
     <button class="filter-btn active" data-filter="all">📋 All Requests</button>
     <button class="filter-btn" data-filter="pending">⏳ Pending</button>
+    <button class="filter-btn" data-filter="forwarded">📤 Forwarded</button>
     <button class="filter-btn" data-filter="approved">✅ Approved</button>
     <button class="filter-btn" data-filter="rejected">❌ Rejected</button>
     <button class="filter-btn" data-filter="cancelled">🚫 Cancelled</button>
 </div>
 
-<!-- Leave Requests Table -->
 <div class="data-table">
     <table id="leaveTable">
         <thead>
@@ -1509,16 +1555,15 @@ ob_start();
                 <th>Status</th>
                 <th>Balance Left</th>
                 <th>Submitted</th>
-                <th style="width: 150px;">Actions</th>
+                <th style="width: 200px;">Actions</th>
             </tr>
         </thead>
         <tbody id="leaveTableBody">
-            <tr><td colspan="11" style="text-align:center"><div class="loading-spinner"></div> Loading leave requests...</td><ee
+            <tr><td colspan="11" style="text-align:center"><div class="loading-spinner"></div> Loading leave requests...<\/td><ee
         </tbody>
     </table>
 </div>
 
-<!-- Pagination -->
 <div id="paginationContainer" class="pagination-container"></div>
 <div class="records-per-page">
     <label>Show:</label>
@@ -1532,7 +1577,6 @@ ob_start();
     <span>entries per page</span>
 </div>
 
-<!-- New Leave Request Modal -->
 <div id="leaveModal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
@@ -1548,7 +1592,7 @@ ob_start();
                     <select id="personnelId" required>
                         <option value="">Select Personnel</option>
                         <?php
-                        $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status GROUP BY id ORDER BY personnel_name");
+                        $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
                         while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                             $selected = ($user_role_int === 0 && $row['id'] == $current_personnel_id) ? 'selected' : '';
                             echo "<option value='{$row['id']}' $selected>" . htmlspecialchars($row['rank'] . ' ' . $row['personnel_name']) . "</option>";
@@ -1585,7 +1629,7 @@ ob_start();
                 </div>
                 
                 <div class="input-field">
-                    <label><i class="fas fa-chart-line"></i> Available Balance</label>
+                    <label><i class="fas fa-chart-line"></i> Available Days</label>
                     <input type="text" id="availableBalance" readonly style="background: #e8f5e9; font-weight: bold;">
                 </div>
                 
@@ -1603,7 +1647,36 @@ ob_start();
     </div>
 </div>
 
-<!-- Action Modal (Approve/Reject) -->
+<div id="forwardModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-share"></i> Forward to Superadmin</h3>
+            <span class="close-forward">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="forwardForm">
+                <input type="hidden" id="forwardLeaveId">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
+                
+                <div class="info-box" style="background:#fef3c7; margin-bottom:20px;">
+                    <i class="fas fa-info-circle"></i> Forward this leave request to superadmin for final approval.
+                </div>
+                
+                <div class="input-field">
+                    <label>Forward Remarks <span class="required-star">*</span></label>
+                    <textarea id="forwardRemarks" rows="3" placeholder="Please provide reason for forwarding this request..." required></textarea>
+                    <small>Explain why this request needs superadmin approval</small>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" id="cancelForwardBtn">Cancel</button>
+                    <button type="submit" class="btn-submit">Forward Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div id="actionModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -1629,7 +1702,6 @@ ob_start();
     </div>
 </div>
 
-<!-- View Details Modal -->
 <div id="detailsModal" class="modal">
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
@@ -1640,7 +1712,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Toast Notification -->
 <div id="toast" class="toast">
     <span id="toastMessage"></span>
 </div>
@@ -1778,9 +1849,9 @@ ob_start();
                 <td>${serialNumber}</td>
                 <td><strong>${escapeHtml(p.personnel_name)}</strong></td>
                 <td>${escapeHtml(p.rank)}</span></td>
-                <td><span class="balance-badge balance-good" style="background:linear-gradient(135deg,#667eea,#764ba2); color:white; padding:6px 14px;">${p.gharpari_bida_days} days</span></td>
-                <td><span class="balance-badge balance-good" style="background:linear-gradient(135deg,#f093fb,#f5576c); color:white; padding:6px 14px;">${p.parba_bida_days} days</span></td>
-                <td><span class="balance-badge balance-good" style="background:linear-gradient(135deg,#4facfe,#00f2fe); color:white; padding:6px 14px;">${p.bhaeepari_bida_days} days</span></td>
+                <td><span class="balance-badge" style="background:linear-gradient(135deg,#667eea,#764ba2); color:white; padding:6px 14px; border-radius:20px;">${p.gharpari_bida_days} days</span></td>
+                <td><span class="balance-badge" style="background:linear-gradient(135deg,#f093fb,#f5576c); color:white; padding:6px 14px; border-radius:20px;">${p.parba_bida_days} days</span></td>
+                <td><span class="balance-badge" style="background:linear-gradient(135deg,#4facfe,#00f2fe); color:white; padding:6px 14px; border-radius:20px;">${p.bhaeepari_bida_days} days</span></td>
                 <td>${new Date(p.last_updated).toLocaleString()}</td>
                 <td><button class="action-btn-small edit-btn" onclick="openEditPersonnel(${p.personnel_id}, '${escapeHtml(p.personnel_name)}', ${p.gharpari_bida_days}, ${p.parba_bida_days}, ${p.bhaeepari_bida_days})"><i class="fas fa-edit"></i> Edit</button></td>
             `;
@@ -1825,7 +1896,7 @@ ob_start();
         if (!tbody) return;
         
         if (!leaveData || leaveData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center">No leave requests found</td><ee';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center">No leave requests found</span></td><ee';
             return;
         }
         
@@ -1839,6 +1910,7 @@ ob_start();
             
             let statusClass = '', statusIcon = '';
             if (leave.status === 'pending') { statusClass = 'status-pending'; statusIcon = '<i class="fas fa-clock"></i>'; }
+            else if (leave.status === 'forwarded') { statusClass = 'status-forwarded'; statusIcon = '<i class="fas fa-share"></i>'; }
             else if (leave.status === 'approved') { statusClass = 'status-approved'; statusIcon = '<i class="fas fa-check-circle"></i>'; }
             else if (leave.status === 'rejected') { statusClass = 'status-rejected'; statusIcon = '<i class="fas fa-times-circle"></i>'; }
             else { statusClass = 'status-cancelled'; statusIcon = '<i class="fas fa-ban"></i>'; }
@@ -1848,13 +1920,19 @@ ob_start();
             let actionBtns = `<div class="action-buttons">
                 <button class="action-btn-small btn-view" onclick="viewDetails(${leave.id})"><i class="fas fa-eye"></i> View</button>`;
             
-            if (currentUserRole >= 1 && leave.status === 'pending') {
+            if (currentUserRole === 1 && leave.status === 'pending') {
+                actionBtns += `<button class="action-btn-small btn-approve" onclick="processLeave(${leave.id}, 'approve')"><i class="fas fa-check"></i> Approve</button>
+                              <button class="action-btn-small btn-reject" onclick="processLeave(${leave.id}, 'reject')"><i class="fas fa-times"></i> Reject</button>
+                              <button class="action-btn-small btn-forward" onclick="forwardLeave(${leave.id})"><i class="fas fa-share"></i> Forward</button>`;
+            }
+            
+            if (currentUserRole === 2 && leave.status === 'forwarded') {
                 actionBtns += `<button class="action-btn-small btn-approve" onclick="processLeave(${leave.id}, 'approve')"><i class="fas fa-check"></i> Approve</button>
                               <button class="action-btn-small btn-reject" onclick="processLeave(${leave.id}, 'reject')"><i class="fas fa-times"></i> Reject</button>`;
             }
             
             if ((currentUserRole === 0 && leave.personnel_id == currentPersonnelId && leave.status === 'pending') || 
-                (currentUserRole >= 1 && leave.status === 'pending')) {
+                (currentUserRole === 1 && leave.status === 'pending')) {
                 actionBtns += `<button class="action-btn-small btn-cancel-action" onclick="cancelLeave(${leave.id})"><i class="fas fa-ban"></i> Cancel</button>`;
             }
             
@@ -1862,12 +1940,12 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${idx + 1}</td>
+                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></td>
                 <td><strong>${escapeHtml(leave.personnel_name)}</strong></td>
                 <td>${escapeHtml(leave.rank)}</span></td>
                 <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</td>
-                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}
-                                <td><strong>${leave.leave_days}</strong> days</td>
+                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
+                <td><strong>${leave.leave_days}</strong> days</span></td>
                 <td>${escapeHtml(leave.reason.substring(0, 50))}${leave.reason.length > 50 ? '...' : ''}</td>
                 <td><span class="status-badge ${statusClass}">${statusIcon} ${leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}</span></td>
                 <td><span class="balance-badge ${balanceClass}">${balance} days left</span></td>
@@ -1976,9 +2054,12 @@ ob_start();
             
             if (result.success && result.data) {
                 document.getElementById('pendingCount').textContent = result.data.pending || 0;
+                document.getElementById('forwardedCount').textContent = result.data.forwarded || 0;
                 document.getElementById('approvedToday').textContent = result.data.approved_today || 0;
                 document.getElementById('onLeaveToday').textContent = result.data.on_leave_today || 0;
-                document.getElementById('monthlyLeave').textContent = result.data.total_leave_days || 0;
+                if (document.getElementById('monthlyLeave')) {
+                    document.getElementById('monthlyLeave').textContent = result.data.total_leave_days || 0;
+                }
             }
         } catch (e) { console.error(e); }
     }
@@ -2107,6 +2188,14 @@ ob_start();
                     <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Submitted On</div>
                     <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${new Date(leave.created_at).toLocaleString()}</div>
                 </div>
+                ${leave.forwarded_at ? `<div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
+                    <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Forwarded On</div>
+                    <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${new Date(leave.forwarded_at).toLocaleString()}</div>
+                </div>` : ''}
+                ${leave.forward_remarks ? `<div style="padding: 12px; background: #f8fafc; border-radius: 10px; grid-column: span 2;">
+                    <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Forward Remarks</div>
+                    <div style="font-size: 14px; color: #1a2c3e; margin-top: 5px;">${escapeHtml(leave.forward_remarks)}</div>
+                </div>` : ''}
                 ${leave.approved_at ? `<div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
                     <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Processed On</div>
                     <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${new Date(leave.approved_at).toLocaleString()}</div>
@@ -2132,6 +2221,12 @@ ob_start();
         document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Approver Remarks' : 'Rejection Reason <span class="required-star">*</span>';
         document.getElementById('actionRemarks').value = '';
         document.getElementById('actionModal').style.display = 'block';
+    }
+    
+    function forwardLeave(id) {
+        document.getElementById('forwardLeaveId').value = id;
+        document.getElementById('forwardRemarks').value = '';
+        document.getElementById('forwardModal').style.display = 'block';
     }
     
     async function cancelLeave(id) {
@@ -2194,7 +2289,6 @@ ob_start();
         }
     }
     
-    // Event Listeners
     document.getElementById('recordsPerPage')?.addEventListener('change', function() {
         currentPerPage = parseInt(this.value);
         currentPage = 1;
@@ -2238,23 +2332,24 @@ ob_start();
     
     document.getElementById('applyGlobalBtn')?.addEventListener('click', applyGlobalToAll);
     
-    // Modal close handlers
-    document.querySelectorAll('.close, .close-action, .close-details, .close-edit, .close-global').forEach(btn => {
+    document.querySelectorAll('.close, .close-action, .close-details, .close-edit, .close-global, .close-forward').forEach(btn => {
         btn.onclick = () => {
             document.getElementById('leaveModal').style.display = 'none';
             document.getElementById('actionModal').style.display = 'none';
             document.getElementById('detailsModal').style.display = 'none';
             document.getElementById('editPersonnelModal').style.display = 'none';
             document.getElementById('globalSettingsModal').style.display = 'none';
+            document.getElementById('forwardModal').style.display = 'none';
         };
     });
     
-    document.querySelectorAll('#cancelBtn, #cancelActionBtn, #cancelEditBtn, #cancelGlobalBtn').forEach(btn => {
+    document.querySelectorAll('#cancelBtn, #cancelActionBtn, #cancelEditBtn, #cancelGlobalBtn, #cancelForwardBtn').forEach(btn => {
         btn.onclick = () => {
             document.getElementById('leaveModal').style.display = 'none';
             document.getElementById('actionModal').style.display = 'none';
             document.getElementById('editPersonnelModal').style.display = 'none';
             document.getElementById('globalSettingsModal').style.display = 'none';
+            document.getElementById('forwardModal').style.display = 'none';
         };
     });
     
@@ -2264,7 +2359,6 @@ ob_start();
         }
     };
     
-    // Date inputs
     const startDateInput = document.getElementById('startDate');
     const endDateInput = document.getElementById('endDate');
     const personnelSelect = document.getElementById('personnelId');
@@ -2294,7 +2388,6 @@ ob_start();
         });
     }
     
-    // Form submissions
     document.getElementById('leaveForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -2404,6 +2497,41 @@ ob_start();
         } catch (e) { showToast('Error updating settings', 'error'); }
     });
     
+    document.getElementById('forwardForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const id = document.getElementById('forwardLeaveId').value;
+        const remarks = document.getElementById('forwardRemarks').value;
+        
+        if (!remarks) {
+            showToast('Please provide forward remarks', 'error');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('action', 'forward_leave');
+        formData.append('id', id);
+        formData.append('forward_remarks', remarks);
+        formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
+        
+        try {
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast('✅ Leave request forwarded to superadmin successfully', 'success');
+                document.getElementById('forwardModal').style.display = 'none';
+                loadDataFromDatabase(1);
+            } else {
+                showToast(result.error || 'Failed to forward leave request', 'error');
+            }
+        } catch (e) { showToast('Error forwarding leave request', 'error'); }
+    });
+    
     document.getElementById('actionForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -2458,7 +2586,7 @@ ob_start();
             else if (leave.leave_type === 'bhaeepari_bida') balance = leave.bhaeepari_bida_days || 0;
             
             rows.push([
-                index + 1,
+                index + 1 + ((currentPage - 1) * currentPerPage),
                 leave.personnel_name,
                 leave.rank,
                 leave.leave_type,
@@ -2500,12 +2628,10 @@ ob_start();
     
     document.getElementById('clearSearch')?.addEventListener('click', clearSearch);
     
-    // Initialize
     document.addEventListener('DOMContentLoaded', () => {
         loadDataFromDatabase(1);
         if (currentUserRole >= 1) loadPersonnelBalances(1);
         
-        // Auto-refresh every 60 seconds
         setInterval(() => {
             loadDataFromDatabase(currentPage);
             loadMyBalance();
@@ -2521,5 +2647,3 @@ ob_start();
 $content = ob_get_clean();
 include('includes/layout.php');
 ?>
-
-
