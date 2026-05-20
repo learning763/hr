@@ -1,9 +1,9 @@
 <?php
 session_start();
 
-// Enable error reporting for debugging (remove in production)
+// Enable error reporting for debugging
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
+ini_set('display_errors', 1); // Changed to 1 for debugging
 ini_set('log_errors', 1);
 
 include('includes/config.php');
@@ -319,10 +319,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $offset = ($page - 1) * $per_page;
             
             $sql = "SELECT lr.*, mps.personnel_name, mps.rank,
-                           lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days
+                           lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
+                           io.personnel_name as initiating_officer_name,
+                           ao.personnel_name as accepting_officer_name
                     FROM leave_requests lr
                     INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
+                    LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
+                    LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
                     WHERE 1=1";
             
             $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr WHERE 1=1";
@@ -387,9 +391,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $start_date = $_POST['start_date'] ?? '';
             $end_date = $_POST['end_date'] ?? '';
             $reason = trim($_POST['reason'] ?? '');
+            $initiating_officer = intval($_POST['initiating_officer'] ?? 0);
+            $accepting_officer = intval($_POST['accepting_officer'] ?? 0);
             
             if ($personnel_id <= 0 || empty($leave_type) || empty($start_date) || empty($end_date) || empty($reason)) {
                 echo json_encode(['success' => false, 'error' => 'All required fields must be filled']);
+                exit;
+            }
+            
+            if ($initiating_officer <= 0 || $accepting_officer <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Please select both initiating and accepting officers']);
                 exit;
             }
             
@@ -434,11 +445,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             
             $stmt = $pdo->prepare("
                 INSERT INTO leave_requests 
-                (personnel_id, leave_type, start_date, end_date, leave_days, reason, status, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+                (personnel_id, leave_type, start_date, end_date, leave_days, reason, status, created_by, initiating_officer, accepting_officer) 
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
             ");
             
-            $result = $stmt->execute([$personnel_id, $leave_type, $start_date, $end_date, $leave_days, $reason, $_SESSION['user_personnel_id'] ?? $personnel_id]);
+            $result = $stmt->execute([
+                $personnel_id, 
+                $leave_type, 
+                $start_date, 
+                $end_date, 
+                $leave_days, 
+                $reason, 
+                $_SESSION['user_personnel_id'] ?? $personnel_id,
+                $initiating_officer,
+                $accepting_officer
+            ]);
             
             if ($result) {
                 echo json_encode(['success' => true]);
@@ -672,6 +693,17 @@ $approvedToday = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 $stmt = $pdo->prepare("SELECT COUNT(DISTINCT personnel_id) as count FROM leave_requests WHERE status = 'approved' AND CURDATE() BETWEEN start_date AND end_date");
 $stmt->execute();
 $onLeaveToday = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+// Get officers for dropdown
+$officers = [];
+try {
+    $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status WHERE rank IN ('Officer', 'Major', 'Captain', 'Colonel', 'Lieutenant') OR is_officer = 1 ORDER BY personnel_name");
+    $officers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // If the query fails, try without the is_officer column
+    $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status WHERE rank IN ('Officer', 'Major', 'Captain', 'Colonel', 'Lieutenant') ORDER BY personnel_name");
+    $officers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 ob_start();
 ?>
@@ -942,7 +974,7 @@ ob_start();
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 900px;
+            min-width: 1200px;
         }
         
         th {
@@ -988,6 +1020,17 @@ ob_start();
         .balance-good { background: #d1fae5; color: #065f46; }
         .balance-low { background: #fef3c7; color: #92400e; }
         .balance-critical { background: #fee2e2; color: #991b1b; }
+        
+        .officer-badge {
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+            white-space: nowrap;
+        }
         
         .action-buttons {
             display: flex;
@@ -1118,7 +1161,7 @@ ob_start();
             background-color: #fff;
             margin: 5% auto;
             width: 90%;
-            max-width: 550px;
+            max-width: 700px;
             border-radius: 24px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             animation: slideDown 0.3s;
@@ -1311,6 +1354,11 @@ ob_start();
             color: #1e40af;
             font-size: 13px;
         }
+        
+        .officer-section {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+        }
     </style>
 </head>
 <body>
@@ -1319,27 +1367,27 @@ ob_start();
     <div class="stat-card category-card">
         <div class="stat-icon"><i class="fas fa-home"></i></div>
         <div>
-            <div class="stat-value" id="gharpariBalance"><?php echo $myBalance['gharpari_bida_days']; ?></div>
+            <div class="stat-value" id="gharpariBalance"><?php echo isset($myBalance['gharpari_bida_days']) ? $myBalance['gharpari_bida_days'] : 15; ?></div>
             <div class="stat-label">🏠 Gharpari Bida (Family Leave)</div>
-            <div class="stat-progress"><div class="progress-bar" id="gharpariProgress" style="width: <?php echo min(100, ($myBalance['gharpari_bida_days'] / 15) * 100); ?>%;"></div></div>
+            <div class="stat-progress"><div class="progress-bar" id="gharpariProgress" style="width: <?php echo min(100, ((isset($myBalance['gharpari_bida_days']) ? $myBalance['gharpari_bida_days'] : 15) / 15) * 100); ?>%;"></div></div>
             <small style="opacity:0.8;">Days remaining this year</small>
         </div>
     </div>
     <div class="stat-card category-card">
         <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
         <div>
-            <div class="stat-value" id="parbaBalance"><?php echo $myBalance['parba_bida_days']; ?></div>
+            <div class="stat-value" id="parbaBalance"><?php echo isset($myBalance['parba_bida_days']) ? $myBalance['parba_bida_days'] : 12; ?></div>
             <div class="stat-label">🎉 Parba Bida (Festival Leave)</div>
-            <div class="stat-progress"><div class="progress-bar" id="parbaProgress" style="width: <?php echo min(100, ($myBalance['parba_bida_days'] / 12) * 100); ?>%;"></div></div>
+            <div class="stat-progress"><div class="progress-bar" id="parbaProgress" style="width: <?php echo min(100, ((isset($myBalance['parba_bida_days']) ? $myBalance['parba_bida_days'] : 12) / 12) * 100); ?>%;"></div></div>
             <small style="opacity:0.8;">Days remaining this year</small>
         </div>
     </div>
     <div class="stat-card category-card">
         <div class="stat-icon"><i class="fas fa-hand-holding-heart"></i></div>
         <div>
-            <div class="stat-value" id="bhaeepariBalance"><?php echo $myBalance['bhaeepari_bida_days']; ?></div>
+            <div class="stat-value" id="bhaeepariBalance"><?php echo isset($myBalance['bhaeepari_bida_days']) ? $myBalance['bhaeepari_bida_days'] : 10; ?></div>
             <div class="stat-label">🤝 Bhaeepari Bida (Emergency Leave)</div>
-            <div class="stat-progress"><div class="progress-bar" id="bhaeepariProgress" style="width: <?php echo min(100, ($myBalance['bhaeepari_bida_days'] / 10) * 100); ?>%;"></div></div>
+            <div class="stat-progress"><div class="progress-bar" id="bhaeepariProgress" style="width: <?php echo min(100, ((isset($myBalance['bhaeepari_bida_days']) ? $myBalance['bhaeepari_bida_days'] : 10) / 10) * 100); ?>%;"></div></div>
             <small style="opacity:0.8;">Days remaining this year</small>
         </div>
     </div>
@@ -1545,7 +1593,7 @@ ob_start();
     <table id="leaveTable">
         <thead>
             <tr>
-                <th style="width: 50px;">S.N.</th>
+                <th style="width: 40px;">S.N.</th>
                 <th>Personnel</th>
                 <th>Rank</th>
                 <th>Leave Type</th>
@@ -1553,13 +1601,15 @@ ob_start();
                 <th>Days</th>
                 <th>Reason</th>
                 <th>Status</th>
-                <th>Balance Left</th>
+                <th>Balance</th>
+                <th>Initiating Officer</th>
+                <th>Accepting Officer</th>
                 <th>Submitted</th>
                 <th style="width: 200px;">Actions</th>
             </tr>
         </thead>
         <tbody id="leaveTableBody">
-            <tr><td colspan="11" style="text-align:center"><div class="loading-spinner"></div> Loading leave requests...<\/td><ee
+            <tr><td colspan="13" style="text-align:center"><div class="loading-spinner"></div> Loading leave requests...<\/td><ee
         </tbody>
     </table>
 </div>
@@ -1578,7 +1628,7 @@ ob_start();
 </div>
 
 <div id="leaveModal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-content" style="max-width: 700px;">
         <div class="modal-header">
             <h3><i class="fas fa-calendar-plus"></i> New Leave Request</h3>
             <span class="close">&times;</span>
@@ -1609,6 +1659,35 @@ ob_start();
                         <option value="parba_bida">🎉 Parba Bida (Festival Leave)</option>
                         <option value="bhaeepari_bida">🤝 Bhaeepari Bida (Emergency Leave)</option>
                     </select>
+                </div>
+                
+                <div class="info-box officer-section">
+                    <i class="fas fa-user-tie"></i>
+                    <span><strong>Officer Authorization Required</strong> - Please select both initiating and accepting officers</span>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="input-field">
+                        <label><i class="fas fa-user-shield"></i> Initiating Officer <span class="required-star">*</span></label>
+                        <select id="initiatingOfficer" required>
+                            <option value="">Select Initiating Officer</option>
+                            <?php foreach ($officers as $officer): ?>
+                                <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small>Officer who will forward this request</small>
+                    </div>
+                    
+                    <div class="input-field">
+                        <label><i class="fas fa-user-check"></i> Accepting Officer <span class="required-star">*</span></label>
+                        <select id="acceptingOfficer" required>
+                            <option value="">Select Accepting Officer</option>
+                            <?php foreach ($officers as $officer): ?>
+                                <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small>Officer who will approve this request</small>
+                    </div>
                 </div>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -1703,7 +1782,7 @@ ob_start();
 </div>
 
 <div id="detailsModal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-content" style="max-width: 700px;">
         <div class="modal-header">
             <h3><i class="fas fa-info-circle"></i> Leave Request Details</h3>
             <span class="close-details">&times;</span>
@@ -1836,7 +1915,7 @@ ob_start();
         if (!tbody) return;
         
         if (!personnel || personnel.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No personnel found. Try a different search term. </td><ee';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center">No personnel found. Try a different search term.</td></tr>';
             return;
         }
         
@@ -1896,7 +1975,7 @@ ob_start();
         if (!tbody) return;
         
         if (!leaveData || leaveData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center">No leave requests found</span></td><ee';
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center">No leave requests found</td></tr>';
             return;
         }
         
@@ -1940,15 +2019,17 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></td>
+                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</td>
                 <td><strong>${escapeHtml(leave.personnel_name)}</strong></td>
-                <td>${escapeHtml(leave.rank)}</span></td>
+                <td>${escapeHtml(leave.rank)}</td>
                 <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</td>
                 <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
-                <td><strong>${leave.leave_days}</strong> days</span></td>
-                <td>${escapeHtml(leave.reason.substring(0, 50))}${leave.reason.length > 50 ? '...' : ''}</td>
+                <td><strong>${leave.leave_days}</strong> days</td>
+                <td>${escapeHtml(leave.reason.substring(0, 40))}${leave.reason.length > 40 ? '...' : ''}</td>
                 <td><span class="status-badge ${statusClass}">${statusIcon} ${leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}</span></td>
-                <td><span class="balance-badge ${balanceClass}">${balance} days left</span></td>
+                <td><span class="balance-badge ${balanceClass}">${balance} days</span></td>
+                <td>${leave.initiating_officer_name ? '<span class="officer-badge"><i class="fas fa-user-shield"></i> ' + escapeHtml(leave.initiating_officer_name) + '</span>' : '-'}</td>
+                <td>${leave.accepting_officer_name ? '<span class="officer-badge"><i class="fas fa-user-check"></i> ' + escapeHtml(leave.accepting_officer_name) + '</span>' : '-'}</td>
                 <td>${new Date(leave.created_at).toLocaleDateString()}</td>
                 <td>${actionBtns}</td>
             `;
@@ -2057,9 +2138,6 @@ ob_start();
                 document.getElementById('forwardedCount').textContent = result.data.forwarded || 0;
                 document.getElementById('approvedToday').textContent = result.data.approved_today || 0;
                 document.getElementById('onLeaveToday').textContent = result.data.on_leave_today || 0;
-                if (document.getElementById('monthlyLeave')) {
-                    document.getElementById('monthlyLeave').textContent = result.data.total_leave_days || 0;
-                }
             }
         } catch (e) { console.error(e); }
     }
@@ -2181,6 +2259,14 @@ ob_start();
                     <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</div>
                 </div>
                 <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
+                    <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Initiating Officer</div>
+                    <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${escapeHtml(leave.initiating_officer_name) || '-'}</div>
+                </div>
+                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
+                    <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Accepting Officer</div>
+                    <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${escapeHtml(leave.accepting_officer_name) || '-'}</div>
+                </div>
+                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
                     <div style="font-size: 11px; color: #6c7a8e; text-transform: uppercase;">Status</div>
                     <div style="font-size: 15px; font-weight: 600; color: #1a2c3e;">${leave.status.toUpperCase()}</div>
                 </div>
@@ -2289,6 +2375,7 @@ ob_start();
         }
     }
     
+    // Event Listeners
     document.getElementById('recordsPerPage')?.addEventListener('change', function() {
         currentPerPage = parseInt(this.value);
         currentPage = 1;
@@ -2396,9 +2483,16 @@ ob_start();
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
         const reason = document.getElementById('reason').value;
+        const initiatingOfficer = document.getElementById('initiatingOfficer').value;
+        const acceptingOfficer = document.getElementById('acceptingOfficer').value;
         
         if (!personnelId || !leaveType || !startDate || !endDate || !reason) {
             showToast('Please fill all required fields', 'error');
+            return;
+        }
+        
+        if (!initiatingOfficer || !acceptingOfficer) {
+            showToast('Please select both initiating and accepting officers', 'error');
             return;
         }
         
@@ -2419,6 +2513,8 @@ ob_start();
         formData.append('start_date', startDate);
         formData.append('end_date', endDate);
         formData.append('reason', reason);
+        formData.append('initiating_officer', initiatingOfficer);
+        formData.append('accepting_officer', acceptingOfficer);
         formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
         
         try {
@@ -2577,7 +2673,7 @@ ob_start();
             return;
         }
         
-        const rows = [['S.N.', 'Personnel Name', 'Rank', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Reason', 'Status', 'Submitted Date', 'Balance Left']];
+        const rows = [['S.N.', 'Personnel Name', 'Rank', 'Leave Type', 'Start Date', 'End Date', 'Days', 'Reason', 'Status', 'Initiating Officer', 'Accepting Officer', 'Submitted Date', 'Balance Left']];
         
         leaveData.forEach((leave, index) => {
             let balance = 0;
@@ -2595,6 +2691,8 @@ ob_start();
                 leave.leave_days,
                 leave.reason,
                 leave.status,
+                leave.initiating_officer_name || '',
+                leave.accepting_officer_name || '',
                 leave.created_at,
                 balance
             ]);

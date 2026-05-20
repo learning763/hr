@@ -3,11 +3,7 @@
 session_start();
 require_once 'includes/config.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
-    header('Location: login.php');
-    exit;
-}
+
 
 // Get current user's role from session
 $current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
