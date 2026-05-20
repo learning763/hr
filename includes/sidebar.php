@@ -16,6 +16,11 @@
             </a>
         </li>
         <li>
+            <a href="events.php" class="sidebar-link" data-page="events">
+                <i class="fas fa-calendar-alt"></i><span>Events</span>
+            </a>
+        </li>
+        <li>
             <a href="leave.php" class="sidebar-link" data-page="leave">
                 <i class="fas fa-umbrella-beach"></i><span>Leave Requests</span>
             </a>
