@@ -1160,6 +1160,16 @@ ob_start();
             background: #c7d2fe;
         }
 
+        .btn-pass {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        .btn-pass:hover {
+            background: #7c3aed;
+            transform: translateY(-1px);
+        }
+
         /* Pagination */
         .pagination-container {
             display: flex;
@@ -1554,8 +1564,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Modals (same structure as original but with improved styling) -->
-
 <!-- New Leave Request Modal -->
 <div id="leaveModal" class="modal">
     <div class="modal-content">
@@ -1713,6 +1721,11 @@ ob_start();
         }
     });
     
+    // Generate Leave Pass function
+    function generateLeavePass(leaveId) {
+        window.open(`generate_leave_pass.php?id=${leaveId}`, '_blank');
+    }
+    
     // Load initiating officer pending requests
     async function loadInitiatingPending() {
         try {
@@ -1859,7 +1872,7 @@ ob_start();
         if (!tbody) return;
         
         if (!leaveData || leaveData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 2rem;">No leave requests found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 2rem;">No leave requests found<\/td><\/tr>';
             return;
         }
         
@@ -1881,6 +1894,11 @@ ob_start();
             let actionBtns = `<div class="action-buttons">
                 <button class="action-btn btn-view" onclick="viewDetails(${leave.id})"><i class="fas fa-eye"></i> View</button>`;
             
+            // Add Generate Pass button for approved leaves
+            if (leave.status === 'approved') {
+                actionBtns += `<button class="action-btn btn-pass" onclick="generateLeavePass(${leave.id})"><i class="fas fa-passport"></i> Generate Pass</button>`;
+            }
+            
             if (leave.initiating_officer == currentPersonnelId && leave.initiating_officer_approved == 0 && leave.status === 'pending') {
                 actionBtns += `<button class="action-btn btn-approve" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')"><i class="fas fa-check"></i> Approve</button>
                               <button class="action-btn btn-reject" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')"><i class="fas fa-times"></i> Reject</button>`;
@@ -1895,19 +1913,19 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</td>
-                <td><strong>${escapeHtml(leave.personnel_name)}</strong></td>
-                <td>${escapeHtml(leave.rank)}</td>
-                <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</td>
-                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
-                <td><strong>${leave.leave_days}</strong> days</td>
-                <td>${escapeHtml(leave.reason.substring(0, 40))}${leave.reason.length > 40 ? '...' : ''}</td>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                <td>${balance} days</td>
-                <td>${leave.initiating_officer_name ? `<span class="badge-officer"><i class="fas fa-user-shield"></i> ${escapeHtml(leave.initiating_officer_name)}</span>` : '-'}</td>
-                <td>${leave.accepting_officer_name ? `<span class="badge-officer"><i class="fas fa-user-check"></i> ${escapeHtml(leave.accepting_officer_name)}</span>` : '-'}</td>
-                <td>${new Date(leave.created_at).toLocaleDateString()}</td>
-                <td>${actionBtns}</td>
+                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></tr>
+                <td><strong>${escapeHtml(leave.personnel_name)}</strong></span></td>
+                <td>${escapeHtml(leave.rank)}</span></td>
+                <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</span></td>
+                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span></td>
+                <td><strong>${leave.leave_days}</strong> days</span></td>
+                <td>${escapeHtml(leave.reason.substring(0, 40))}${leave.reason.length > 40 ? '...' : ''}</span></td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></span></td>
+                <td>${balance} days</span></td>
+                <td>${leave.initiating_officer_name ? `<span class="badge-officer"><i class="fas fa-user-shield"></i> ${escapeHtml(leave.initiating_officer_name)}</span>` : '-'}</span></td>
+                <td>${leave.accepting_officer_name ? `<span class="badge-officer"><i class="fas fa-user-check"></i> ${escapeHtml(leave.accepting_officer_name)}</span>` : '-'}</span></td>
+                <td>${new Date(leave.created_at).toLocaleDateString()}</span></td>
+                <td>${actionBtns}</span></tr>
             `;
         });
     }
