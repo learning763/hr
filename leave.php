@@ -632,161 +632,798 @@ ob_start();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Leave Management System - Two Level Approval</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; color: #1a2c3e; }
-        
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: white; border-radius: 20px; padding: 24px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); transition: all 0.3s; cursor: pointer; }
-        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
-        .stat-card.initiating { background: linear-gradient(135deg, #92400e, #b45309); color: white; }
-        .stat-card.accepting { background: linear-gradient(135deg, #1e40af, #1e3a8a); color: white; }
-        .stat-card.approved { background: linear-gradient(135deg, #065f46, #047857); color: white; }
-        .stat-icon { width: 60px; height: 60px; background: rgba(255,255,255,0.2); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
-        .stat-value { font-size: 32px; font-weight: 800; line-height: 1.2; }
-        .stat-label { font-size: 13px; margin-top: 5px; opacity: 0.9; }
-        
-        .balance-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .balance-card { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); border-left: 4px solid; }
-        .balance-card:nth-child(1) { border-left-color: #667eea; }
-        .balance-card:nth-child(2) { border-left-color: #f093fb; }
-        .balance-card:nth-child(3) { border-left-color: #4facfe; }
-        .balance-card h4 { font-size: 14px; color: #6c7a8e; margin-bottom: 10px; }
-        .balance-card .days { font-size: 32px; font-weight: 700; color: #1a2c3e; }
-        .balance-card .progress-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin-top: 12px; overflow: hidden; }
-        .balance-card .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
-        .balance-card:nth-child(1) .progress-fill { background: #667eea; }
-        .balance-card:nth-child(2) .progress-fill { background: #f093fb; }
-        .balance-card:nth-child(3) .progress-fill { background: #4facfe; }
-        
-        .workflow-steps { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-        .workflow-step { text-align: center; flex: 1; min-width: 150px; }
-        .step-icon { width: 50px; height: 50px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; font-size: 20px; color: #6c7a8e; }
-        .workflow-step.active .step-icon { background: #1e3a32; color: white; }
-        .workflow-step.completed .step-icon { background: #065f46; color: white; }
-        .step-label { font-size: 12px; font-weight: 600; color: #6c7a8e; }
-        .workflow-step.active .step-label { color: #1e3a32; }
-        .workflow-step.completed .step-label { color: #065f46; }
-        .step-arrow { font-size: 24px; color: #cbd5e1; }
-        
-        .officer-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .officer-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-        .officer-card-header { padding: 15px 20px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
-        .officer-card-header.initiating { background: #fef3c7; color: #92400e; border-bottom: 2px solid #fde68a; }
-        .officer-card-header.accepting { background: #e0e7ff; color: #3730a3; border-bottom: 2px solid #c7d2fe; }
-        .officer-card-body { padding: 15px 20px; max-height: 400px; overflow-y: auto; }
-        .pending-item { padding: 12px; border-bottom: 1px solid #eef2f6; }
-        .pending-item:last-child { border-bottom: none; }
-        .pending-item-title { font-weight: 600; margin-bottom: 5px; }
-        .pending-item-details { font-size: 12px; color: #6c7a8e; display: flex; gap: 15px; flex-wrap: wrap; }
-        .btn-process { margin-top: 8px; padding: 5px 12px; background: #1e3a32; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 12px; margin-right: 8px; }
-        .btn-process:hover { background: #14362c; }
-        .btn-process-reject { background: #dc2626; }
-        .btn-process-reject:hover { background: #b91c1c; }
-        .empty-state { text-align: center; padding: 30px; color: #6c7a8e; }
-        
-        .filter-section { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-        .filter-btn { padding: 8px 20px; border: 1.5px solid #e2e8f0; background: white; border-radius: 30px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
-        .filter-btn:hover { background: #f1f5f9; border-color: #2c5f4e; }
-        .filter-btn.active { background: #1e3a32; color: white; border-color: #1e3a32; }
-        
-        .search-section { display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; }
-        .search-bar { position: relative; flex: 1; max-width: 350px; }
-        .search-bar input { width: 100%; padding: 12px 40px 12px 42px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 14px; outline: none; }
-        .search-bar input:focus { border-color: #2c5f4e; }
-        .search-bar i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9aa9bc; }
-        .clear-search { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #9aa9bc; }
-        
-        .btn-add { padding: 10px 22px; background: #1e3a32; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
-        .btn-add:hover { background: #14362c; }
-        
-        .data-table { overflow-x: auto; background: white; border-radius: 20px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; min-width: 1200px; }
-        th { text-align: left; padding: 14px 12px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; font-weight: 600; font-size: 13px; }
-        td { padding: 14px 12px; border-bottom: 1px solid #eef2f6; font-size: 13px; }
-        
-        .status-badge { padding: 5px 12px; border-radius: 30px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-        .status-pending { background: #fef3c7; color: #92400e; }
-        .status-initiated { background: #e0e7ff; color: #3730a3; }
-        .status-approved { background: #d1fae5; color: #065f46; }
-        .status-rejected { background: #fee2e2; color: #991b1b; }
-        
-        .badge-officer { background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-block; }
-        
-        .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
-        .action-btn { padding: 5px 12px; border: none; border-radius: 8px; cursor: pointer; font-size: 11px; display: inline-flex; align-items: center; gap: 5px; }
-        .btn-approve { background: #d1fae5; color: #065f46; }
-        .btn-approve:hover { background: #a7f3d0; }
-        .btn-reject { background: #fee2e2; color: #991b1b; }
-        .btn-reject:hover { background: #fecaca; }
-        .btn-view { background: #e0e7ff; color: #3730a3; }
-        .btn-view:hover { background: #c7d2fe; }
-        
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
-        .modal-content { background-color: #fff; margin: 5% auto; width: 90%; max-width: 600px; border-radius: 24px; animation: slideDown 0.3s; }
-        @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        
-        .modal-header { padding: 20px 24px; border-bottom: 1px solid #eef2f6; display: flex; justify-content: space-between; align-items: center; }
-        .modal-header h3 { font-size: 20px; display: flex; align-items: center; gap: 10px; }
-        .close { font-size: 28px; cursor: pointer; color: #9aa9bc; }
-        .modal-body { padding: 24px; max-height: 70vh; overflow-y: auto; }
-        
-        .input-field { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
-        .input-field label { font-size: 13px; font-weight: 600; color: #334155; }
-        .input-field input, .input-field select, .input-field textarea { padding: 12px 14px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 14px; outline: none; }
-        .input-field input:focus, .input-field select:focus, .input-field textarea:focus { border-color: #2c5f4e; }
-        .required-star { color: #c2410c; }
-        
-        .modal-buttons { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid #eef2f6; }
-        .btn-cancel { padding: 10px 24px; background: #f1f3f5; border: none; border-radius: 10px; cursor: pointer; }
-        .btn-submit { padding: 10px 28px; background: #1e3a32; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; }
-        
-        .pagination-container { margin-top: 20px; padding-top: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; border-top: 1px solid #eef2f6; }
-        .pagination { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-        .page-btn { padding: 8px 14px; background: white; border: 1px solid #dee2e6; border-radius: 10px; cursor: pointer; font-size: 13px; }
-        .page-btn.active { background: #1e3a32; color: white; border-color: #1e3a32; }
-        
-        .records-per-page { text-align: right; margin-top: 15px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; font-size: 13px; }
-        .records-per-page select { padding: 6px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 13px; cursor: pointer; }
-        
-        .toast { position: fixed; bottom: 30px; right: 30px; background: #1e3a32; color: white; padding: 14px 24px; border-radius: 12px; font-size: 14px; display: none; z-index: 1100; }
-        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #e2e8f0; border-top-color: #1e3a32; border-radius: 50%; animation: spin 0.6s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        
-        .info-box { background: #e0e7ff; padding: 12px 16px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 13px; }
-        .officer-section { background: #f0fdf4; border: 1px solid #bbf7d0; }
-        
-        .badge-new { background: #ef4444; color: white; border-radius: 10px; padding: 2px 8px; font-size: 11px; margin-left: 8px; }
-        
-        @media (max-width: 768px) { .stats-grid, .balance-cards, .officer-actions { grid-template-columns: 1fr; } .modal-content { margin: 15% auto; width: 95%; } .workflow-steps { flex-direction: column; } .step-arrow { transform: rotate(90deg); } }
+        :root {
+            --primary: #0f3b2c;
+            --primary-dark: #0a2a1f;
+            --primary-light: #1e5a45;
+            --secondary: #c49a6c;
+            --secondary-light: #dbb88c;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            --success: #10b981;
+            --success-dark: #059669;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --danger-dark: #dc2626;
+            --info: #3b82f6;
+            --border-radius: 1rem;
+            --border-radius-sm: 0.5rem;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f0f9f4 0%, #e8f0eb 100%);
+            color: var(--gray-800);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-card.initiating {
+            background: linear-gradient(135deg, #fef6e6 0%, #fff9ef 100%);
+            border-left: 4px solid var(--warning);
+        }
+
+        .stat-card.accepting {
+            background: linear-gradient(135deg, #eef2ff 0%, #f5f7ff 100%);
+            border-left: 4px solid var(--info);
+        }
+
+        .stat-card.approved {
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf9 100%);
+            border-left: 4px solid var(--success);
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            background: white;
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stat-card.initiating .stat-icon { color: var(--warning); }
+        .stat-card.accepting .stat-icon { color: var(--info); }
+        .stat-card.approved .stat-icon { color: var(--success); }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+        }
+
+        /* Officer Cards */
+        .officer-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .officer-card {
+            background: white;
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            transition: all 0.2s;
+        }
+
+        .officer-card-header {
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.9rem;
+        }
+
+        .officer-card-header.initiating {
+            background: #fef3c7;
+            color: #92400e;
+            border-bottom: 2px solid #fde68a;
+        }
+
+        .officer-card-header.accepting {
+            background: #e0e7ff;
+            color: #3730a3;
+            border-bottom: 2px solid #c7d2fe;
+        }
+
+        .badge-new {
+            background: #ef4444;
+            color: white;
+            border-radius: 20px;
+            padding: 0.15rem 0.6rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+
+        .officer-card-body {
+            padding: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .pending-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--gray-100);
+            transition: background 0.2s;
+        }
+
+        .pending-item:hover {
+            background: var(--gray-50);
+        }
+
+        .pending-item:last-child {
+            border-bottom: none;
+        }
+
+        .pending-item-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .pending-item-details {
+            font-size: 0.7rem;
+            color: var(--gray-500);
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-process {
+            padding: 0.3rem 0.8rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-process:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-process-reject {
+            background: var(--danger);
+        }
+
+        .btn-process-reject:hover {
+            background: var(--danger-dark);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--gray-400);
+            font-size: 0.8rem;
+        }
+
+        /* Balance Cards */
+        .balance-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .balance-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 1.25rem;
+            box-shadow: var(--shadow-md);
+            border-left: 4px solid;
+            transition: transform 0.2s;
+        }
+
+        .balance-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .balance-card:nth-child(1) { border-left-color: var(--primary); }
+        .balance-card:nth-child(2) { border-left-color: var(--secondary); }
+        .balance-card:nth-child(3) { border-left-color: var(--info); }
+
+        .balance-card h4 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--gray-500);
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.5px;
+        }
+
+        .balance-card .days {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--gray-200);
+            border-radius: 3px;
+            margin-top: 0.75rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .balance-card:nth-child(1) .progress-fill { background: var(--primary); }
+        .balance-card:nth-child(2) .progress-fill { background: var(--secondary); }
+        .balance-card:nth-child(3) .progress-fill { background: var(--info); }
+
+        /* Filter Section */
+        .filter-section {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1.2rem;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            color: var(--gray-600);
+        }
+
+        .filter-btn:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-300);
+        }
+
+        .filter-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Search Section */
+        .search-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-bar {
+            position: relative;
+            flex: 1;
+            max-width: 380px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 0.7rem 2.5rem 0.7rem 2.5rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 2rem;
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .search-bar input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(15, 59, 44, 0.1);
+        }
+
+        .search-bar i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-400);
+            font-size: 0.9rem;
+        }
+
+        .clear-search {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--gray-400);
+            font-size: 0.8rem;
+        }
+
+        .btn-add {
+            padding: 0.65rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-add:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        /* Data Table */
+        .data-table {
+            background: white;
+            border-radius: var(--border-radius);
+            overflow-x: auto;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1000px;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem 1rem;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--gray-500);
+        }
+
+        td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 0.8rem;
+        }
+
+        tr:hover {
+            background: var(--gray-50);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            padding: 0.25rem 0.7rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            white-space: nowrap;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-initiated {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .status-approved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-rejected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-officer {
+            background: #f1f5f9;
+            color: var(--gray-700);
+            padding: 0.2rem 0.6rem;
+            border-radius: 2rem;
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 0.4rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 0.3rem 0.8rem;
+            border: none;
+            border-radius: 2rem;
+            cursor: pointer;
+            font-size: 0.7rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            transition: all 0.2s;
+        }
+
+        .btn-approve {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .btn-approve:hover {
+            background: #a7f3d0;
+        }
+
+        .btn-reject {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .btn-reject:hover {
+            background: #fecaca;
+        }
+
+        .btn-view {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .btn-view:hover {
+            background: #c7d2fe;
+        }
+
+        /* Pagination */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 0.4rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            padding: 0.4rem 0.8rem;
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover {
+            background: var(--gray-100);
+        }
+
+        .page-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .pagination-info {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+        }
+
+        .records-per-page {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .records-per-page select {
+            padding: 0.3rem 0.6rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            width: 90%;
+            max-width: 600px;
+            border-radius: var(--border-radius);
+            animation: slideDown 0.2s ease;
+            box-shadow: var(--shadow-lg);
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .close, .close-action, .close-details {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--gray-400);
+            transition: color 0.2s;
+        }
+
+        .close:hover, .close-action:hover, .close-details:hover {
+            color: var(--gray-600);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .input-field {
+            margin-bottom: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .input-field label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .input-field input, .input-field select, .input-field textarea {
+            padding: 0.7rem 0.9rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 0.75rem;
+            font-size: 0.85rem;
+            outline: none;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .input-field input:focus, .input-field select:focus, .input-field textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(15, 59, 44, 0.1);
+        }
+
+        .required-star {
+            color: var(--danger);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--gray-200);
+        }
+
+        .btn-cancel {
+            padding: 0.6rem 1.2rem;
+            background: var(--gray-100);
+            border: none;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.8rem;
+        }
+
+        .btn-submit {
+            padding: 0.6rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background: var(--primary-dark);
+        }
+
+        .info-box {
+            background: #eef2ff;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--gray-700);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            background: var(--gray-800);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 2rem;
+            font-size: 0.8rem;
+            display: none;
+            z-index: 1100;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            .stats-grid, .balance-cards, .officer-actions {
+                grid-template-columns: 1fr;
+            }
+            .modal-content {
+                margin: 15% auto;
+                width: 95%;
+            }
+            .search-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .search-bar {
+                max-width: none;
+            }
+            .btn-add {
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- Workflow Steps -->
-    <div class="workflow-steps">
-        <div class="workflow-step" id="stepInitiating">
-            <div class="step-icon"><i class="fas fa-user-shield"></i></div>
-            <div class="step-label">1. Initiating Officer Review & Forward</div>
-        </div>
-        <div class="step-arrow"><i class="fas fa-arrow-right"></i></div>
-        <div class="workflow-step" id="stepAccepting">
-            <div class="step-icon"><i class="fas fa-user-check"></i></div>
-            <div class="step-label">2. Accepting Officer Final Approval</div>
-        </div>
-        <div class="step-arrow"><i class="fas fa-arrow-right"></i></div>
-        <div class="workflow-step" id="stepComplete">
-            <div class="step-icon"><i class="fas fa-check-circle"></i></div>
-            <div class="step-label">3. Leave Approved & Granted</div>
-        </div>
-    </div>
-
     <!-- Statistics Dashboard -->
     <div class="stats-grid">
         <div class="stat-card initiating" onclick="filterByStatus('pending')">
@@ -821,7 +1458,7 @@ ob_start();
                 <span class="badge-new" id="initiatingBadge"><?php echo $initiatingPending; ?></span>
             </div>
             <div class="officer-card-body" id="initiatingPendingList">
-                <div class="loading-spinner" style="margin: 20px auto; display: block;"></div>
+                <div style="text-align: center; padding: 2rem;"><div class="loading-spinner"></div> Loading...</div>
             </div>
         </div>
         
@@ -832,7 +1469,7 @@ ob_start();
                 <span class="badge-new" id="acceptingBadge"><?php echo $acceptingPending; ?></span>
             </div>
             <div class="officer-card-body" id="acceptingPendingList">
-                <div class="loading-spinner" style="margin: 20px auto; display: block;"></div>
+                <div style="text-align: center; padding: 2rem;"><div class="loading-spinner"></div> Loading...</div>
             </div>
         </div>
     </div>
@@ -840,19 +1477,19 @@ ob_start();
     <!-- Leave Balance Cards -->
     <div class="balance-cards">
         <div class="balance-card">
-            <h4><i class="fas fa-home"></i> 🏠 Gharpari Bida</h4>
+            <h4><i class="fas fa-home"></i> Gharpari Bida</h4>
             <div class="days" id="gharpariBalance"><?php echo $myBalance['gharpari_bida_days']; ?></div>
             <div class="progress-bar"><div class="progress-fill" id="gharpariProgress" style="width: <?php echo min(100, ($myBalance['gharpari_bida_days'] / 15) * 100); ?>%;"></div></div>
             <small>Days remaining</small>
         </div>
         <div class="balance-card">
-            <h4><i class="fas fa-calendar-alt"></i> 🎉 Parba Bida</h4>
+            <h4><i class="fas fa-calendar-alt"></i> Parba Bida</h4>
             <div class="days" id="parbaBalance"><?php echo $myBalance['parba_bida_days']; ?></div>
             <div class="progress-bar"><div class="progress-fill" id="parbaProgress" style="width: <?php echo min(100, ($myBalance['parba_bida_days'] / 12) * 100); ?>%;"></div></div>
             <small>Days remaining</small>
         </div>
         <div class="balance-card">
-            <h4><i class="fas fa-hand-holding-heart"></i> 🤝 Bhaeepari Bida</h4>
+            <h4><i class="fas fa-hand-holding-heart"></i> Bhaeepari Bida</h4>
             <div class="days" id="bhaeepariBalance"><?php echo $myBalance['bhaeepari_bida_days']; ?></div>
             <div class="progress-bar"><div class="progress-fill" id="bhaeepariProgress" style="width: <?php echo min(100, ($myBalance['bhaeepari_bida_days'] / 10) * 100); ?>%;"></div></div>
             <small>Days remaining</small>
@@ -864,7 +1501,7 @@ ob_start();
         <div class="search-bar">
             <i class="fas fa-search"></i>
             <input type="text" id="searchInput" placeholder="Search by name, rank, or reason...">
-            <button class="clear-search" id="clearSearch">✕</button>
+            <button class="clear-search" id="clearSearch" style="display: none;">✕</button>
         </div>
         <button class="btn-add" id="newLeaveBtn"><i class="fas fa-plus-circle"></i> New Leave Request</button>
     </div>
@@ -917,6 +1554,8 @@ ob_start();
     </div>
 </div>
 
+<!-- Modals (same structure as original but with improved styling) -->
+
 <!-- New Leave Request Modal -->
 <div id="leaveModal" class="modal">
     <div class="modal-content">
@@ -952,12 +1591,12 @@ ob_start();
                     </select>
                 </div>
                 
-                <div class="info-box officer-section">
+                <div class="info-box">
                     <i class="fas fa-user-tie"></i>
                     <span><strong>Two-Level Approval Required</strong> - Select both officers for approval workflow</span>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="input-field">
                         <label><i class="fas fa-user-shield"></i> Initiating Officer <span class="required-star">*</span></label>
                         <select id="initiatingOfficer" required>
@@ -966,7 +1605,7 @@ ob_start();
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Level 1: Reviews and forwards to accepting officer</small>
+                        <small>Level 1: Reviews and forwards</small>
                     </div>
                     
                     <div class="input-field">
@@ -977,11 +1616,11 @@ ob_start();
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Level 2: Final approval and authorization</small>
+                        <small>Level 2: Final approval</small>
                     </div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="input-field">
                         <label><i class="fas fa-calendar-day"></i> Start Date <span class="required-star">*</span></label>
                         <input type="date" id="startDate" required>
@@ -994,12 +1633,12 @@ ob_start();
                 
                 <div class="input-field">
                     <label><i class="fas fa-sort-numeric-up"></i> Total Days</label>
-                    <input type="text" id="totalDays" readonly style="background: #f8fafc;">
+                    <input type="text" id="totalDays" readonly style="background: var(--gray-50);">
                 </div>
                 
                 <div class="input-field">
                     <label><i class="fas fa-chart-line"></i> Available Days</label>
-                    <input type="text" id="availableBalance" readonly style="background: #e8f5e9; font-weight: bold;">
+                    <input type="text" id="availableBalance" readonly style="background: #e8f5e9; font-weight: 500;">
                 </div>
                 
                 <div class="input-field">
@@ -1016,7 +1655,7 @@ ob_start();
     </div>
 </div>
 
-<!-- Action Modal for Approval/Rejection -->
+<!-- Action Modal -->
 <div id="actionModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -1062,9 +1701,17 @@ ob_start();
     let currentPage = 1;
     let totalPages = 1;
     let totalRecords = 0;
-    let currentPerPage = 5;
+    let currentPerPage = parseInt(localStorage.getItem('leaveRecordsPerPage') || '10');
     let currentUserRole = <?php echo $user_role_int; ?>;
     let currentPersonnelId = <?php echo $current_personnel_id; ?>;
+    
+    // Set initial records per page dropdown
+    document.addEventListener('DOMContentLoaded', function() {
+        const perPageSelect = document.getElementById('recordsPerPage');
+        if (perPageSelect) {
+            perPageSelect.value = currentPerPage;
+        }
+    });
     
     // Load initiating officer pending requests
     async function loadInitiatingPending() {
@@ -1092,7 +1739,7 @@ ob_start();
                                 <span>📅 ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span>
                                 <span>📆 ${leave.leave_days} days</span>
                             </div>
-                            <div class="pending-item-details" style="font-size: 11px; color: #6c7a8e; margin-top: 5px;">
+                            <div class="pending-item-details" style="font-size: 11px; color: var(--gray-500); margin-top: 5px;">
                                 Accepting Officer: ${escapeHtml(leave.accepting_officer_name) || '-'}
                             </div>
                             <button class="btn-process" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')"><i class="fas fa-check"></i> Approve & Forward</button>
@@ -1136,7 +1783,7 @@ ob_start();
                                 <span>📅 ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span>
                                 <span>📆 ${leave.leave_days} days</span>
                             </div>
-                            <div class="pending-item-details" style="font-size: 11px; color: #6c7a8e; margin-top: 5px;">
+                            <div class="pending-item-details" style="font-size: 11px; color: var(--gray-500); margin-top: 5px;">
                                 Initiated by: ${escapeHtml(leave.initiating_officer_name) || '-'}
                                 ${leave.initiating_officer_approved_at ? `<br>Forwarded on: ${new Date(leave.initiating_officer_approved_at).toLocaleString()}` : ''}
                             </div>
@@ -1212,7 +1859,7 @@ ob_start();
         if (!tbody) return;
         
         if (!leaveData || leaveData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center">No leave requests found</span></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 2rem;">No leave requests found</td></tr>';
             return;
         }
         
@@ -1235,7 +1882,7 @@ ob_start();
                 <button class="action-btn btn-view" onclick="viewDetails(${leave.id})"><i class="fas fa-eye"></i> View</button>`;
             
             if (leave.initiating_officer == currentPersonnelId && leave.initiating_officer_approved == 0 && leave.status === 'pending') {
-                actionBtns += `<button class="action-btn btn-approve" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')"><i class="fas fa-check"></i> Approve & Forward</button>
+                actionBtns += `<button class="action-btn btn-approve" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')"><i class="fas fa-check"></i> Approve</button>
                               <button class="action-btn btn-reject" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')"><i class="fas fa-times"></i> Reject</button>`;
             }
             
@@ -1248,15 +1895,15 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></td>
+                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</td>
                 <td><strong>${escapeHtml(leave.personnel_name)}</strong></td>
-                <td>${escapeHtml(leave.rank)}</span></td>
+                <td>${escapeHtml(leave.rank)}</td>
                 <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</td>
                 <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
-                <td><strong>${leave.leave_days}</strong> days</span></td>
+                <td><strong>${leave.leave_days}</strong> days</td>
                 <td>${escapeHtml(leave.reason.substring(0, 40))}${leave.reason.length > 40 ? '...' : ''}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                <td>${balance} days</span></td>
+                <td>${balance} days</td>
                 <td>${leave.initiating_officer_name ? `<span class="badge-officer"><i class="fas fa-user-shield"></i> ${escapeHtml(leave.initiating_officer_name)}</span>` : '-'}</td>
                 <td>${leave.accepting_officer_name ? `<span class="badge-officer"><i class="fas fa-user-check"></i> ${escapeHtml(leave.accepting_officer_name)}</span>` : '-'}</td>
                 <td>${new Date(leave.created_at).toLocaleDateString()}</td>
@@ -1387,51 +2034,51 @@ ob_start();
         
         document.getElementById('detailsContent').innerHTML = `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Personnel</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Personnel</div>
                     <div style="font-size: 15px; font-weight: 600;">${escapeHtml(leave.personnel_name)} (${escapeHtml(leave.rank)})</div>
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Leave Type</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Leave Type</div>
                     <div style="font-size: 15px; font-weight: 600;">${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</div>
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Period</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Period</div>
                     <div style="font-size: 14px; font-weight: 600;">${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</div>
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Total Days</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Total Days</div>
                     <div style="font-size: 15px; font-weight: 600;">${leave.leave_days} days</div>
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Remaining Balance</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Remaining Balance</div>
                     <div style="font-size: 15px; font-weight: 600;">${balance} days</div>
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Status</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Status</div>
                     <div style="font-size: 14px; font-weight: 600;">${leave.status.toUpperCase()}</div>
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Initiating Officer</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Initiating Officer</div>
                     <div style="font-size: 14px;">${escapeHtml(leave.initiating_officer_name) || '-'}</div>
                     <small style="color: ${leave.initiating_officer_approved == 1 ? '#065f46' : '#92400e'}">Status: ${initiatingStatus}</small>
                     ${leave.initiating_officer_approved_at ? `<div><small>Approved on: ${new Date(leave.initiating_officer_approved_at).toLocaleString()}</small></div>` : ''}
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Accepting Officer</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Accepting Officer</div>
                     <div style="font-size: 14px;">${escapeHtml(leave.accepting_officer_name) || '-'}</div>
                     <small style="color: ${leave.accepting_officer_approved == 1 ? '#065f46' : '#92400e'}">Status: ${acceptingStatus}</small>
                     ${leave.accepting_officer_approved_at ? `<div><small>Approved on: ${new Date(leave.accepting_officer_approved_at).toLocaleString()}</small></div>` : ''}
                 </div>
-                <div style="padding: 12px; background: #f8fafc; border-radius: 10px; grid-column: span 2;">
-                    <div style="font-size: 11px; color: #6c7a8e;">Reason</div>
+                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px; grid-column: span 2;">
+                    <div style="font-size: 11px; color: var(--gray-500);">Reason</div>
                     <div style="font-size: 14px; margin-top: 5px;">${escapeHtml(leave.reason)}</div>
                 </div>
-                ${leave.initiating_officer_remarks ? `<div style="padding: 12px; background: #fef3c7; border-radius: 10px; grid-column: span 2;">
+                ${leave.initiating_officer_remarks ? `<div style="padding: 12px; background: #fef3c7; border-radius: 12px; grid-column: span 2;">
                     <div style="font-size: 11px; color: #92400e;">Initiating Officer Remarks</div>
                     <div style="font-size: 13px; margin-top: 5px;">${escapeHtml(leave.initiating_officer_remarks)}</div>
                 </div>` : ''}
-                ${leave.accepting_officer_remarks ? `<div style="padding: 12px; background: #d1fae5; border-radius: 10px; grid-column: span 2;">
+                ${leave.accepting_officer_remarks ? `<div style="padding: 12px; background: #d1fae5; border-radius: 12px; grid-column: span 2;">
                     <div style="font-size: 11px; color: #065f46;">Accepting Officer Remarks</div>
                     <div style="font-size: 13px; margin-top: 5px;">${escapeHtml(leave.accepting_officer_remarks)}</div>
                 </div>` : ''}
@@ -1452,7 +2099,7 @@ ob_start();
         const toast = document.getElementById('toast');
         const toastMessage = document.getElementById('toastMessage');
         toastMessage.textContent = message;
-        toast.style.backgroundColor = type === 'success' ? '#1e3a32' : '#dc2626';
+        toast.style.backgroundColor = type === 'success' ? 'var(--primary)' : 'var(--danger)';
         toast.style.display = 'block';
         setTimeout(() => { toast.style.display = 'none'; }, 4000);
     }
@@ -1530,6 +2177,7 @@ ob_start();
     // Event Listeners
     document.getElementById('recordsPerPage')?.addEventListener('change', function() {
         currentPerPage = parseInt(this.value);
+        localStorage.setItem('leaveRecordsPerPage', currentPerPage);
         currentPage = 1;
         loadDataFromDatabase(1);
     });
@@ -1538,6 +2186,7 @@ ob_start();
         document.getElementById('leaveForm').reset();
         document.getElementById('totalDays').value = '';
         document.getElementById('availableBalance').value = '';
+        document.getElementById('startDate').min = new Date().toISOString().split('T')[0];
         document.getElementById('leaveModal').style.display = 'block';
     });
     
@@ -1739,14 +2388,14 @@ ob_start();
         loadInitiatingPending();
         loadAcceptingPending();
         
-        // Refresh every 15 seconds
+        // Refresh every 30 seconds
         setInterval(() => {
             loadDataFromDatabase(currentPage);
             loadMyBalance();
             loadStatistics();
             loadInitiatingPending();
             loadAcceptingPending();
-        }, 15000);
+        }, 30000);
     });
 </script>
 
