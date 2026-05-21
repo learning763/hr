@@ -3,8 +3,6 @@
 session_start();
 require_once 'includes/config.php';
 
-
-
 // Get current user's role from session
 $current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
 
@@ -134,6 +132,7 @@ ob_start();
                 <th style="width: 50px;">S.No.</th>
                 <th>Personnel No.</th>
                 <th>Name</th>
+                <th>Signature</th>
                 <th>Email</th>
                 <th>Rank</th>
                 <th>Branch</th>
@@ -143,7 +142,7 @@ ob_start();
                     <th>Role</th>
                 <?php endif; ?>
                 <?php if ($isSuperAdmin): ?>
-                    <th style="width: 120px;">Actions</th>
+                    <th style="width: 140px;">Actions</th>
                 <?php endif; ?>
             </tr>
         </thead>
@@ -155,6 +154,16 @@ ob_start();
                         <td><?php echo $counter++; ?></td>
                         <td><?php echo htmlspecialchars($personnel['personnel_number']); ?></td>
                         <td><?php echo htmlspecialchars($personnel['full_name_en']); ?></td>
+                        <td class="signature-cell">
+                            <?php if (!empty($personnel['signature'])): ?>
+                                <img src="<?php echo htmlspecialchars($personnel['signature']); ?>" 
+                                     alt="Signature" 
+                                     class="signature-preview"
+                                     onclick="viewSignature('<?php echo htmlspecialchars($personnel['signature']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
+                            <?php else: ?>
+                                <span class="no-signature">—</span>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <?php if (!empty($personnel['email'])): ?>
                                 <a href="mailto:<?php echo htmlspecialchars($personnel['email']); ?>" style="color: #2c5f4e; text-decoration: none;">
@@ -202,6 +211,9 @@ ob_start();
                                     <button class="btn-icon btn-edit" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <button class="btn-icon btn-signature" onclick="editSignature('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['signature'] ?? ''); ?>')" title="Upload/Edit Signature">
+                                        <i class="fas fa-signature"></i>
+                                    </button>
                                     <button class="btn-icon btn-reset" onclick="resetPassword('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')" title="Reset Password">
                                         <i class="fas fa-key"></i>
                                     </button>
@@ -218,7 +230,7 @@ ob_start();
             <?php else: ?>
                 <tr>
                     <?php
-                    $colspan = 8;
+                    $colspan = 9;
                     if ($isAdmin) $colspan++;
                     if ($isSuperAdmin) $colspan++;
                     ?>
@@ -298,7 +310,7 @@ ob_start();
             <span class="close">&times;</span>
         </div>
         <div class="modal-body">
-            <form id="personnelForm">
+            <form id="personnelForm" enctype="multipart/form-data">
                 <input type="hidden" id="editId" name="editId">
                 <div class="form-grid">
                     <div class="input-field">
@@ -383,6 +395,57 @@ ob_start();
                     <button type="submit" class="btn-submit">Save Personnel</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Signature Modal -->
+<div id="signatureModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="signatureModalTitle"><i class="fas fa-signature"></i> Upload Signature</h3>
+            <span class="close-signature">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="signatureForm" enctype="multipart/form-data">
+                <input type="hidden" id="signaturePersonnelId" name="personnel_id">
+                <input type="hidden" id="existingSignature" name="existing_signature">
+                
+                <div class="signature-preview-container" id="signaturePreviewContainer" style="text-align: center; margin-bottom: 20px;">
+                    <div id="currentSignaturePreview" style="margin-bottom: 15px;">
+                        <label style="font-size: 13px; color: #6c7a8e;">Current Signature:</label>
+                        <div id="currentSignatureImage"></div>
+                    </div>
+                </div>
+                
+                <div class="input-field">
+                    <label><i class="fas fa-cloud-upload-alt"></i> Upload New Signature Image</label>
+                    <input type="file" id="signatureFile" name="signature" accept="image/*" style="padding: 8px;">
+                    <small style="color: #6c7a8e;">Supported formats: JPG, PNG, GIF. Max size: 2MB. Recommended size: 300x100px.</small>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" id="cancelSignatureBtn">Cancel</button>
+                    <button type="button" class="btn-delete-signature" id="deleteSignatureBtn" style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-trash"></i> Remove Signature
+                    </button>
+                    <button type="submit" class="btn-submit">Upload Signature</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Signature View Modal -->
+<div id="signatureViewModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 id="signatureViewTitle"><i class="fas fa-signature"></i> Signature</h3>
+            <span class="close-signature-view">&times;</span>
+        </div>
+        <div class="modal-body" style="text-align: center;">
+            <div id="signatureViewImage"></div>
+            <p id="signatureViewName" style="margin-top: 15px; color: #6c7a8e;"></p>
         </div>
     </div>
 </div>
@@ -524,6 +587,74 @@ ob_start();
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     
+    /* Signature Styles */
+    .signature-cell {
+        text-align: center;
+    }
+    
+    .signature-preview {
+        max-width: 80px;
+        max-height: 40px;
+        cursor: pointer;
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        padding: 2px;
+        background: white;
+        transition: transform 0.2s;
+    }
+    
+    .signature-preview:hover {
+        transform: scale(1.5);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 10;
+        position: relative;
+    }
+    
+    .no-signature {
+        color: #9aa9bc;
+        font-size: 12px;
+    }
+    
+    .btn-signature {
+        color: #8b5cf6;
+    }
+    
+    .btn-signature:hover {
+        background: #f3e8ff;
+    }
+    
+    .btn-delete-signature {
+        background: #dc2626;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    
+    .btn-delete-signature:hover {
+        background: #b91c1c;
+    }
+    
+    .signature-preview-container {
+        padding: 15px;
+        background: #f8fafc;
+        border-radius: 12px;
+        text-align: center;
+    }
+    
+    .signature-preview-container img {
+        max-width: 250px;
+        max-height: 80px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 5px;
+        background: white;
+    }
+    
     /* Table */
     .data-table {
         background: white;
@@ -611,6 +742,7 @@ ob_start();
     .action-buttons {
         display: flex;
         gap: 5px;
+        flex-wrap: wrap;
     }
     
     .btn-icon {
@@ -778,14 +910,14 @@ ob_start();
         margin: 0;
     }
     
-    .close {
+    .close, .close-signature, .close-signature-view {
         font-size: 28px;
         cursor: pointer;
         color: #9aa9bc;
         transition: 0.2s;
     }
     
-    .close:hover {
+    .close:hover, .close-signature:hover, .close-signature-view:hover {
         color: #c2410c;
     }
     
@@ -920,6 +1052,13 @@ ob_start();
         .pagination {
             justify-content: center;
         }
+        .action-buttons {
+            flex-direction: column;
+        }
+        .btn-icon {
+            width: 32px;
+            text-align: center;
+        }
     }
 </style>
 
@@ -931,14 +1070,19 @@ ob_start();
 <script>
     // DOM Elements
     const modal = document.getElementById('personnelModal');
+    const signatureModal = document.getElementById('signatureModal');
+    const signatureViewModal = document.getElementById('signatureViewModal');
     const addBtn = document.getElementById('addPersonnelBtn');
-    const closeBtn = document.querySelector('.close');
+    const closeBtns = document.querySelectorAll('.close, .close-signature, .close-signature-view');
     const cancelBtn = document.getElementById('cancelBtn');
+    const cancelSignatureBtn = document.getElementById('cancelSignatureBtn');
     const modalTitle = document.getElementById('modalTitle');
     const form = document.getElementById('personnelForm');
+    const signatureForm = document.getElementById('signatureForm');
     const searchInput = document.getElementById('searchInput');
     const clearSearchBtn = document.getElementById('clearSearch');
     const recordsPerPageSelect = document.getElementById('recordsPerPage');
+    const deleteSignatureBtn = document.getElementById('deleteSignatureBtn');
 
     let isEditing = false;
     const isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
@@ -1033,7 +1177,133 @@ ob_start();
         }
     }
 
+    // View Signature
+    function viewSignature(signaturePath, name) {
+        const viewImage = document.getElementById('signatureViewImage');
+        const viewName = document.getElementById('signatureViewName');
+        const viewTitle = document.getElementById('signatureViewTitle');
+        
+        if (viewImage) {
+            viewImage.innerHTML = `<img src="${signaturePath}" alt="Signature of ${name}" style="max-width: 300px; max-height: 120px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;">`;
+        }
+        if (viewName) viewName.textContent = name;
+        if (viewTitle) viewTitle.innerHTML = `<i class="fas fa-signature"></i> Signature - ${name}`;
+        
+        if (signatureViewModal) signatureViewModal.style.display = 'block';
+    }
+
     <?php if ($isSuperAdmin): ?>
+    // Edit Signature
+    function editSignature(serviceNo, name, currentSignature) {
+        document.getElementById('signaturePersonnelId').value = serviceNo;
+        document.getElementById('existingSignature').value = currentSignature;
+        
+        const modalTitle = document.getElementById('signatureModalTitle');
+        if (modalTitle) modalTitle.innerHTML = `<i class="fas fa-signature"></i> Upload Signature - ${name}`;
+        
+        // Show current signature preview
+        const previewContainer = document.getElementById('currentSignatureImage');
+        if (previewContainer) {
+            if (currentSignature && currentSignature !== '') {
+                previewContainer.innerHTML = `<img src="${currentSignature}" alt="Current Signature" style="max-width: 250px; max-height: 80px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px; background: white;">`;
+            } else {
+                previewContainer.innerHTML = `<span style="color: #9aa9bc;">No signature uploaded yet</span>`;
+            }
+        }
+        
+        // Reset file input
+        const fileInput = document.getElementById('signatureFile');
+        if (fileInput) fileInput.value = '';
+        
+        if (signatureModal) signatureModal.style.display = 'block';
+    }
+
+    // Handle signature form submission
+    if (signatureForm) {
+        signatureForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const personnelId = document.getElementById('signaturePersonnelId').value;
+            const fileInput = document.getElementById('signatureFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showToast('Please select a signature image to upload', 'error');
+                return;
+            }
+            
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+            if (!allowedTypes.includes(file.type)) {
+                showToast('Please upload a valid image file (JPG, PNG, GIF)', 'error');
+                return;
+            }
+            
+            // Validate file size (max 2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                showToast('File size must be less than 2MB', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', 'upload_signature');
+            formData.append('personnel_id', personnelId);
+            formData.append('signature', file);
+            
+            try {
+                const response = await fetch('upload_signature.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Signature uploaded successfully!', 'success');
+                    if (signatureModal) signatureModal.style.display = 'none';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(result.message || 'Error uploading signature', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error uploading signature', 'error');
+            }
+        });
+    }
+
+    // Delete signature
+    if (deleteSignatureBtn) {
+        deleteSignatureBtn.addEventListener('click', async function() {
+            const personnelId = document.getElementById('signaturePersonnelId').value;
+            const name = document.getElementById('signatureModalTitle')?.innerText.split('-')[1]?.trim() || '';
+            
+            if (confirm(`Are you sure you want to remove the signature for ${name}?`)) {
+                const formData = new FormData();
+                formData.append('action', 'delete_signature');
+                formData.append('personnel_id', personnelId);
+                
+                try {
+                    const response = await fetch('upload_signature.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showToast('Signature removed successfully!', 'success');
+                        if (signatureModal) signatureModal.style.display = 'none';
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showToast(result.message || 'Error removing signature', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('Error removing signature', 'error');
+                }
+            }
+        });
+    }
+
     // Open modal for adding
     if (addBtn) {
         addBtn.onclick = function() {
@@ -1046,18 +1316,26 @@ ob_start();
         }
     }
 
-    // Close modal
-    function closeModal() {
+    // Close modals
+    function closeModals() {
         if (modal) modal.style.display = 'none';
-        form.reset();
+        if (signatureModal) signatureModal.style.display = 'none';
+        if (signatureViewModal) signatureViewModal.style.display = 'none';
+        form?.reset();
         isEditing = false;
     }
 
-    if (closeBtn) closeBtn.onclick = closeModal;
-    if (cancelBtn) cancelBtn.onclick = closeModal;
+    closeBtns.forEach(btn => {
+        btn.onclick = closeModals;
+    });
+
+    if (cancelBtn) cancelBtn.onclick = closeModals;
+    if (cancelSignatureBtn) cancelSignatureBtn.onclick = closeModals;
 
     window.onclick = function(event) {
-        if (event.target == modal) closeModal();
+        if (event.target == modal) closeModals();
+        if (event.target == signatureModal) closeModals();
+        if (event.target == signatureViewModal) closeModals();
     }
 
     // Edit personnel
@@ -1165,7 +1443,7 @@ ob_start();
             .then(data => {
                 if (data.success) {
                     showToast(data.message, 'success');
-                    closeModal();
+                    closeModals();
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     showToast(data.message || 'Error saving personnel', 'error');
