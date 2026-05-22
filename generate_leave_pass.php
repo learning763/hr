@@ -148,7 +148,7 @@ function displaySignatureImage($signature_path, $person_name) {
     
     if ($image_path && file_exists($image_path)) {
         $web_path = '/' . ltrim($signature_path, '/');
-        return '<img src="' . htmlspecialchars($web_path) . '" style="height: 50px; width: auto; max-width: 150px;" alt="हस्ताक्षर - ' . htmlspecialchars($person_name) . '">';
+        return '<img src="' . htmlspecialchars($web_path) . '" style="height: 40px; width: auto; max-width: 120px;" alt="हस्ताक्षर - ' . htmlspecialchars($person_name) . '">';
     }
     
     return '';
@@ -173,9 +173,9 @@ function displaySignatureImage($signature_path, $person_name) {
         body {
             font-family: 'Times New Roman', 'Kalimati', 'Nirmala UI', serif;
             background: #d0d0d0;
-            padding: 30px;
-            font-size: 13.5px;
-            line-height: 1.85;
+            padding: 20px;
+            font-size: 12.5px;
+            line-height: 1.5;
             color: #111;
         }
 
@@ -185,13 +185,11 @@ function displaySignatureImage($signature_path, $person_name) {
             background: #fff;
             box-shadow: 0 4px 20px rgba(0,0,0,0.25);
             position: relative;
-            min-height: 100vh;
         }
 
         .pass {
-            padding: 30px 35px 35px;
+            padding: 20px 25px 25px;
             position: relative;
-            min-height: 90vh;
             display: flex;
             flex-direction: column;
         }
@@ -201,22 +199,22 @@ function displaySignatureImage($signature_path, $person_name) {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            font-size: 13px;
-            margin-bottom: 4px;
-            gap: 20px;
+            font-size: 12px;
+            margin-bottom: 8px;
+            gap: 15px;
         }
 
         .left-column, .center-column, .right-column {
             flex: 1;
         }
         
-        .left-column { text-align: left; line-height: 1.9; }
-        .center-column { text-align: center; line-height: 1.9; }
-        .right-column { text-align: left; line-height: 1.9; }
+        .left-column { text-align: left; line-height: 1.6; }
+        .center-column { text-align: center; line-height: 1.6; }
+        .right-column { text-align: left; line-height: 1.6; }
 
         .right-label {
             display: inline-block;
-            width: 65px;
+            width: 60px;
             font-weight: normal;
         }
 
@@ -226,45 +224,52 @@ function displaySignatureImage($signature_path, $person_name) {
 
         .title {
             text-align: center;
-            font-size: 17px;
+            font-size: 16px;
             font-weight: bold;
             text-decoration: underline;
-            margin: 20px 0 16px;
+            margin: 12px 0 12px;
             letter-spacing: 1px;
         }
 
-        .body-text p { margin-bottom: 8px; }
+        .body-text p { margin-bottom: 5px; }
 
         .section-label {
             font-weight: bold;
             text-decoration: underline;
-            margin-top: 12px;
-            margin-bottom: 6px;
+            margin-top: 8px;
+            margin-bottom: 4px;
         }
 
-        .indent { padding-left: 28px; }
+        .indent { padding-left: 25px; }
 
         .balance-table {
             border-collapse: collapse;
-            margin: 6px 0 6px 28px;
-            font-size: 13px;
+            margin: 4px 0 4px 25px;
+            font-size: 12.5px;
         }
         
         .balance-table td {
-            padding: 3px 12px;
+            padding: 1px 6px;
         }
         
-        .balance-table td:first-child { padding-left: 0; }
+        .balance-table td:first-child { 
+            padding-left: 0;
+            padding-right: 8px;
+        }
+        
+        .balance-table td:nth-child(2) {
+            padding-right: 8px;
+        }
 
-        /* APPLICANT SIGNATURE - RIGHT ALIGNED with slight right offset */
+        /* APPLICANT SIGNATURE - RIGHT ALIGNED */
         .applicant-signature-area {
             text-align: right;
-            margin-top: 30px;
-            margin-bottom: 30px;
+            margin-top: 20px;
+            margin-bottom: 20px;
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            padding-right: 15px;
+            padding-right: 10px;
         }
         
         .applicant-signature-wrapper {
@@ -279,23 +284,23 @@ function displaySignatureImage($signature_path, $person_name) {
         
         .sig-line {
             border-bottom: 1px dotted #333;
-            min-width: 180px;
-            margin-top: 5px;
+            min-width: 160px;
+            margin-top: 3px;
         }
         
         .applicant-officer-name {
             text-align: center;
-            margin-top: 5px;
+            margin-top: 3px;
         }
 
         /* Bottom signature section - Left and Right layout */
         .bottom-signatures {
             display: flex;
             justify-content: space-between;
-            margin-top: auto;
+            margin-top: 20px;
             margin-bottom: 0;
             align-items: flex-end;
-            gap: 50px;
+            gap: 30px;
         }
 
         .left-signature {
@@ -309,22 +314,22 @@ function displaySignatureImage($signature_path, $person_name) {
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            padding-right: 15px;
+            padding-right: 10px;
         }
 
         .signature-title {
             font-weight: bold;
             text-decoration: underline;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
 
         .signature-field {
-            margin: 15px 0;
+            margin: 8px 0;
         }
 
         .signature-field .field-label {
             font-weight: normal;
-            min-width: 65px;
+            min-width: 60px;
             display: inline-block;
         }
 
@@ -358,30 +363,30 @@ function displaySignatureImage($signature_path, $person_name) {
         
         .right-signature .accepting-officer-name {
             text-align: center;
-            margin-top: 5px;
+            margin-top: 3px;
         }
 
         @media print {
             body { background: white; padding: 0; }
             .no-print { display: none !important; }
             .page-wrap { box-shadow: none; }
-            .pass { padding: 15px 20px 20px; }
+            .pass { padding: 12px 18px 18px; }
         }
 
         .button-bar {
             text-align: center;
-            padding: 14px;
+            padding: 10px;
             background: #f0f0f0;
             border-top: 1px solid #ccc;
         }
         
         .btn {
-            padding: 9px 22px;
-            margin: 0 8px;
+            padding: 6px 18px;
+            margin: 0 6px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
         }
         
@@ -413,7 +418,7 @@ function displaySignatureImage($signature_path, $person_name) {
             </div>
         </div>
 
-        <div style="margin-bottom:4px;">
+        <div style="margin-bottom:3px;">
             श्रीमान निर्देशकज्यू,<br>
             श्री साइबर सुरक्षा निर्देशनालय,<br>
             जंगी अड्डा ।
@@ -429,17 +434,17 @@ function displaySignatureImage($signature_path, $person_name) {
             <p class="section-label">२. संचित विदाको बिबरण</p>
             <table class="balance-table">
                 <tr>
-                    <td style="padding-left:0;">(क)</td>
+                    <td>(क)</td>
                     <td>घ.वि.:</td>
                     <td><?php echo $gharpari_balance; ?></td>
                 </tr>
                 <tr>
-                    <td style="padding-left:0;">(ख)</td>
+                    <td>(ख)</td>
                     <td>भै.वि.:</td>
                     <td><?php echo $bhaeepari_balance; ?></td>
                 </tr>
                 <tr>
-                    <td style="padding-left:0;">(ग)</td>
+                    <td>(ग)</td>
                     <td>प.वि.:</td>
                     <td><?php echo $parba_balance; ?></td>
                 </tr>
@@ -450,13 +455,13 @@ function displaySignatureImage($signature_path, $person_name) {
             <p class="indent">(ख) पछिल्लो पटक विदा गएको मितिः- <?php echo $last_leave_date; ?> गतेदेखि <?php echo $last_leave_end; ?> गतेसम्म ।</p>
 
             <p class="section-label">४. विदामा रहँदाको सम्पर्क ठेगाना</p>
-            <p class="indent">(क) प्रदेश :- <?php echo htmlspecialchars($province); ?> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ख) जिल्ला :- <?php echo htmlspecialchars($district); ?> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ग) न.पा./गा.पा :- चा.न.पा.</p>
-            <p class="indent">(घ) वडा नं. :- 9 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ङ) गाउँ/टोल :- <?php echo htmlspecialchars($address); ?></p>
+            <p class="indent">(क) प्रदेश :- <?php echo htmlspecialchars($province); ?> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ख) जिल्ला :- <?php echo htmlspecialchars($district); ?> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ग) न.पा./गा.पा :- चा.न.पा.</p>
+            <p class="indent">(घ) वडा नं. :- 9 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ङ) गाउँ/टोल :- <?php echo htmlspecialchars($address); ?></p>
 
-            <p style="margin-top:10px;">५. समाविष्ट कागज (केही प्रमाण भएमा) :- </p>
+            <p style="margin-top:6px;">५. समाविष्ट कागज (केही प्रमाण भएमा) :- </p>
         </div>
 
-        <!-- APPLICANT SIGNATURE - RIGHT ALIGNED with SAME STYLING as accepting officer -->
+        <!-- APPLICANT SIGNATURE - RIGHT ALIGNED -->
         <div class="applicant-signature-area">
             <div class="applicant-signature-wrapper">
                 <div class="signature-container">
@@ -471,13 +476,11 @@ function displaySignatureImage($signature_path, $person_name) {
         </div>
     </div>
 
-    <!-- BOTTOM SIGNATURES SECTION - Left: Initiating Officer, Right: Accepting Officer -->
+    <!-- BOTTOM SIGNATURES SECTION -->
     <div class="bottom-signatures">
-        <!-- Left side - Initiating Officer (सिफारिस गर्ने) - LEFT ALIGNED -->
         <div class="left-signature">
             <div class="signature-title">सिफारिस गर्ने</div>
             <p>निवेदकलाई घ.वि./क्या.वि./प.वि. बाटो म्याद सहित,<br>विदा छाड्न सिफारिस गर्दछु ।</p>
-            <br>
             <div class="signature-field">
                 <span class="field-label">दस्तखत :</span>
                 <span class="field-value">
@@ -501,12 +504,10 @@ function displaySignatureImage($signature_path, $person_name) {
             </div>
         </div>
 
-        <!-- Right side - Accepting Officer (स्वीकृत गर्नेको दःख.) - RIGHT ALIGNED -->
         <div class="right-signature">
             <div class="signature-wrapper">
                 <div class="signature-container">
                     <?php 
-                    // Display signature image if exists
                     if (!empty($leave['accepting_officer_signature'])) {
                         echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']);
                     }
