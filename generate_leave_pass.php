@@ -446,7 +446,7 @@ function displaySignatureImage($signature_path, $person_name) {
             </div>
             <div class="signature-field">
                 <span class="field-label">नियुक्ति :</span>
-                <span class="field-value">प्र.उ.से.</span>
+                <span class="field-value">प्र|.उ.से.</span>
             </div>
         </div>
 
