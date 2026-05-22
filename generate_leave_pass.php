@@ -138,7 +138,7 @@ function getSignaturePath($signature_path) {
     return null;
 }
 
-// Function to display signature image
+// Function to display signature image without extra border
 function displaySignatureImage($signature_path, $person_name) {
     if (empty($signature_path)) {
         return '';
@@ -148,7 +148,7 @@ function displaySignatureImage($signature_path, $person_name) {
     
     if ($image_path && file_exists($image_path)) {
         $web_path = '/' . ltrim($signature_path, '/');
-        return '<img src="' . htmlspecialchars($web_path) . '" style="height: 50px; width: auto; max-width: 150px; border: 1px solid #ccc; padding: 5px; background: #f9f9f9;" alt="हस्ताक्षर - ' . htmlspecialchars($person_name) . '">';
+        return '<img src="' . htmlspecialchars($web_path) . '" style="height: 50px; width: auto; max-width: 150px;" alt="हस्ताक्षर - ' . htmlspecialchars($person_name) . '">';
     }
     
     return '';
@@ -256,11 +256,20 @@ function displaySignatureImage($signature_path, $person_name) {
         
         .balance-table td:first-child { padding-left: 0; }
 
-        /* SIGNATURE AREAS - Original format */
+        /* APPLICANT SIGNATURE - RIGHT ALIGNED with slight right offset */
         .applicant-signature-area {
             text-align: right;
             margin-top: 30px;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            padding-right: 15px;
+        }
+        
+        .applicant-signature-wrapper {
+            text-align: center;
+            display: inline-block;
         }
         
         .signature-container {
@@ -273,28 +282,34 @@ function displaySignatureImage($signature_path, $person_name) {
             min-width: 180px;
             margin-top: 5px;
         }
+        
+        .applicant-officer-name {
+            text-align: center;
+            margin-top: 5px;
+        }
 
-        /* Bottom signature section - Two column layout */
+        /* Bottom signature section - Left and Right layout */
         .bottom-signatures {
             display: flex;
             justify-content: space-between;
             margin-top: auto;
-            gap: 50px;
             margin-bottom: 0;
+            align-items: flex-end;
+            gap: 50px;
         }
 
         .left-signature {
-            flex: 1.2;
-            align-self: flex-end;
+            flex: 1;
+            text-align: left;
         }
 
         .right-signature {
-            flex: 0.8;
+            flex: 1;
             text-align: right;
-            align-self: flex-end;
-            position: relative;
-            bottom: 0;
-            right: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            padding-right: 15px;
         }
 
         .signature-title {
@@ -324,6 +339,26 @@ function displaySignatureImage($signature_path, $person_name) {
 
         .content-wrapper {
             flex: 1;
+        }
+        
+        .signature-wrapper {
+            text-align: center;
+            display: inline-block;
+        }
+        
+        .signature-wrapper .signature-container {
+            display: inline-block;
+        }
+
+        /* Right side accepting officer signature block - right aligned */
+        .right-signature .signature-wrapper {
+            text-align: center;
+            display: inline-block;
+        }
+        
+        .right-signature .accepting-officer-name {
+            text-align: center;
+            margin-top: 5px;
         }
 
         @media print {
@@ -393,10 +428,22 @@ function displaySignatureImage($signature_path, $person_name) {
 
             <p class="section-label">२. संचित विदाको बिबरण</p>
             <table class="balance-table">
-                <tr><td>(क)</td> <td>घ.वि.:</td> <td><?php echo $gharpari_balance; ?></td> </tr>
-                <tr><td>(ख)</td> <td>भै.वि.:</td> <td><?php echo $bhaeepari_balance; ?></td> </tr>
-                <tr><td>(ग)</td> <td>प.वि.:</td> <td><?php echo $parba_balance; ?></td> </tr>
-            20<table
+                <tr>
+                    <td style="padding-left:0;">(क)</td>
+                    <td>घ.वि.:</td>
+                    <td><?php echo $gharpari_balance; ?></td>
+                </tr>
+                <tr>
+                    <td style="padding-left:0;">(ख)</td>
+                    <td>भै.वि.:</td>
+                    <td><?php echo $bhaeepari_balance; ?></td>
+                </tr>
+                <tr>
+                    <td style="padding-left:0;">(ग)</td>
+                    <td>प.वि.:</td>
+                    <td><?php echo $parba_balance; ?></td>
+                </tr>
+            </table>
 
             <p class="section-label">३. विदा गएको बिबरण</p>
             <p class="indent">(क) पछिल्लो पटक घ.वि./भै.वि./प.वि. गएको दिनः- <?php echo $leave_days; ?></p>
@@ -409,20 +456,24 @@ function displaySignatureImage($signature_path, $person_name) {
             <p style="margin-top:10px;">५. समाविष्ट कागज (केही प्रमाण भएमा) :- </p>
         </div>
 
-        <!-- APPLICANT SIGNATURE - आज्ञाकारी -->
+        <!-- APPLICANT SIGNATURE - RIGHT ALIGNED with SAME STYLING as accepting officer -->
         <div class="applicant-signature-area">
-            <div class="signature-container">
-                <?php echo displaySignatureImage($leave['personnel_signature'], $leave['personnel_name']); ?>
-                <div class="sig-line"></div>
-            </div><br>
-            आज्ञाकारी<br>
-            (<?php echo htmlspecialchars($leave['rank']) . ' ' . htmlspecialchars($leave['personnel_name']); ?>)
+            <div class="applicant-signature-wrapper">
+                <div class="signature-container">
+                    <?php echo displaySignatureImage($leave['personnel_signature'], $leave['personnel_name']); ?>
+                    <div class="sig-line"></div>
+                </div>
+            </div>
+            <div class="applicant-officer-name">
+                आज्ञाकारी<br>
+                (<?php echo htmlspecialchars($leave['rank']) . ' ' . htmlspecialchars($leave['personnel_name']); ?>)
+            </div>
         </div>
     </div>
 
-    <!-- BOTTOM SIGNATURES SECTION - Two column layout -->
+    <!-- BOTTOM SIGNATURES SECTION - Left: Initiating Officer, Right: Accepting Officer -->
     <div class="bottom-signatures">
-        <!-- Left side - Initiating Officer (सिफारिस गर्ने) -->
+        <!-- Left side - Initiating Officer (सिफारिस गर्ने) - LEFT ALIGNED -->
         <div class="left-signature">
             <div class="signature-title">सिफारिस गर्ने</div>
             <p>निवेदकलाई घ.वि./क्या.वि./प.वि. बाटो म्याद सहित,<br>विदा छाड्न सिफारिस गर्दछु ।</p>
@@ -446,22 +497,28 @@ function displaySignatureImage($signature_path, $person_name) {
             </div>
             <div class="signature-field">
                 <span class="field-label">नियुक्ति :</span>
-                <span class="field-value">प्र|.उ.से.</span>
+                <span class="field-value">प्र.उ.से.</span>
             </div>
         </div>
 
-        <!-- Right side - Accepting Officer (स्वीकृत गर्नेको दःख.) -->
+        <!-- Right side - Accepting Officer (स्वीकृत गर्नेको दःख.) - RIGHT ALIGNED -->
         <div class="right-signature">
             <div class="signature-wrapper">
                 <div class="signature-container">
-                    <?php echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']); ?>
+                    <?php 
+                    // Display signature image if exists
+                    if (!empty($leave['accepting_officer_signature'])) {
+                        echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']);
+                    }
+                    ?>
                     <div class="sig-line"></div>
                 </div>
             </div>
-            <div>स्वीकृत गर्नेको द:ख.<br>
-            <?php if (!empty($leave['accepting_officer_name'])): ?>
-                (<?php echo htmlspecialchars($leave['accepting_officer_rank'] ?? '') . ' ' . htmlspecialchars($leave['accepting_officer_name'] ?? ''); ?>)
-            <?php endif; ?>
+            <div class="accepting-officer-name">
+                स्वीकृत गर्नेको द:ख.<br>
+                <?php if (!empty($leave['accepting_officer_name'])): ?>
+                    (<?php echo htmlspecialchars($leave['accepting_officer_rank'] ?? '') . ' ' . htmlspecialchars($leave['accepting_officer_name'] ?? ''); ?>)
+                <?php endif; ?>
             </div>
         </div>
     </div>
