@@ -22,14 +22,14 @@ $offset = ($page - 1) * $records_per_page;
 // Get search term if any
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Build search condition
+// Build search condition (including location fields)
 $search_condition = "";
 $params = [];
 
 if (!empty($search_term)) {
-    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ?";
+    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ?";
     $search_param = "%$search_term%";
-    $params = [$search_param, $search_param, $search_param, $search_param, $search_param];
+    $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
 }
 
 // Get total records for pagination
@@ -109,7 +109,7 @@ ob_start();
         <i class="fas fa-search search-icon"></i>
         <form method="GET" action="" id="searchForm" style="flex: 1;">
             <input type="text" name="search" id="searchInput" class="search-input" 
-                   placeholder="Search by name, service no., rank, branch or email..." 
+                   placeholder="Search by name, service no., rank, branch, email or location..." 
                    value="<?php echo htmlspecialchars($search_term); ?>">
             <?php if (!empty($search_term)): ?>
                 <button type="button" id="clearSearch" class="clear-search">✕</button>
@@ -136,6 +136,7 @@ ob_start();
                 <th>Email</th>
                 <th>Rank</th>
                 <th>Branch</th>
+                <th>Location</th>
                 <th>Recruitment Date</th>
                 <th>Status</th>
                 <?php if ($isAdmin): ?>
@@ -175,6 +176,18 @@ ob_start();
                         </td>
                         <td><?php echo htmlspecialchars($personnel['rank']); ?></td>
                         <td><?php echo htmlspecialchars($personnel['unit']); ?></td>
+                        <td>
+                            <?php 
+                            $location_parts = [];
+                            if (!empty($personnel['village_tole'])) $location_parts[] = $personnel['village_tole'];
+                            if (!empty($personnel['ward_number'])) $location_parts[] = 'Ward ' . $personnel['ward_number'];
+                            if (!empty($personnel['municipality'])) $location_parts[] = $personnel['municipality'];
+                            if (!empty($personnel['district'])) $location_parts[] = $personnel['district'];
+                            if (!empty($personnel['province'])) $location_parts[] = $personnel['province'];
+                            
+                            echo !empty($location_parts) ? htmlspecialchars(implode(', ', $location_parts)) : '—';
+                            ?>
+                        </td>
                         <td><?php echo $personnel['recruitment_date'] ? date('Y-m-d', strtotime($personnel['recruitment_date'])) : 'N/A'; ?></td>
                         <td>
                             <?php
@@ -230,7 +243,7 @@ ob_start();
             <?php else: ?>
                 <tr>
                     <?php
-                    $colspan = 9;
+                    $colspan = 10; // Increased by 1 for Location column
                     if ($isAdmin) $colspan++;
                     if ($isSuperAdmin) $colspan++;
                     ?>
@@ -385,9 +398,46 @@ ob_start();
                         <label><i class="fas fa-phone"></i> Contact</label>
                         <input type="tel" id="contact" name="contact">
                     </div>
+                    
+                    <!-- Location Fields -->
+                    <div class="input-field">
+                        <label><i class="fas fa-map-marker-alt"></i> Province</label>
+                        <select id="province" name="province">
+                            <option value="">Select Province</option>
+                            <option value="Province 1">Province 1</option>
+                            <option value="Madhesh Province">Madhesh Province</option>
+                            <option value="Bagmati Province">Bagmati Province</option>
+                            <option value="Gandaki Province">Gandaki Province</option>
+                            <option value="Lumbini Province">Lumbini Province</option>
+                            <option value="Karnali Province">Karnali Province</option>
+                            <option value="Sudurpashchim Province">Sudurpashchim Province</option>
+                        </select>
+                    </div>
+                    
+                    <div class="input-field">
+                        <label><i class="fas fa-city"></i> District</label>
+                        <input type="text" id="district" name="district" placeholder="e.g., Kathmandu, Chitwan" list="districtList">
+                        <datalist id="districtList"></datalist>
+                    </div>
+                    
+                    <div class="input-field">
+                        <label><i class="fas fa-landmark"></i> Municipality/Rural Municipality</label>
+                        <input type="text" id="municipality" name="municipality" placeholder="e.g., Kathmandu Metropolitan City">
+                    </div>
+                    
+                    <div class="input-field">
+                        <label><i class="fas fa-hashtag"></i> Ward Number</label>
+                        <input type="text" id="wardNumber" name="wardNumber" placeholder="e.g., 1, 2, 3">
+                    </div>
+                    
+                    <div class="input-field full-width">
+                        <label><i class="fas fa-home"></i> Village/Tole</label>
+                        <input type="text" id="villageTole" name="villageTole" placeholder="e.g., Baneshwor, Thamel">
+                    </div>
+                    
                     <div class="input-field full-width">
                         <label><i class="fas fa-home"></i> Address</label>
-                        <input type="text" id="address" name="address">
+                        <input type="text" id="address" name="address" placeholder="Full address">
                     </div>
                 </div>
                 <div class="modal-buttons">
@@ -508,7 +558,7 @@ ob_start();
     .search-container {
         position: relative;
         flex: 1;
-        max-width: 400px;
+        max-width: 500px;
     }
     
     .search-container form {
@@ -667,6 +717,7 @@ ob_start();
     .data-table table {
         width: 100%;
         border-collapse: collapse;
+        min-width: 1200px;
     }
     
     .data-table th {
@@ -869,7 +920,7 @@ ob_start();
         background-color: white;
         margin: 5% auto;
         width: 90%;
-        max-width: 700px;
+        max-width: 800px;
         border-radius: 16px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         animation: slideDown 0.3s;
@@ -1088,6 +1139,17 @@ ob_start();
     const isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
     const isAdmin = <?php echo $isAdmin ? 'true' : 'false'; ?>;
 
+    // Province to Districts mapping
+    const provinceDistricts = {
+        'Province 1': ['Bhojpur', 'Dhankuta', 'Ilam', 'Jhapa', 'Khotang', 'Morang', 'Okhaldhunga', 'Panchthar', 'Sankhuwasabha', 'Solukhumbu', 'Sunsari', 'Taplejung', 'Tehrathum', 'Udayapur'],
+        'Madhesh Province': ['Bara', 'Dhanusha', 'Mahottari', 'Parsa', 'Rautahat', 'Saptari', 'Sarlahi', 'Siraha'],
+        'Bagmati Province': ['Bhaktapur', 'Chitwan', 'Dhading', 'Dolakha', 'Kathmandu', 'Kavrepalanchok', 'Lalitpur', 'Makwanpur', 'Nuwakot', 'Ramechhap', 'Rasuwa', 'Sindhuli', 'Sindhupalchok'],
+        'Gandaki Province': ['Baglung', 'Gorkha', 'Kaski', 'Lamjung', 'Manang', 'Mustang', 'Myagdi', 'Nawalpur', 'Parbat', 'Syangja', 'Tanahun'],
+        'Lumbini Province': ['Arghakhanchi', 'Banke', 'Bardiya', 'Dang', 'Eastern Rukum', 'Gulmi', 'Kapilvastu', 'Parasi', 'Palpa', 'Pyuthan', 'Rolpa', 'Western Rukum'],
+        'Karnali Province': ['Dailekh', 'Dolpa', 'Humla', 'Jajarkot', 'Jumla', 'Kalikot', 'Mugu', 'Salyan', 'Surkhet', 'Western Rukum'],
+        'Sudurpashchim Province': ['Achham', 'Baitadi', 'Bajhang', 'Bajura', 'Dadeldhura', 'Darchula', 'Doti', 'Kailali', 'Kanchanpur']
+    };
+
     // Load statistics
     async function loadStatistics() {
         try {
@@ -1116,6 +1178,30 @@ ob_start();
         setTimeout(() => {
             toast.style.display = 'none';
         }, 3000);
+    }
+
+    // Update district dropdown based on province selection
+    const provinceSelect = document.getElementById('province');
+    const districtInput = document.getElementById('district');
+    const districtDatalist = document.getElementById('districtList');
+
+    if (provinceSelect) {
+        provinceSelect.addEventListener('change', function() {
+            const province = this.value;
+            if (province && provinceDistricts[province]) {
+                districtDatalist.innerHTML = '';
+                provinceDistricts[province].forEach(district => {
+                    const option = document.createElement('option');
+                    option.value = district;
+                    districtDatalist.appendChild(option);
+                });
+                districtInput.placeholder = 'Select or type district';
+            } else {
+                districtDatalist.innerHTML = '';
+                districtInput.placeholder = 'e.g., Kathmandu, Chitwan';
+            }
+            districtInput.value = '';
+        });
     }
 
     // Handle records per page change
@@ -1312,6 +1398,9 @@ ob_start();
             form.reset();
             document.getElementById('editId').value = '';
             document.getElementById('role').value = '0';
+            // Reset district datalist
+            if (districtDatalist) districtDatalist.innerHTML = '';
+            if (provinceSelect) provinceSelect.value = '';
             if (modal) modal.style.display = 'block';
         }
     }
@@ -1361,6 +1450,22 @@ ob_start();
                     document.getElementById('email').value = data.data.email || '';
                     document.getElementById('contact').value = data.data.contact || '';
                     document.getElementById('address').value = data.data.address || '';
+                    
+                    // Location fields
+                    document.getElementById('province').value = data.data.province || '';
+                    document.getElementById('district').value = data.data.district || '';
+                    document.getElementById('municipality').value = data.data.municipality || '';
+                    document.getElementById('wardNumber').value = data.data.ward_number || '';
+                    document.getElementById('villageTole').value = data.data.village_tole || '';
+                    
+                    // Trigger province change to populate districts
+                    if (data.data.province) {
+                        const provinceChangeEvent = new Event('change');
+                        provinceSelect.dispatchEvent(provinceChangeEvent);
+                        setTimeout(() => {
+                            document.getElementById('district').value = data.data.district || '';
+                        }, 100);
+                    }
                     
                     if (modal) modal.style.display = 'block';
                 } else {
@@ -1431,6 +1536,13 @@ ob_start();
             formData.append('email', document.getElementById('email').value);
             formData.append('contact', document.getElementById('contact').value);
             formData.append('address', document.getElementById('address').value);
+            
+            // Location fields
+            formData.append('province', document.getElementById('province').value);
+            formData.append('district', document.getElementById('district').value);
+            formData.append('municipality', document.getElementById('municipality').value);
+            formData.append('wardNumber', document.getElementById('wardNumber').value);
+            formData.append('villageTole', document.getElementById('villageTole').value);
             
             fetch('save_personnel.php', {
                 method: 'POST',

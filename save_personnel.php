@@ -19,11 +19,19 @@ try {
     $recruitmentDate = $_POST['recruitmentDate'] ?? '';
     $commissionDate = $_POST['commissionDate'] ?? '';
     $status = $_POST['status'] ?? '';
-    $role = $_POST['role'] ?? 0;  // ✅ ADDED: Get role value
+    $role = $_POST['role'] ?? 0;
     $email = $_POST['email'] ?? '';
     $contact = $_POST['contact'] ?? '';
     $phone = $_POST['phone'] ?? '';
     $address = $_POST['address'] ?? '';
+    
+    // New location fields
+    $province = $_POST['province'] ?? '';
+    $district = $_POST['district'] ?? '';
+    $municipality = $_POST['municipality'] ?? '';
+    $wardNumber = $_POST['wardNumber'] ?? '';
+    $villageTole = $_POST['villageTole'] ?? '';
+    
     $religion = $_POST['religion'] ?? '';
     $militaryStatus = $_POST['militaryStatus'] ?? '';
     $education = $_POST['education'] ?? '';
@@ -46,7 +54,7 @@ try {
     $training2Address = $_POST['training2Address'] ?? '';
     
     if ($editId) {
-        // Update existing personnel - ✅ ADDED role column
+        // Update existing personnel with location fields
         $sql = "UPDATE personnel SET 
                     personnel_number = :serviceNo,
                     full_name_en = :fullName,
@@ -64,6 +72,11 @@ try {
                     contact = :contact,
                     phone = :phone,
                     address = :address,
+                    province = :province,
+                    district = :district,
+                    municipality = :municipality,
+                    ward_number = :wardNumber,
+                    village_tole = :villageTole,
                     religion = :religion,
                     military_status = :militaryStatus,
                     higher_education = :education,
@@ -100,11 +113,16 @@ try {
             ':recruitmentDate' => !empty($recruitmentDate) ? $recruitmentDate : null,
             ':commissionDate' => !empty($commissionDate) ? $commissionDate : null,
             ':status' => $status,
-            ':role' => $role,  // ✅ ADDED: Role parameter
+            ':role' => $role,
             ':email' => $email,
             ':contact' => $contact,
             ':phone' => $phone,
             ':address' => $address,
+            ':province' => !empty($province) ? $province : null,
+            ':district' => !empty($district) ? $district : null,
+            ':municipality' => !empty($municipality) ? $municipality : null,
+            ':wardNumber' => !empty($wardNumber) ? $wardNumber : null,
+            ':villageTole' => !empty($villageTole) ? $villageTole : null,
             ':religion' => $religion,
             ':militaryStatus' => $militaryStatus,
             ':education' => $education,
@@ -151,7 +169,7 @@ try {
             }
         }
         
-        // Insert new personnel - ✅ ADDED role column
+        // Insert new personnel with location fields
         $sql = "INSERT INTO personnel (
                     personnel_number, 
                     full_name_en, 
@@ -169,6 +187,11 @@ try {
                     contact,
                     phone,
                     address,
+                    province,
+                    district,
+                    municipality,
+                    ward_number,
+                    village_tole,
                     religion,
                     military_status,
                     higher_education,
@@ -206,6 +229,11 @@ try {
                     :contact,
                     :phone,
                     :address,
+                    :province,
+                    :district,
+                    :municipality,
+                    :wardNumber,
+                    :villageTole,
                     :religion,
                     :militaryStatus,
                     :education,
@@ -241,11 +269,16 @@ try {
             ':recruitmentDate' => !empty($recruitmentDate) ? $recruitmentDate : null,
             ':commissionDate' => !empty($commissionDate) ? $commissionDate : null,
             ':status' => $status,
-            ':role' => $role,  // ✅ ADDED: Role parameter
+            ':role' => $role,
             ':email' => $email,
             ':contact' => $contact,
             ':phone' => $phone,
             ':address' => $address,
+            ':province' => !empty($province) ? $province : null,
+            ':district' => !empty($district) ? $district : null,
+            ':municipality' => !empty($municipality) ? $municipality : null,
+            ':wardNumber' => !empty($wardNumber) ? $wardNumber : null,
+            ':villageTole' => !empty($villageTole) ? $villageTole : null,
             ':religion' => $religion,
             ':militaryStatus' => $militaryStatus,
             ':education' => $education,

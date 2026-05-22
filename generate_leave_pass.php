@@ -44,25 +44,22 @@ try {
         die("Leave request not found or not approved.");
     }
 
-    // Get unit from personnel table
+    // Get unit and location details from personnel table
     $unit = '';
-    try {
-        $stmt2 = $pdo->prepare("SELECT unit FROM personnel WHERE personnel_number = ?");
-        $stmt2->execute([$leave['personnel_number']]);
-        $unit_data = $stmt2->fetch(PDO::FETCH_ASSOC);
-        $unit = ($unit_data && isset($unit_data['unit'])) ? $unit_data['unit'] : 'श्री साइबर सुरक्षा निर्देशनालय';
-    } catch (PDOException $e) {
-        $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
-    }
-
-    // Get contact info
     $personnel_info = [];
     try {
-        $stmt2 = $pdo->prepare("SELECT contact, address, province, district FROM personnel WHERE personnel_number = ?");
+        $stmt2 = $pdo->prepare("SELECT unit, contact, address, province, district, municipality, ward_number, village_tole FROM personnel WHERE personnel_number = ?");
         $stmt2->execute([$leave['personnel_number']]);
         $personnel_info = $stmt2->fetch(PDO::FETCH_ASSOC);
-        if (!$personnel_info) $personnel_info = [];
+        
+        if ($personnel_info && isset($personnel_info['unit'])) {
+            $unit = $personnel_info['unit'];
+        } else {
+            $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
+            $personnel_info = [];
+        }
     } catch (PDOException $e) {
+        $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
         $personnel_info = [];
     }
 
@@ -88,10 +85,13 @@ function numberToNepaliWords($number) {
 
 $current_date = date('Y/m/d');
 
-$province  = $personnel_info['province'] ?? 'वागमती';
-$district  = $personnel_info['district'] ?? 'भक्तपुर';
-$address   = $personnel_info['address']  ?? 'ताथली';
-$contact   = $personnel_info['contact']  ?? '९८४१३७८३७४';
+// Get location details with proper fallbacks
+$province      = $personnel_info['province']      ?? 'वागमती प्रदेश';
+$district      = $personnel_info['district']      ?? 'काठमाडौं';
+$municipality  = $personnel_info['municipality']  ?? 'चा.न.पा.';
+$ward_number   = $personnel_info['ward_number']   ?? '९';
+$village_tole  = $personnel_info['village_tole']  ?? $personnel_info['address'] ?? '';
+$address       = !empty($village_tole) ? $village_tole : ($personnel_info['address'] ?? 'ताथली');
 
 $gharpari_balance  = $leave['gharpari_bida_days']  ?? 0;
 $parba_balance     = $leave['parba_bida_days']     ?? 0;
@@ -109,7 +109,6 @@ $leave_type_map = [
 ];
 
 $leave_type_text = $leave_type_map[$leave['leave_type']]['text'] ?? 'विदा';
-$leave_type_short = $leave_type_map[$leave['leave_type']]['short'] ?? 'वि.';
 
 $last_leave_date = $leave['created_at'] ? date('Y/m/d', strtotime($leave['created_at'])) : '';
 $last_leave_end  = $leave['created_at'] ? date('Y/m/d', strtotime($leave['created_at'] . ' +7 days')) : '';
@@ -138,7 +137,7 @@ function getSignaturePath($signature_path) {
     return null;
 }
 
-// Function to display signature image without extra border
+// Function to display signature image
 function displaySignatureImage($signature_path, $person_name) {
     if (empty($signature_path)) {
         return '';
@@ -194,7 +193,6 @@ function displaySignatureImage($signature_path, $person_name) {
             flex-direction: column;
         }
 
-        /* TOP HEADER */
         .top-header {
             display: flex;
             justify-content: space-between;
@@ -256,12 +254,19 @@ function displaySignatureImage($signature_path, $person_name) {
             padding-left: 0;
             padding-right: 8px;
         }
+
+        /* Flexbox layout for address section - 3 column grid */
+        .address-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 4px 0 4px 25px;
+        }
         
-        .balance-table td:nth-child(2) {
-            padding-right: 8px;
+        .address-item {
+            white-space: nowrap;
         }
 
-        /* APPLICANT SIGNATURE - RIGHT ALIGNED */
         .applicant-signature-area {
             text-align: right;
             margin-top: 20px;
@@ -293,7 +298,6 @@ function displaySignatureImage($signature_path, $person_name) {
             margin-top: 3px;
         }
 
-        /* Bottom signature section - Left and Right layout */
         .bottom-signatures {
             display: flex;
             justify-content: space-between;
@@ -342,20 +346,6 @@ function displaySignatureImage($signature_path, $person_name) {
             display: inline-block;
         }
 
-        .content-wrapper {
-            flex: 1;
-        }
-        
-        .signature-wrapper {
-            text-align: center;
-            display: inline-block;
-        }
-        
-        .signature-wrapper .signature-container {
-            display: inline-block;
-        }
-
-        /* Right side accepting officer signature block - right aligned */
         .right-signature .signature-wrapper {
             text-align: center;
             display: inline-block;
@@ -365,12 +355,20 @@ function displaySignatureImage($signature_path, $person_name) {
             text-align: center;
             margin-top: 3px;
         }
+        
 
         @media print {
             body { background: white; padding: 0; }
             .no-print { display: none !important; }
             .page-wrap { box-shadow: none; }
             .pass { padding: 12px 18px 18px; }
+        }
+
+        @media (max-width: 600px) {
+            .address-grid {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
         }
 
         .button-bar {
@@ -435,18 +433,15 @@ function displaySignatureImage($signature_path, $person_name) {
             <table class="balance-table">
                 <tr>
                     <td>(क)</td>
-                    <td>घ.वि.:</td>
-                    <td><?php echo $gharpari_balance; ?></td>
+                    <td>घ.वि.: <?php echo $gharpari_balance; ?></td>
                 </tr>
                 <tr>
                     <td>(ख)</td>
-                    <td>भै.वि.:</td>
-                    <td><?php echo $bhaeepari_balance; ?></td>
+                    <td>भै.वि.: <?php echo $bhaeepari_balance; ?></td>
                 </tr>
                 <tr>
                     <td>(ग)</td>
-                    <td>प.वि.:</td>
-                    <td><?php echo $parba_balance; ?></td>
+                    <td>प.वि.: <?php echo $parba_balance; ?></td>
                 </tr>
             </table>
 
@@ -455,13 +450,21 @@ function displaySignatureImage($signature_path, $person_name) {
             <p class="indent">(ख) पछिल्लो पटक विदा गएको मितिः- <?php echo $last_leave_date; ?> गतेदेखि <?php echo $last_leave_end; ?> गतेसम्म ।</p>
 
             <p class="section-label">४. विदामा रहँदाको सम्पर्क ठेगाना</p>
-            <p class="indent">(क) प्रदेश :- <?php echo htmlspecialchars($province); ?> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ख) जिल्ला :- <?php echo htmlspecialchars($district); ?> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ग) न.पा./गा.पा :- चा.न.पा.</p>
-            <p class="indent">(घ) वडा नं. :- 9 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (ङ) गाउँ/टोल :- <?php echo htmlspecialchars($address); ?></p>
+            
+            <!-- Using CSS Grid for 3 columns - Items align in grid pattern -->
+            <div class="address-grid">
+                <div class="address-item">(क) प्रदेश :- <?php echo htmlspecialchars($province); ?></div>
+                <div class="address-item">(ख) जिल्ला :- <?php echo htmlspecialchars($district); ?></div>
+                <div class="address-item">(ग) न.पा./गा.पा :- <?php echo htmlspecialchars($municipality); ?></div>
+                <div class="address-item">(घ) वडा नं. :- <?php echo htmlspecialchars($ward_number); ?></div>
+                <div class="address-item">(ङ) गाउँ/टोल :- <?php echo htmlspecialchars($address); ?></div>
+                <div class="address-item"></div> <!-- Empty cell for alignment -->
+            </div>
 
             <p style="margin-top:6px;">५. समाविष्ट कागज (केही प्रमाण भएमा) :- </p>
         </div>
 
-        <!-- APPLICANT SIGNATURE - RIGHT ALIGNED -->
+        <!-- APPLICANT SIGNATURE -->
         <div class="applicant-signature-area">
             <div class="applicant-signature-wrapper">
                 <div class="signature-container">
