@@ -95,6 +95,22 @@ ob_start();
     </div>
 </div>
 
+<!-- Date Filter Section -->
+<div style="margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; padding: 12px; background: #f8fafc; border-radius: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <i class="fas fa-calendar-week" style="color: #2c5f4e;"></i>
+        <span style="font-weight: 500;">Filter by Date:</span>
+        <input type="date" id="dateFilter" style="padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px;">
+        <button id="clearDateFilter" class="btn-clear-date" style="padding: 8px 12px; background: #f1f3f5; border: none; border-radius: 8px; cursor: pointer;">
+            <i class="fas fa-times"></i> Clear
+        </button>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
+        <i class="fas fa-chart-line" style="color: #2c5f4e;"></i>
+        <span style="font-size: 13px; color: #6c7a8e;">Showing data grouped by date</span>
+    </div>
+</div>
+
 <!-- Status Filter Buttons - Military Specific -->
 <div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
     <button class="filter-btn active" data-filter="all">📋 All</button>
@@ -380,6 +396,19 @@ ob_start();
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     
+    .btn-clear-date {
+        padding: 8px 12px;
+        background: #f1f3f5;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-clear-date:hover {
+        background: #e2e8f0;
+    }
+    
     /* Action Buttons */
     .btn-icon {
         background: none;
@@ -519,6 +548,28 @@ ob_start();
     .data-table td {
         padding: 12px;
         border-bottom: 1px solid #eef2f6;
+    }
+    
+    /* Date header row styling */
+    .date-header-row td {
+        background: #f0f7f4 !important;
+        border-top: 2px solid #cbd5e1;
+        border-bottom: 1px solid #cbd5e1;
+        font-weight: 600;
+    }
+    
+    .date-header-row:first-child td {
+        border-top: none;
+    }
+    
+    /* Zebra striping for better readability */
+    #statusTable tbody tr:not(.date-header-row):nth-child(even) {
+        background-color: #fafcfb;
+    }
+    
+    #statusTable tbody tr:not(.date-header-row):hover {
+        background-color: #f1f5f9;
+        transition: background-color 0.2s;
     }
     
     /* Modal Styles */
@@ -781,6 +832,37 @@ ob_start();
         }
     }
     
+    // Helper function to group data by date
+    function groupDataByDate(data) {
+        const grouped = {};
+        data.forEach(item => {
+            const date = item.record_date;
+            if (!grouped[date]) {
+                grouped[date] = [];
+            }
+            grouped[date].push(item);
+        });
+        // Sort dates in descending order (newest first)
+        return Object.keys(grouped).sort().reverse().map(date => ({
+            date: date,
+            records: grouped[date]
+        }));
+    }
+    
+    // Helper function to format date header
+    function formatDateHeader(dateString) {
+        const date = new Date(dateString);
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        return date.toLocaleDateString(undefined, options);
+    }
+    
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     // Status badge mapping
     function getStatusBadge(status) {
         const icons = {
@@ -806,7 +888,7 @@ ob_start();
         return `<span class="badge ${badgeClasses[status]}">${icons[status] || status}</span>`;
     }
     
-    // Render table with data
+    // Render table with date-wise grouping
     function renderTable() {
         tableBody.innerHTML = '';
         let filteredData = personnelData;
@@ -836,34 +918,120 @@ ob_start();
         noResultsDiv.style.display = 'none';
         table.style.display = 'table';
         
-        filteredData.forEach((person, index) => {
-            const row = tableBody.insertRow();
-            const inTimeDisplay = person.in_time ? person.in_time : '-';
-            const outTimeDisplay = person.out_time ? person.out_time : '-';
-            
-            row.setAttribute('data-status', person.status);
-            row.setAttribute('data-id', person.id);
-            row.innerHTML = `
-                <td>${index + 1}</td>
-                <td>${person.personnel_name}</td>
-                <td>${person.rank}</td>
-                <td>${getStatusBadge(person.status)}</td>
-                <td>${person.record_date}</td>
-                <td>${inTimeDisplay}</td>
-                <td>${outTimeDisplay}</td>
-                <td>${person.remarks}</td>
-                <td>
-                    <button class="btn-icon edit-btn" onclick='editPersonnel(${JSON.stringify(person)})'><i class="fas fa-edit"></i></button>
-                    <button class="btn-icon delete-btn" onclick="deletePersonnel(${person.id})"><i class="fas fa-trash"></i></button>
+        // Group data by date
+        const groupedData = groupDataByDate(filteredData);
+        let globalIndex = 0;
+        
+        // Render each date group
+        groupedData.forEach(group => {
+            // Add date header row
+            const dateRow = tableBody.insertRow();
+            dateRow.classList.add('date-header-row');
+            dateRow.setAttribute('data-date', group.date);
+            dateRow.innerHTML = `
+                <td colspan="9" style="background: #f0f7f4; padding: 12px; font-weight: 700; color: #1e3a32;">
+                    <i class="fas fa-calendar-alt" style="margin-right: 8px;"></i>
+                    ${formatDateHeader(group.date)}
+                    <span style="margin-left: 12px; font-size: 12px; font-weight: normal; color: #6c7a8e;">
+                        (${group.records.length} personnel)
+                    </span>
                 </td>
             `;
             
-            // Apply highlight if search term exists
-            if (searchTerm) {
-                highlightText(row.cells[1], searchTerm);
-                highlightText(row.cells[2], searchTerm);
-                highlightText(row.cells[7], searchTerm);
-            }
+            // Render records for this date
+            group.records.forEach((person) => {
+                const row = tableBody.insertRow();
+                const inTimeDisplay = person.in_time ? person.in_time : '-';
+                const outTimeDisplay = person.out_time ? person.out_time : '-';
+                
+                globalIndex++;
+                
+                row.setAttribute('data-status', person.status);
+                row.setAttribute('data-id', person.id);
+                row.innerHTML = `
+                    <td style="padding-left: 24px;">${globalIndex}</td>
+                    <td>${escapeHtml(person.personnel_name)}</td>
+                    <td>${escapeHtml(person.rank)}</td>
+                    <td>${getStatusBadge(person.status)}</td>
+                    <td>${person.record_date}</td>
+                    <td>${inTimeDisplay}</td>
+                    <td>${outTimeDisplay}</td>
+                    <td>${escapeHtml(person.remarks)}</td>
+                    <td>
+                        <button class="btn-icon edit-btn" onclick='editPersonnel(${JSON.stringify(person).replace(/'/g, "&#39;")})'>
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon delete-btn" onclick="deletePersonnel(${person.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                
+                // Apply highlight if search term exists
+                if (searchTerm) {
+                    highlightText(row.cells[1], searchTerm);
+                    highlightText(row.cells[2], searchTerm);
+                    highlightText(row.cells[7], searchTerm);
+                }
+            });
+        });
+    }
+    
+    // Render filtered data by date
+    function renderFilteredData(filteredData) {
+        tableBody.innerHTML = '';
+        
+        if (filteredData.length === 0) {
+            noResultsDiv.style.display = 'block';
+            table.style.display = 'none';
+            return;
+        }
+        
+        noResultsDiv.style.display = 'none';
+        table.style.display = 'table';
+        
+        // Group by date (should be just one date if filtering)
+        const groupedData = groupDataByDate(filteredData);
+        let globalIndex = 0;
+        
+        groupedData.forEach(group => {
+            const dateRow = tableBody.insertRow();
+            dateRow.classList.add('date-header-row');
+            dateRow.innerHTML = `
+                <td colspan="9" style="background: #f0f7f4; padding: 12px; font-weight: 700; color: #1e3a32;">
+                    <i class="fas fa-calendar-alt" style="margin-right: 8px;"></i>
+                    ${formatDateHeader(group.date)}
+                    <span style="margin-left: 12px; font-size: 12px; font-weight: normal; color: #6c7a8e;">
+                        (${group.records.length} personnel)
+                    </span>
+                </td>
+            `;
+            
+            group.records.forEach((person) => {
+                const row = tableBody.insertRow();
+                globalIndex++;
+                const inTimeDisplay = person.in_time ? person.in_time : '-';
+                const outTimeDisplay = person.out_time ? person.out_time : '-';
+                
+                row.innerHTML = `
+                    <td style="padding-left: 24px;">${globalIndex}</td>
+                    <td>${escapeHtml(person.personnel_name)}</td>
+                    <td>${escapeHtml(person.rank)}</td>
+                    <td>${getStatusBadge(person.status)}</td>
+                    <td>${person.record_date}</td>
+                    <td>${inTimeDisplay}</td>
+                    <td>${outTimeDisplay}</td>
+                    <td>${escapeHtml(person.remarks)}</td>
+                    <td>
+                        <button class="btn-icon edit-btn" onclick='editPersonnel(${JSON.stringify(person).replace(/'/g, "&#39;")})'>
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon delete-btn" onclick="deletePersonnel(${person.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+            });
         });
     }
     
@@ -974,6 +1142,22 @@ ob_start();
         searchInput.value = '';
         searchTable();
         searchInput.focus();
+    }
+    
+    // Date filter functionality
+    function filterByDate() {
+        const selectedDate = document.getElementById('dateFilter').value;
+        if (selectedDate) {
+            const filtered = personnelData.filter(person => person.record_date === selectedDate);
+            renderFilteredData(filtered);
+        } else {
+            renderTable();
+        }
+    }
+    
+    function clearDateFilter() {
+        document.getElementById('dateFilter').value = '';
+        renderTable();
     }
     
     // Open modal for adding
@@ -1153,6 +1337,17 @@ ob_start();
     // Event listeners for search
     searchInput.addEventListener('input', searchTable);
     clearSearchBtn.addEventListener('click', clearSearch);
+    
+    // Event listeners for date filter
+    const dateFilter = document.getElementById('dateFilter');
+    const clearDateFilterBtn = document.getElementById('clearDateFilter');
+    
+    if (dateFilter) {
+        dateFilter.addEventListener('change', filterByDate);
+    }
+    if (clearDateFilterBtn) {
+        clearDateFilterBtn.addEventListener('click', clearDateFilter);
+    }
 </script>
 
 <?php

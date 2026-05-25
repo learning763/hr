@@ -22,14 +22,14 @@ $offset = ($page - 1) * $records_per_page;
 // Get search term if any
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Build search condition (including location fields and appointment)
+// Build search condition (including location fields)
 $search_condition = "";
 $params = [];
 
 if (!empty($search_term)) {
-    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ? OR appointment LIKE ?";
+    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ?";
     $search_param = "%$search_term%";
-    $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
+    $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
 }
 
 // Get total records for pagination
@@ -109,7 +109,7 @@ ob_start();
         <i class="fas fa-search search-icon"></i>
         <form method="GET" action="" id="searchForm" style="flex: 1;">
             <input type="text" name="search" id="searchInput" class="search-input" 
-                   placeholder="Search by name, service no., rank, branch, email, location or appointment..." 
+                   placeholder="Search by name, service no., rank, branch, email or location..." 
                    value="<?php echo htmlspecialchars($search_term); ?>">
             <?php if (!empty($search_term)): ?>
                 <button type="button" id="clearSearch" class="clear-search">✕</button>
@@ -130,6 +130,7 @@ ob_start();
         <thead>
             <tr>
                 <th style="width: 50px;">S.No.</th>
+                <th style="width: 60px;">Photo</th>
                 <th>Personnel No.</th>
                 <th>Name</th>
                 <th>Signature</th>
@@ -139,12 +140,11 @@ ob_start();
                 <th>Location</th>
                 <th>Recruitment Date</th>
                 <th>Status</th>
-                <th>Appointment</th>
                 <?php if ($isAdmin): ?>
                     <th>Role</th>
                 <?php endif; ?>
                 <?php if ($isSuperAdmin): ?>
-                    <th style="width: 140px;">Actions</th>
+                    <th style="width: 180px;">Actions</th>
                 <?php endif; ?>
             </tr>
         </thead>
@@ -154,6 +154,18 @@ ob_start();
                 <?php foreach ($personnel_list as $personnel): ?>
                     <tr>
                         <td><?php echo $counter++; ?></td>
+                        <td class="photo-cell">
+                            <?php if (!empty($personnel['profile_picture_path'])): ?>
+                                <img src="<?php echo htmlspecialchars($personnel['profile_picture_path']); ?>" 
+                                     alt="Profile Photo" 
+                                     class="profile-preview"
+                                     onclick="viewProfilePhoto('<?php echo htmlspecialchars($personnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
+                            <?php else: ?>
+                                <div class="avatar-placeholder" onclick="editProfilePhoto('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            <?php endif; ?>
+                        </td>
                         <td><?php echo htmlspecialchars($personnel['personnel_number']); ?></td>
                         <td><?php echo htmlspecialchars($personnel['full_name_en']); ?></td>
                         <td class="signature-cell">
@@ -202,16 +214,6 @@ ob_start();
                                 <?php echo htmlspecialchars($personnel['current_status'] ?? 'Active'); ?>
                             </span>
                         </td>
-                        <td>
-                            <?php if (!empty($personnel['appointment'])): ?>
-                                <span style="font-size: 12px; display: inline-block; max-width: 200px; word-wrap: break-word;">
-                                    <?php echo nl2br(htmlspecialchars(substr($personnel['appointment'], 0, 100))); ?>
-                                    <?php if (strlen($personnel['appointment']) > 100): ?>...<?php endif; ?>
-                                </span>
-                            <?php else: ?>
-                                <span style="color: #9aa9bc;">—</span>
-                            <?php endif; ?>
-                        </td>
                         <?php if ($isAdmin): ?>
                             <td>
                                 <?php
@@ -235,6 +237,9 @@ ob_start();
                                     <button class="btn-icon btn-edit" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </button>
+                                    <button class="btn-icon btn-photo" onclick="editProfilePhoto('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')" title="Upload/Edit Photo">
+                                        <i class="fas fa-camera"></i>
+                                    </button>
                                     <button class="btn-icon btn-signature" onclick="editSignature('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['signature'] ?? ''); ?>')" title="Upload/Edit Signature">
                                         <i class="fas fa-signature"></i>
                                     </button>
@@ -254,7 +259,7 @@ ob_start();
             <?php else: ?>
                 <tr>
                     <?php
-                    $colspan = 11; // Added 1 for Appointment column
+                    $colspan = 11; // Increased by 2 for Photo column
                     if ($isAdmin) $colspan++;
                     if ($isSuperAdmin) $colspan++;
                     ?>
@@ -450,19 +455,63 @@ ob_start();
                         <label><i class="fas fa-home"></i> Address</label>
                         <input type="text" id="address" name="address" placeholder="Full address">
                     </div>
-                    
-                    <!-- Appointment Field -->
-                    <div class="input-field full-width">
-                        <label><i class="fas fa-calendar-check"></i> Appointment</label>
-                        <textarea id="appointment" name="appointment" rows="3" placeholder="Enter appointment details here..."></textarea>
-                        <small style="color: #6c7a8e;">Add any appointment or meeting details for this personnel</small>
-                    </div>
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
                     <button type="submit" class="btn-submit">Save Personnel</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Photo Modal -->
+<div id="profilePhotoModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="profilePhotoModalTitle"><i class="fas fa-camera"></i> Upload Profile Photo</h3>
+            <span class="close-profile-photo">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form id="profilePhotoForm" enctype="multipart/form-data">
+                <input type="hidden" id="photoPersonnelId" name="personnel_id">
+                <input type="hidden" id="existingPhoto" name="existing_photo">
+                
+                <div class="photo-preview-container" style="text-align: center; margin-bottom: 20px;">
+                    <div id="currentPhotoPreview" style="margin-bottom: 15px;">
+                        <label style="font-size: 13px; color: #6c7a8e;">Current Photo:</label>
+                        <div id="currentPhotoImage" style="margin-top: 10px;"></div>
+                    </div>
+                </div>
+                
+                <div class="input-field">
+                    <label><i class="fas fa-cloud-upload-alt"></i> Upload New Profile Photo</label>
+                    <input type="file" id="profilePhotoFile" name="profile_photo" accept="image/*" style="padding: 8px;">
+                    <small style="color: #6c7a8e;">Supported formats: JPG, PNG, GIF. Max size: 5MB. Recommended size: 300x300px.</small>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" id="cancelPhotoBtn">Cancel</button>
+                    <button type="button" class="btn-delete-photo" id="deletePhotoBtn" style="background: #dc2626; color: white; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer;">
+                        <i class="fas fa-trash"></i> Remove Photo
+                    </button>
+                    <button type="submit" class="btn-submit">Upload Photo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Photo View Modal -->
+<div id="photoViewModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 id="photoViewTitle"><i class="fas fa-user-circle"></i> Profile Photo</h3>
+            <span class="close-photo-view">&times;</span>
+        </div>
+        <div class="modal-body" style="text-align: center;">
+            <div id="photoViewImage"></div>
+            <p id="photoViewName" style="margin-top: 15px; color: #6c7a8e;"></p>
         </div>
     </div>
 </div>
@@ -479,7 +528,7 @@ ob_start();
                 <input type="hidden" id="signaturePersonnelId" name="personnel_id">
                 <input type="hidden" id="existingSignature" name="existing_signature">
                 
-                <div class="signature-preview-container" id="signaturePreviewContainer" style="text-align: center; margin-bottom: 20px;">
+                <div class="signature-preview-container" style="text-align: center; margin-bottom: 20px;">
                     <div id="currentSignaturePreview" style="margin-bottom: 15px;">
                         <label style="font-size: 13px; color: #6c7a8e;">Current Signature:</label>
                         <div id="currentSignatureImage"></div>
@@ -517,26 +566,6 @@ ob_start();
         </div>
     </div>
 </div>
-
-<!-- Style for textarea -->
-<style>
-    .input-field textarea {
-        padding: 10px 12px;
-        border: 1.5px solid #e2e8f0;
-        border-radius: 8px;
-        font-size: 14px;
-        transition: all 0.2s;
-        outline: none;
-        font-family: inherit;
-        resize: vertical;
-    }
-    
-    .input-field textarea:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
-    }
-</style>
-
 <?php endif; ?>
 
 <style>
@@ -673,6 +702,78 @@ ob_start();
         background: #14362c;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Photo Styles */
+    .photo-cell {
+        text-align: center;
+        padding: 8px !important;
+    }
+    
+    .profile-preview {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        object-fit: cover;
+        cursor: pointer;
+        border: 2px solid #e2e8f0;
+        transition: all 0.2s;
+    }
+    
+    .profile-preview:hover {
+        transform: scale(1.2);
+        border-color: #2c5f4e;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .avatar-placeholder {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border: 2px dashed #cbd5e1;
+        transition: all 0.2s;
+        color: #94a3b8;
+        font-size: 20px;
+    }
+    
+    .avatar-placeholder:hover {
+        border-color: #2c5f4e;
+        background: #e8f5f0;
+        color: #2c5f4e;
+    }
+    
+    .btn-photo {
+        color: #3b82f6;
+    }
+    
+    .btn-photo:hover {
+        background: #dbeafe;
+    }
+    
+    .photo-preview-container {
+        padding: 15px;
+        background: #f8fafc;
+        border-radius: 12px;
+        text-align: center;
+    }
+    
+    .photo-preview-container img {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #e2e8f0;
+        padding: 3px;
+        background: white;
+    }
+    
+    .btn-delete-photo:hover {
+        background: #b91c1c;
     }
     
     /* Signature Styles */
@@ -999,14 +1100,14 @@ ob_start();
         margin: 0;
     }
     
-    .close, .close-signature, .close-signature-view {
+    .close, .close-signature, .close-signature-view, .close-profile-photo, .close-photo-view {
         font-size: 28px;
         cursor: pointer;
         color: #9aa9bc;
         transition: 0.2s;
     }
     
-    .close:hover, .close-signature:hover, .close-signature-view:hover {
+    .close:hover, .close-signature:hover, .close-signature-view:hover, .close-profile-photo:hover, .close-photo-view:hover {
         color: #c2410c;
     }
     
@@ -1033,26 +1134,19 @@ ob_start();
     }
     
     .input-field input,
-    .input-field select,
-    .input-field textarea {
+    .input-field select {
         padding: 10px 12px;
         border: 1.5px solid #e2e8f0;
         border-radius: 8px;
         font-size: 14px;
         transition: all 0.2s;
         outline: none;
-        font-family: inherit;
     }
     
     .input-field input:focus,
-    .input-field select:focus,
-    .input-field textarea:focus {
+    .input-field select:focus {
         border-color: #2c5f4e;
         box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
-    }
-    
-    .input-field textarea {
-        resize: vertical;
     }
     
     .full-width {
@@ -1168,17 +1262,22 @@ ob_start();
     const modal = document.getElementById('personnelModal');
     const signatureModal = document.getElementById('signatureModal');
     const signatureViewModal = document.getElementById('signatureViewModal');
+    const profilePhotoModal = document.getElementById('profilePhotoModal');
+    const photoViewModal = document.getElementById('photoViewModal');
     const addBtn = document.getElementById('addPersonnelBtn');
-    const closeBtns = document.querySelectorAll('.close, .close-signature, .close-signature-view');
+    const closeBtns = document.querySelectorAll('.close, .close-signature, .close-signature-view, .close-profile-photo, .close-photo-view');
     const cancelBtn = document.getElementById('cancelBtn');
     const cancelSignatureBtn = document.getElementById('cancelSignatureBtn');
+    const cancelPhotoBtn = document.getElementById('cancelPhotoBtn');
     const modalTitle = document.getElementById('modalTitle');
     const form = document.getElementById('personnelForm');
     const signatureForm = document.getElementById('signatureForm');
+    const profilePhotoForm = document.getElementById('profilePhotoForm');
     const searchInput = document.getElementById('searchInput');
     const clearSearchBtn = document.getElementById('clearSearch');
     const recordsPerPageSelect = document.getElementById('recordsPerPage');
     const deleteSignatureBtn = document.getElementById('deleteSignatureBtn');
+    const deletePhotoBtn = document.getElementById('deletePhotoBtn');
 
     let isEditing = false;
     const isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
@@ -1323,7 +1422,141 @@ ob_start();
         if (signatureViewModal) signatureViewModal.style.display = 'block';
     }
 
+    // View Profile Photo
+    function viewProfilePhoto(photoPath, name) {
+        const viewImage = document.getElementById('photoViewImage');
+        const viewName = document.getElementById('photoViewName');
+        const viewTitle = document.getElementById('photoViewTitle');
+        
+        if (viewImage) {
+            viewImage.innerHTML = `<img src="${photoPath}" alt="Profile Photo of ${name}" style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0; padding: 5px; background: white;">`;
+        }
+        if (viewName) viewName.textContent = name;
+        if (viewTitle) viewTitle.innerHTML = `<i class="fas fa-user-circle"></i> Profile Photo - ${name}`;
+        
+        if (photoViewModal) photoViewModal.style.display = 'block';
+    }
+
     <?php if ($isSuperAdmin): ?>
+    // Edit Profile Photo
+    function editProfilePhoto(serviceNo, name) {
+        document.getElementById('photoPersonnelId').value = serviceNo;
+        
+        const modalTitle = document.getElementById('profilePhotoModalTitle');
+        if (modalTitle) modalTitle.innerHTML = `<i class="fas fa-camera"></i> Upload Profile Photo - ${name}`;
+        
+        // Get current photo path
+        fetch(`get_personnel.php?id=${serviceNo}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data.profile_picture_path) {
+                    const previewContainer = document.getElementById('currentPhotoImage');
+                    if (previewContainer) {
+                        previewContainer.innerHTML = `<img src="${data.data.profile_picture_path}" alt="Current Photo" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0; padding: 3px;">`;
+                    }
+                    document.getElementById('existingPhoto').value = data.data.profile_picture_path;
+                } else {
+                    const previewContainer = document.getElementById('currentPhotoImage');
+                    if (previewContainer) {
+                        previewContainer.innerHTML = `<span style="color: #9aa9bc;">No profile photo uploaded yet</span>`;
+                    }
+                    document.getElementById('existingPhoto').value = '';
+                }
+            });
+        
+        // Reset file input
+        const fileInput = document.getElementById('profilePhotoFile');
+        if (fileInput) fileInput.value = '';
+        
+        if (profilePhotoModal) profilePhotoModal.style.display = 'block';
+    }
+
+    // Handle profile photo form submission
+    if (profilePhotoForm) {
+        profilePhotoForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const personnelId = document.getElementById('photoPersonnelId').value;
+            const fileInput = document.getElementById('profilePhotoFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showToast('Please select a profile photo to upload', 'error');
+                return;
+            }
+            
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                showToast('Please upload a valid image file (JPG, PNG, GIF, WEBP)', 'error');
+                return;
+            }
+            
+            // Validate file size (max 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('File size must be less than 5MB', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('action', 'upload_profile_photo');
+            formData.append('personnel_id', personnelId);
+            formData.append('profile_photo', file);
+            
+            try {
+                const response = await fetch('upload_profile_photo.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Profile photo uploaded successfully!', 'success');
+                    if (profilePhotoModal) profilePhotoModal.style.display = 'none';
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(result.message || 'Error uploading profile photo', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error uploading profile photo', 'error');
+            }
+        });
+    }
+
+    // Delete profile photo
+    if (deletePhotoBtn) {
+        deletePhotoBtn.addEventListener('click', async function() {
+            const personnelId = document.getElementById('photoPersonnelId').value;
+            const name = document.getElementById('profilePhotoModalTitle')?.innerText.split('-')[1]?.trim() || '';
+            
+            if (confirm(`Are you sure you want to remove the profile photo for ${name}?`)) {
+                const formData = new FormData();
+                formData.append('action', 'delete_profile_photo');
+                formData.append('personnel_id', personnelId);
+                
+                try {
+                    const response = await fetch('upload_profile_photo.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        showToast('Profile photo removed successfully!', 'success');
+                        if (profilePhotoModal) profilePhotoModal.style.display = 'none';
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showToast(result.message || 'Error removing profile photo', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showToast('Error removing profile photo', 'error');
+                }
+            }
+        });
+    }
+
     // Edit Signature
     function editSignature(serviceNo, name, currentSignature) {
         document.getElementById('signaturePersonnelId').value = serviceNo;
@@ -1446,7 +1679,6 @@ ob_start();
             // Reset district datalist
             if (districtDatalist) districtDatalist.innerHTML = '';
             if (provinceSelect) provinceSelect.value = '';
-            document.getElementById('appointment').value = '';
             if (modal) modal.style.display = 'block';
         }
     }
@@ -1456,6 +1688,8 @@ ob_start();
         if (modal) modal.style.display = 'none';
         if (signatureModal) signatureModal.style.display = 'none';
         if (signatureViewModal) signatureViewModal.style.display = 'none';
+        if (profilePhotoModal) profilePhotoModal.style.display = 'none';
+        if (photoViewModal) photoViewModal.style.display = 'none';
         form?.reset();
         isEditing = false;
     }
@@ -1466,11 +1700,14 @@ ob_start();
 
     if (cancelBtn) cancelBtn.onclick = closeModals;
     if (cancelSignatureBtn) cancelSignatureBtn.onclick = closeModals;
+    if (cancelPhotoBtn) cancelPhotoBtn.onclick = closeModals;
 
     window.onclick = function(event) {
         if (event.target == modal) closeModals();
         if (event.target == signatureModal) closeModals();
         if (event.target == signatureViewModal) closeModals();
+        if (event.target == profilePhotoModal) closeModals();
+        if (event.target == photoViewModal) closeModals();
     }
 
     // Edit personnel
@@ -1503,9 +1740,6 @@ ob_start();
                     document.getElementById('municipality').value = data.data.municipality || '';
                     document.getElementById('wardNumber').value = data.data.ward_number || '';
                     document.getElementById('villageTole').value = data.data.village_tole || '';
-                    
-                    // Appointment field
-                    document.getElementById('appointment').value = data.data.appointment || '';
                     
                     // Trigger province change to populate districts
                     if (data.data.province) {
@@ -1592,9 +1826,6 @@ ob_start();
             formData.append('municipality', document.getElementById('municipality').value);
             formData.append('wardNumber', document.getElementById('wardNumber').value);
             formData.append('villageTole', document.getElementById('villageTole').value);
-            
-            // Appointment field
-            formData.append('appointment', document.getElementById('appointment').value);
             
             fetch('save_personnel.php', {
                 method: 'POST',
