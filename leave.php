@@ -120,10 +120,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $offset = ($page - 1) * $per_page;
             
             $sql = "SELECT lr.*, 
-                           mps.personnel_name, mps.rank,
+                           mps.personnel_name, mps.rank, mps.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
                            io.personnel_name as initiating_officer_name,
-                           ao.personnel_name as accepting_officer_name
+                           io.rank as initiating_officer_rank,
+                           ao.personnel_name as accepting_officer_name,
+                           ao.rank as accepting_officer_rank
                     FROM leave_requests lr
                     INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -208,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             exit;
         }
         
-        // Get pending requests for accepting officer - FIXED QUERY
+        // Get pending requests for accepting officer
         if ($action === 'get_accepting_pending') {
             $sql = "SELECT lr.*, 
                            mps.personnel_name, mps.rank,
@@ -688,7 +690,6 @@ ob_start();
             padding: 1.5rem;
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -759,7 +760,6 @@ ob_start();
             margin-top: 0.25rem;
         }
 
-        /* Officer Cards */
         .officer-actions {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
@@ -772,7 +772,6 @@ ob_start();
             border-radius: var(--border-radius);
             overflow: hidden;
             box-shadow: var(--shadow-md);
-            transition: all 0.2s;
         }
 
         .officer-card-header {
@@ -873,7 +872,6 @@ ob_start();
             font-size: 0.8rem;
         }
 
-        /* Balance Cards */
         .balance-cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -930,7 +928,6 @@ ob_start();
         .balance-card:nth-child(2) .progress-fill { background: var(--secondary); }
         .balance-card:nth-child(3) .progress-fill { background: var(--info); }
 
-        /* Filter Section */
         .filter-section {
             display: flex;
             gap: 0.5rem;
@@ -961,7 +958,6 @@ ob_start();
             border-color: var(--primary);
         }
 
-        /* Search Section */
         .search-section {
             display: flex;
             justify-content: space-between;
@@ -1034,7 +1030,6 @@ ob_start();
             transform: translateY(-1px);
         }
 
-        /* Data Table */
         .data-table {
             background: white;
             border-radius: var(--border-radius);
@@ -1046,7 +1041,7 @@ ob_start();
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 1000px;
+            min-width: 1100px;
         }
 
         th {
@@ -1071,7 +1066,6 @@ ob_start();
             background: var(--gray-50);
         }
 
-        /* Status Badges */
         .status-badge {
             padding: 0.25rem 0.7rem;
             border-radius: 2rem;
@@ -1113,7 +1107,6 @@ ob_start();
             display: inline-block;
         }
 
-        /* Action Buttons */
         .action-buttons {
             display: flex;
             gap: 0.4rem;
@@ -1170,7 +1163,6 @@ ob_start();
             transform: translateY(-1px);
         }
 
-        /* Pagination */
         .pagination-container {
             display: flex;
             justify-content: space-between;
@@ -1231,7 +1223,6 @@ ob_start();
             cursor: pointer;
         }
 
-        /* Modals */
         .modal {
             display: none;
             position: fixed;
@@ -1281,14 +1272,14 @@ ob_start();
             gap: 0.5rem;
         }
 
-        .close, .close-action, .close-details {
+        .close, .close-action {
             font-size: 1.5rem;
             cursor: pointer;
             color: var(--gray-400);
             transition: color 0.2s;
         }
 
-        .close:hover, .close-action:hover, .close-details:hover {
+        .close:hover, .close-action:hover {
             color: var(--gray-600);
         }
 
@@ -1377,7 +1368,6 @@ ob_start();
             color: var(--gray-700);
         }
 
-        /* Toast */
         .toast {
             position: fixed;
             bottom: 2rem;
@@ -1406,7 +1396,6 @@ ob_start();
             to { transform: rotate(360deg); }
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -1690,17 +1679,6 @@ ob_start();
     </div>
 </div>
 
-<!-- Details Modal -->
-<div id="detailsModal" class="modal">
-    <div class="modal-content" style="max-width: 700px;">
-        <div class="modal-header">
-            <h3><i class="fas fa-info-circle"></i> Leave Request Details</h3>
-            <span class="close-details">&times;</span>
-        </div>
-        <div class="modal-body" id="detailsContent"></div>
-    </div>
-</div>
-
 <div id="toast" class="toast"><span id="toastMessage"></span></div>
 
 <script>
@@ -1721,9 +1699,24 @@ ob_start();
         }
     });
     
-    // Generate Leave Pass function
-    function generateLeavePass(leaveId) {
+    // View Leave Pass function - opens the leave pass in new tab
+    function viewLeavePass(leaveId) {
         window.open(`generate_leave_pass.php?id=${leaveId}`, '_blank');
+    }
+    
+    // View Details - Now directly opens the leave pass for any leave request
+    async function viewDetails(id) {
+        const leave = leaveData.find(l => l.id == id);
+        if (!leave) return;
+        
+        // For ALL leave requests, open the leave pass
+        // The generate_leave_pass.php will handle showing appropriate signatures
+        // based on approval status and user role
+        if (leave.personnel_id === currentPersonnelId || currentUserRole >= 1) {
+            window.open(`generate_leave_pass.php?id=${id}`, '_blank');
+        } else {
+            showToast('You are not authorized to view this leave request.', 'error');
+        }
     }
     
     // Load initiating officer pending requests
@@ -1892,11 +1885,13 @@ ob_start();
             else { statusClass = 'status-pending'; statusText = leave.status; }
             
             let actionBtns = `<div class="action-buttons">
-                <button class="action-btn btn-view" onclick="viewDetails(${leave.id})"><i class="fas fa-eye"></i> View</button>`;
+                <button class="action-btn btn-view" onclick="viewDetails(${leave.id})"><i class="fas fa-eye"></i> View Pass</button>`;
             
-            // Add Generate Pass button for approved leaves
+            // Generate Pass button - ONLY for approved leaves
             if (leave.status === 'approved') {
-                actionBtns += `<button class="action-btn btn-pass" onclick="generateLeavePass(${leave.id})"><i class="fas fa-passport"></i> Generate Pass</button>`;
+                if (leave.personnel_id === currentPersonnelId || currentUserRole >= 1) {
+                    actionBtns += `<button class="action-btn btn-pass" onclick="viewLeavePass(${leave.id})"><i class="fas fa-passport"></i> Generate Pass</button>`;
+                }
             }
             
             if (leave.initiating_officer == currentPersonnelId && leave.initiating_officer_approved == 0 && leave.status === 'pending') {
@@ -1913,7 +1908,7 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></tr>
+                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></td>
                 <td><strong>${escapeHtml(leave.personnel_name)}</strong></span></td>
                 <td>${escapeHtml(leave.rank)}</span></td>
                 <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</span></td>
@@ -2038,74 +2033,6 @@ ob_start();
         } catch (e) { return 0; }
     }
     
-    async function viewDetails(id) {
-        const leave = leaveData.find(l => l.id == id);
-        if (!leave) return;
-        
-        let balance = 0;
-        if (leave.leave_type === 'gharpari_bida') balance = leave.gharpari_bida_days || 0;
-        else if (leave.leave_type === 'parba_bida') balance = leave.parba_bida_days || 0;
-        else if (leave.leave_type === 'bhaeepari_bida') balance = leave.bhaeepari_bida_days || 0;
-        
-        let initiatingStatus = leave.initiating_officer_approved == 1 ? '✓ Approved' : '⏳ Pending';
-        let acceptingStatus = leave.accepting_officer_approved == 1 ? '✓ Approved' : '⏳ Pending';
-        
-        document.getElementById('detailsContent').innerHTML = `
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Personnel</div>
-                    <div style="font-size: 15px; font-weight: 600;">${escapeHtml(leave.personnel_name)} (${escapeHtml(leave.rank)})</div>
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Leave Type</div>
-                    <div style="font-size: 15px; font-weight: 600;">${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</div>
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Period</div>
-                    <div style="font-size: 14px; font-weight: 600;">${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</div>
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Total Days</div>
-                    <div style="font-size: 15px; font-weight: 600;">${leave.leave_days} days</div>
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Remaining Balance</div>
-                    <div style="font-size: 15px; font-weight: 600;">${balance} days</div>
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Status</div>
-                    <div style="font-size: 14px; font-weight: 600;">${leave.status.toUpperCase()}</div>
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Initiating Officer</div>
-                    <div style="font-size: 14px;">${escapeHtml(leave.initiating_officer_name) || '-'}</div>
-                    <small style="color: ${leave.initiating_officer_approved == 1 ? '#065f46' : '#92400e'}">Status: ${initiatingStatus}</small>
-                    ${leave.initiating_officer_approved_at ? `<div><small>Approved on: ${new Date(leave.initiating_officer_approved_at).toLocaleString()}</small></div>` : ''}
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Accepting Officer</div>
-                    <div style="font-size: 14px;">${escapeHtml(leave.accepting_officer_name) || '-'}</div>
-                    <small style="color: ${leave.accepting_officer_approved == 1 ? '#065f46' : '#92400e'}">Status: ${acceptingStatus}</small>
-                    ${leave.accepting_officer_approved_at ? `<div><small>Approved on: ${new Date(leave.accepting_officer_approved_at).toLocaleString()}</small></div>` : ''}
-                </div>
-                <div style="padding: 12px; background: var(--gray-50); border-radius: 12px; grid-column: span 2;">
-                    <div style="font-size: 11px; color: var(--gray-500);">Reason</div>
-                    <div style="font-size: 14px; margin-top: 5px;">${escapeHtml(leave.reason)}</div>
-                </div>
-                ${leave.initiating_officer_remarks ? `<div style="padding: 12px; background: #fef3c7; border-radius: 12px; grid-column: span 2;">
-                    <div style="font-size: 11px; color: #92400e;">Initiating Officer Remarks</div>
-                    <div style="font-size: 13px; margin-top: 5px;">${escapeHtml(leave.initiating_officer_remarks)}</div>
-                </div>` : ''}
-                ${leave.accepting_officer_remarks ? `<div style="padding: 12px; background: #d1fae5; border-radius: 12px; grid-column: span 2;">
-                    <div style="font-size: 11px; color: #065f46;">Accepting Officer Remarks</div>
-                    <div style="font-size: 13px; margin-top: 5px;">${escapeHtml(leave.accepting_officer_remarks)}</div>
-                </div>` : ''}
-            </div>
-        `;
-        
-        document.getElementById('detailsModal').style.display = 'block';
-    }
-    
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -2208,11 +2135,10 @@ ob_start();
         document.getElementById('leaveModal').style.display = 'block';
     });
     
-    document.querySelectorAll('.close, .close-action, .close-details').forEach(btn => {
+    document.querySelectorAll('.close, .close-action').forEach(btn => {
         btn.onclick = () => {
             document.getElementById('leaveModal').style.display = 'none';
             document.getElementById('actionModal').style.display = 'none';
-            document.getElementById('detailsModal').style.display = 'none';
         };
     });
     

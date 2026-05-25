@@ -32,6 +32,9 @@ try {
     $wardNumber = $_POST['wardNumber'] ?? '';
     $villageTole = $_POST['villageTole'] ?? '';
     
+    // Appointment field
+    $appointment = $_POST['appointment'] ?? '';
+    
     $religion = $_POST['religion'] ?? '';
     $militaryStatus = $_POST['militaryStatus'] ?? '';
     $education = $_POST['education'] ?? '';
@@ -54,7 +57,7 @@ try {
     $training2Address = $_POST['training2Address'] ?? '';
     
     if ($editId) {
-        // Update existing personnel with location fields
+        // Update existing personnel with location fields and appointment
         $sql = "UPDATE personnel SET 
                     personnel_number = :serviceNo,
                     full_name_en = :fullName,
@@ -77,6 +80,7 @@ try {
                     municipality = :municipality,
                     ward_number = :wardNumber,
                     village_tole = :villageTole,
+                    appointment = :appointment,
                     religion = :religion,
                     military_status = :militaryStatus,
                     higher_education = :education,
@@ -123,6 +127,7 @@ try {
             ':municipality' => !empty($municipality) ? $municipality : null,
             ':wardNumber' => !empty($wardNumber) ? $wardNumber : null,
             ':villageTole' => !empty($villageTole) ? $villageTole : null,
+            ':appointment' => !empty($appointment) ? $appointment : null,
             ':religion' => $religion,
             ':militaryStatus' => $militaryStatus,
             ':education' => $education,
@@ -169,7 +174,7 @@ try {
             }
         }
         
-        // Insert new personnel with location fields
+        // Insert new personnel with location fields and appointment
         $sql = "INSERT INTO personnel (
                     personnel_number, 
                     full_name_en, 
@@ -192,6 +197,7 @@ try {
                     municipality,
                     ward_number,
                     village_tole,
+                    appointment,
                     religion,
                     military_status,
                     higher_education,
@@ -234,6 +240,7 @@ try {
                     :municipality,
                     :wardNumber,
                     :villageTole,
+                    :appointment,
                     :religion,
                     :militaryStatus,
                     :education,
@@ -279,6 +286,7 @@ try {
             ':municipality' => !empty($municipality) ? $municipality : null,
             ':wardNumber' => !empty($wardNumber) ? $wardNumber : null,
             ':villageTole' => !empty($villageTole) ? $villageTole : null,
+            ':appointment' => !empty($appointment) ? $appointment : null,
             ':religion' => $religion,
             ':militaryStatus' => $militaryStatus,
             ':education' => $education,

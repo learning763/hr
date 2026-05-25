@@ -14,7 +14,11 @@ if ($leave_id <= 0) {
     die("Invalid leave request ID");
 }
 
-// Fetch leave request details with all related data
+// Get current user's role and personnel ID
+$current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
+$current_personnel_id = isset($_SESSION['user_personnel_id']) ? (int)$_SESSION['user_personnel_id'] : 0;
+
+// Fetch leave request details with all related data - REMOVE the status = 'approved' condition
 try {
     $sql = "SELECT lr.*, 
                    mps.personnel_name, mps.rank, mps.personnel_number,
@@ -34,32 +38,52 @@ try {
             LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
             LEFT JOIN personnel p_ao ON ao.personnel_number = p_ao.personnel_number
             LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-            WHERE lr.id = ? AND lr.status = 'approved'";
+            WHERE lr.id = ?";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$leave_id]);
     $leave = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$leave) {
-        die("Leave request not found or not approved.");
+        die("Leave request not found.");
     }
 
-    // Get unit and location details from personnel table
+    // Check if user is authorized to view this leave
+    $is_authorized = false;
+    if ($current_user_role >= 1) { // Admin or Super Admin
+        $is_authorized = true;
+    } elseif ($current_personnel_id == $leave['personnel_id']) { // The personnel who submitted
+        $is_authorized = true;
+    } elseif ($current_personnel_id == $leave['initiating_officer']) { // Initiating officer
+        $is_authorized = true;
+    } elseif ($current_personnel_id == $leave['accepting_officer']) { // Accepting officer
+        $is_authorized = true;
+    }
+    
+    if (!$is_authorized) {
+        die("You are not authorized to view this leave request.");
+    }
+
+    // Get unit, location, and appointment details from personnel table
     $unit = '';
+    $appointment = '';
     $personnel_info = [];
     try {
-        $stmt2 = $pdo->prepare("SELECT unit, contact, address, province, district, municipality, ward_number, village_tole FROM personnel WHERE personnel_number = ?");
+        $stmt2 = $pdo->prepare("SELECT unit, contact, address, province, district, municipality, ward_number, village_tole, appointment FROM personnel WHERE personnel_number = ?");
         $stmt2->execute([$leave['personnel_number']]);
         $personnel_info = $stmt2->fetch(PDO::FETCH_ASSOC);
         
-        if ($personnel_info && isset($personnel_info['unit'])) {
-            $unit = $personnel_info['unit'];
+        if ($personnel_info) {
+            $unit = $personnel_info['unit'] ?? 'श्री साइबर सुरक्षा निर्देशनालय';
+            $appointment = $personnel_info['appointment'] ?? '';
         } else {
             $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
+            $appointment = '';
             $personnel_info = [];
         }
     } catch (PDOException $e) {
         $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
+        $appointment = '';
         $personnel_info = [];
     }
 
@@ -151,6 +175,15 @@ function displaySignatureImage($signature_path, $person_name) {
     }
     
     return '';
+}
+
+// Determine which signatures to show based on approval status and user role
+$show_accepting_signature = false;
+$is_fully_approved = ($leave['status'] === 'approved');
+
+// Only show accepting officer signature if fully approved
+if ($is_fully_approved) {
+    $show_accepting_signature = true;
 }
 ?>
 <!DOCTYPE html>
@@ -356,12 +389,23 @@ function displaySignatureImage($signature_path, $person_name) {
             margin-top: 3px;
         }
         
+        /* Status indicator for non-approved leaves */
+        .status-indicator {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
 
         @media print {
             body { background: white; padding: 0; }
             .no-print { display: none !important; }
             .page-wrap { box-shadow: none; }
             .pass { padding: 12px 18px 18px; }
+            .status-indicator { display: none; }
         }
 
         @media (max-width: 600px) {
@@ -397,11 +441,27 @@ function displaySignatureImage($signature_path, $person_name) {
 <div class="page-wrap">
 <div class="pass">
     <div class="content-wrapper">
+        <!-- Status Indicator for non-approved leaves -->
+        <?php if ($leave['status'] !== 'approved'): ?>
+        <div class="status-indicator">
+            ⚠️ यो विदा अझै स्वीकृत भएको छैन | Status: 
+            <?php 
+            if ($leave['status'] === 'pending') echo 'प्रारम्भिक अधिकृतको पर्खाइमा (Pending)';
+            elseif ($leave['status'] === 'initiating_approved') echo 'अन्तिम अधिकृतको पर्खाइमा (Awaiting Final Approval)';
+            else echo strtoupper($leave['status']);
+            ?>
+        </div>
+        <?php endif; ?>
+
         <!-- TOP HEADER -->
         <div class="top-header">
             <div class="left-column">
                 व्य.नं.:- <?php echo htmlspecialchars($leave['personnel_number']); ?><br>
-                नियुक्तिः- प्र.उ.से.
+                <?php if (!empty($appointment)): ?>
+                    नियुक्तिः- <?php echo htmlspecialchars($appointment); ?>
+                <?php else: ?>
+                    नियुक्तिः- ----------
+                <?php endif; ?>
             </div>
             
             <div class="center-column">
@@ -511,8 +571,11 @@ function displaySignatureImage($signature_path, $person_name) {
             <div class="signature-wrapper">
                 <div class="signature-container">
                     <?php 
-                    if (!empty($leave['accepting_officer_signature'])) {
+                    // Only show accepting officer signature if the leave is fully approved
+                    if ($show_accepting_signature && !empty($leave['accepting_officer_signature'])) {
                         echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']);
+                    } elseif (!$show_accepting_signature) {
+                        echo '<div style="font-size: 11px; color: #999; font-style: italic;">(स्वीकृत पश्चात् मात्र देखिनेछ)</div>';
                     }
                     ?>
                     <div class="sig-line"></div>
@@ -522,6 +585,9 @@ function displaySignatureImage($signature_path, $person_name) {
                 स्वीकृत गर्नेको द:ख.<br>
                 <?php if (!empty($leave['accepting_officer_name'])): ?>
                     (<?php echo htmlspecialchars($leave['accepting_officer_rank'] ?? '') . ' ' . htmlspecialchars($leave['accepting_officer_name'] ?? ''); ?>)
+                <?php endif; ?>
+                <?php if (!$show_accepting_signature && !empty($leave['accepting_officer_name'])): ?>
+                    <br><small style="font-size: 10px; color: #999;">(स्वीकृत पश्चात् मात्र)</small>
                 <?php endif; ?>
             </div>
         </div>

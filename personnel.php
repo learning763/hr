@@ -22,14 +22,14 @@ $offset = ($page - 1) * $records_per_page;
 // Get search term if any
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Build search condition (including location fields)
+// Build search condition (including location fields and appointment)
 $search_condition = "";
 $params = [];
 
 if (!empty($search_term)) {
-    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ?";
+    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ? OR appointment LIKE ?";
     $search_param = "%$search_term%";
-    $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
+    $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
 }
 
 // Get total records for pagination
@@ -109,7 +109,7 @@ ob_start();
         <i class="fas fa-search search-icon"></i>
         <form method="GET" action="" id="searchForm" style="flex: 1;">
             <input type="text" name="search" id="searchInput" class="search-input" 
-                   placeholder="Search by name, service no., rank, branch, email or location..." 
+                   placeholder="Search by name, service no., rank, branch, email, location or appointment..." 
                    value="<?php echo htmlspecialchars($search_term); ?>">
             <?php if (!empty($search_term)): ?>
                 <button type="button" id="clearSearch" class="clear-search">✕</button>
@@ -139,6 +139,7 @@ ob_start();
                 <th>Location</th>
                 <th>Recruitment Date</th>
                 <th>Status</th>
+                <th>Appointment</th>
                 <?php if ($isAdmin): ?>
                     <th>Role</th>
                 <?php endif; ?>
@@ -201,6 +202,16 @@ ob_start();
                                 <?php echo htmlspecialchars($personnel['current_status'] ?? 'Active'); ?>
                             </span>
                         </td>
+                        <td>
+                            <?php if (!empty($personnel['appointment'])): ?>
+                                <span style="font-size: 12px; display: inline-block; max-width: 200px; word-wrap: break-word;">
+                                    <?php echo nl2br(htmlspecialchars(substr($personnel['appointment'], 0, 100))); ?>
+                                    <?php if (strlen($personnel['appointment']) > 100): ?>...<?php endif; ?>
+                                </span>
+                            <?php else: ?>
+                                <span style="color: #9aa9bc;">—</span>
+                            <?php endif; ?>
+                        </td>
                         <?php if ($isAdmin): ?>
                             <td>
                                 <?php
@@ -243,7 +254,7 @@ ob_start();
             <?php else: ?>
                 <tr>
                     <?php
-                    $colspan = 10; // Increased by 1 for Location column
+                    $colspan = 11; // Added 1 for Appointment column
                     if ($isAdmin) $colspan++;
                     if ($isSuperAdmin) $colspan++;
                     ?>
@@ -439,6 +450,13 @@ ob_start();
                         <label><i class="fas fa-home"></i> Address</label>
                         <input type="text" id="address" name="address" placeholder="Full address">
                     </div>
+                    
+                    <!-- Appointment Field -->
+                    <div class="input-field full-width">
+                        <label><i class="fas fa-calendar-check"></i> Appointment</label>
+                        <textarea id="appointment" name="appointment" rows="3" placeholder="Enter appointment details here..."></textarea>
+                        <small style="color: #6c7a8e;">Add any appointment or meeting details for this personnel</small>
+                    </div>
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
@@ -499,6 +517,26 @@ ob_start();
         </div>
     </div>
 </div>
+
+<!-- Style for textarea -->
+<style>
+    .input-field textarea {
+        padding: 10px 12px;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: all 0.2s;
+        outline: none;
+        font-family: inherit;
+        resize: vertical;
+    }
+    
+    .input-field textarea:focus {
+        border-color: #2c5f4e;
+        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+    }
+</style>
+
 <?php endif; ?>
 
 <style>
@@ -717,7 +755,7 @@ ob_start();
     .data-table table {
         width: 100%;
         border-collapse: collapse;
-        min-width: 1200px;
+        min-width: 1300px;
     }
     
     .data-table th {
@@ -995,19 +1033,26 @@ ob_start();
     }
     
     .input-field input,
-    .input-field select {
+    .input-field select,
+    .input-field textarea {
         padding: 10px 12px;
         border: 1.5px solid #e2e8f0;
         border-radius: 8px;
         font-size: 14px;
         transition: all 0.2s;
         outline: none;
+        font-family: inherit;
     }
     
     .input-field input:focus,
-    .input-field select:focus {
+    .input-field select:focus,
+    .input-field textarea:focus {
         border-color: #2c5f4e;
         box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+    }
+    
+    .input-field textarea {
+        resize: vertical;
     }
     
     .full-width {
@@ -1401,6 +1446,7 @@ ob_start();
             // Reset district datalist
             if (districtDatalist) districtDatalist.innerHTML = '';
             if (provinceSelect) provinceSelect.value = '';
+            document.getElementById('appointment').value = '';
             if (modal) modal.style.display = 'block';
         }
     }
@@ -1457,6 +1503,9 @@ ob_start();
                     document.getElementById('municipality').value = data.data.municipality || '';
                     document.getElementById('wardNumber').value = data.data.ward_number || '';
                     document.getElementById('villageTole').value = data.data.village_tole || '';
+                    
+                    // Appointment field
+                    document.getElementById('appointment').value = data.data.appointment || '';
                     
                     // Trigger province change to populate districts
                     if (data.data.province) {
@@ -1543,6 +1592,9 @@ ob_start();
             formData.append('municipality', document.getElementById('municipality').value);
             formData.append('wardNumber', document.getElementById('wardNumber').value);
             formData.append('villageTole', document.getElementById('villageTole').value);
+            
+            // Appointment field
+            formData.append('appointment', document.getElementById('appointment').value);
             
             fetch('save_personnel.php', {
                 method: 'POST',
