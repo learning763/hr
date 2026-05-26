@@ -18,7 +18,7 @@ if ($leave_id <= 0) {
 $current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
 $current_personnel_id = isset($_SESSION['user_personnel_id']) ? (int)$_SESSION['user_personnel_id'] : 0;
 
-// Fetch leave request details with all related data - REMOVE the status = 'approved' condition
+// Fetch leave request details with all related data including verifying officer
 try {
     $sql = "SELECT lr.*, 
                    mps.personnel_name, mps.rank, mps.personnel_number,
@@ -26,9 +26,14 @@ try {
                    io.rank as initiating_officer_rank,
                    ao.personnel_name as accepting_officer_name,
                    ao.rank as accepting_officer_rank,
+                   vo.personnel_name as verifying_officer_name,
+                   vo.rank as verifying_officer_rank,
                    p_io.signature as initiating_officer_signature,
                    p_ao.signature as accepting_officer_signature,
+                   p_vo.signature as verifying_officer_signature,
                    p_personnel.signature as personnel_signature,
+                   receiver.personnel_name as receiver_name,
+                   receiver.rank as receiver_rank,
                    lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days
             FROM leave_requests lr
             INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
@@ -37,6 +42,9 @@ try {
             LEFT JOIN personnel p_io ON io.personnel_number = p_io.personnel_number
             LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
             LEFT JOIN personnel p_ao ON ao.personnel_number = p_ao.personnel_number
+            LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
+            LEFT JOIN personnel p_vo ON vo.personnel_number = p_vo.personnel_number
+            LEFT JOIN military_personnel_status receiver ON lr.receiver_id = receiver.id
             LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
             WHERE lr.id = ?";
     
@@ -57,6 +65,8 @@ try {
     } elseif ($current_personnel_id == $leave['initiating_officer']) { // Initiating officer
         $is_authorized = true;
     } elseif ($current_personnel_id == $leave['accepting_officer']) { // Accepting officer
+        $is_authorized = true;
+    } elseif ($current_personnel_id == $leave['verifying_officer']) { // Verifying officer (Receiving)
         $is_authorized = true;
     }
     
@@ -177,14 +187,25 @@ function displaySignatureImage($signature_path, $person_name) {
     return '';
 }
 
-// Determine which signatures to show based on approval status and user role
-$show_accepting_signature = false;
+// Determine which signatures to show based on approval status
+$show_verifying_signature = ($leave['verifying_officer_approved'] == 1);
+$show_initiating_signature = ($leave['initiating_officer_approved'] == 1);
+$show_accepting_signature = ($leave['accepting_officer_approved'] == 1);
 $is_fully_approved = ($leave['status'] === 'approved');
 
-// Only show accepting officer signature if fully approved
-if ($is_fully_approved) {
-    $show_accepting_signature = true;
+// Get receiver info - priority: receiver_id > verifying_officer (if approved)
+$receiver_display_name = '';
+$receiver_display_rank = '';
+if (!empty($leave['receiver_name'])) {
+    $receiver_display_name = $leave['receiver_name'];
+    $receiver_display_rank = $leave['receiver_rank'];
+} elseif ($show_verifying_signature && !empty($leave['verifying_officer_name'])) {
+    $receiver_display_name = $leave['verifying_officer_name'];
+    $receiver_display_rank = $leave['verifying_officer_rank'];
 }
+
+// Only show status indicator if NOT approved
+$show_status_indicator = ($leave['status'] !== 'approved');
 ?>
 <!DOCTYPE html>
 <html lang="ne">
@@ -300,18 +321,40 @@ if ($is_fully_approved) {
             white-space: nowrap;
         }
 
-        .applicant-signature-area {
-            text-align: right;
-            margin-top: 20px;
-            margin-bottom: 20px;
+        /* Signature area with receiver on LEFT corner and applicant on RIGHT corner */
+        .signatures-wrapper {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            padding-right: 10px;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-top: 20px;
+            margin-bottom: 30px;
+            gap: 0;
+        }
+        
+        .receiver-signature-area {
+            flex: 0 0 auto;
+            text-align: left;
+            padding-left: 0;
+        }
+        
+        .receiver-signature-wrapper {
+            text-align: left;
+            display: inline-block;
+        }
+        
+        .receiver-officer-name {
+            text-align: left;
+            margin-top: 3px;
+        }
+        
+        .applicant-signature-area {
+            flex: 0 0 auto;
+            text-align: right;
+            padding-right: 0;
         }
         
         .applicant-signature-wrapper {
-            text-align: center;
+            text-align: right;
             display: inline-block;
         }
         
@@ -327,7 +370,7 @@ if ($is_fully_approved) {
         }
         
         .applicant-officer-name {
-            text-align: center;
+            text-align: right;
             margin-top: 3px;
         }
 
@@ -336,7 +379,7 @@ if ($is_fully_approved) {
             justify-content: space-between;
             margin-top: 20px;
             margin-bottom: 0;
-            align-items: flex-end;
+            align-items: flex-start;
             gap: 30px;
         }
 
@@ -351,7 +394,6 @@ if ($is_fully_approved) {
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            padding-right: 10px;
         }
 
         .signature-title {
@@ -399,6 +441,18 @@ if ($is_fully_approved) {
             text-align: center;
             margin-bottom: 15px;
         }
+        
+        .status-verified {
+            background: #cce5ff;
+            color: #004085;
+            border: 1px solid #b8daff;
+        }
+        
+        .status-initiated {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
 
         @media print {
             body { background: white; padding: 0; }
@@ -412,6 +466,23 @@ if ($is_fully_approved) {
             .address-grid {
                 grid-template-columns: 1fr;
                 gap: 5px;
+            }
+            .signatures-wrapper {
+                flex-direction: column;
+                gap: 20px;
+            }
+            .receiver-signature-area {
+                text-align: left;
+            }
+            .applicant-signature-area {
+                text-align: right;
+            }
+            .bottom-signatures {
+                flex-direction: column;
+            }
+            .right-signature {
+                align-items: flex-start;
+                margin-top: 20px;
             }
         }
 
@@ -434,6 +505,30 @@ if ($is_fully_approved) {
         
         .btn-print { background: #2c5f4e; color: #fff; }
         .btn-back  { background: #6c757d; color: #fff; }
+        
+        .text-muted {
+            color: #999;
+        }
+        
+        .text-warning {
+            color: #ff6600;
+        }
+        
+        .italic {
+            font-style: italic;
+        }
+        
+        .small-text {
+            font-size: 11px;
+        }
+        
+        .text-success {
+            color: #28a745;
+        }
+        
+        .text-info {
+            color: #17a2b8;
+        }
     </style>
 </head>
 <body>
@@ -441,15 +536,20 @@ if ($is_fully_approved) {
 <div class="page-wrap">
 <div class="pass">
     <div class="content-wrapper">
-        <!-- Status Indicator for non-approved leaves -->
-        <?php if ($leave['status'] !== 'approved'): ?>
-        <div class="status-indicator">
-            ⚠️ यो विदा अझै स्वीकृत भएको छैन | Status: 
-            <?php 
-            if ($leave['status'] === 'pending') echo 'प्रारम्भिक अधिकृतको पर्खाइमा (Pending)';
-            elseif ($leave['status'] === 'initiating_approved') echo 'अन्तिम अधिकृतको पर्खाइमा (Awaiting Final Approval)';
-            else echo strtoupper($leave['status']);
-            ?>
+        <!-- Status Indicator - Only show if NOT approved -->
+        <?php if ($show_status_indicator): ?>
+        <div class="status-indicator 
+            <?php echo ($leave['status'] === 'verified') ? 'status-verified' : ''; ?>
+            <?php echo ($leave['status'] === 'initiating_approved') ? 'status-initiated' : ''; ?>">
+            <?php if ($leave['status'] === 'initiating_approved'): ?>
+                ⚠️ यो विदा प्रारम्भिक स्वीकृत भएको छ, अन्तिम स्वीकृतिको पर्खाइमा | Status: Awaiting Final Approval
+            <?php elseif ($leave['status'] === 'verified'): ?>
+                📋 यो विदा प्राप्त गर्ने अधिकृतले हस्ताक्षर गरिसकेको छ, Initiating Officer को पर्खाइमा | Status: Verified (Awaiting Initiating Officer)
+            <?php elseif ($leave['status'] === 'pending'): ?>
+                ⏳ यो विदा प्राप्त गर्ने अधिकृतको पर्खाइमा | Status: Pending (Awaiting Receiving Officer)
+            <?php else: ?>
+                ⚠️ यो विदा अझै स्वीकृत भएको छैन | Status: <?php echo strtoupper($leave['status']); ?>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -493,15 +593,15 @@ if ($is_fully_approved) {
             <table class="balance-table">
                 <tr>
                     <td>(क)</td>
-                    <td>घ.वि.: <?php echo $gharpari_balance; ?></td>
+                    <td>घ.वि.: <?php echo $gharpari_balance; ?>
                 </tr>
                 <tr>
                     <td>(ख)</td>
-                    <td>भै.वि.: <?php echo $bhaeepari_balance; ?></td>
+                    <td>भै.वि.: <?php echo $bhaeepari_balance; ?>
                 </tr>
                 <tr>
                     <td>(ग)</td>
-                    <td>प.वि.: <?php echo $parba_balance; ?></td>
+                    <td>प.वि.: <?php echo $parba_balance; ?>
                 </tr>
             </table>
 
@@ -524,22 +624,59 @@ if ($is_fully_approved) {
             <p style="margin-top:6px;">५. समाविष्ट कागज (केही प्रमाण भएमा) :- </p>
         </div>
 
-        <!-- APPLICANT SIGNATURE -->
-        <div class="applicant-signature-area">
-            <div class="applicant-signature-wrapper">
-                <div class="signature-container">
-                    <?php echo displaySignatureImage($leave['personnel_signature'], $leave['personnel_name']); ?>
-                    <div class="sig-line"></div>
+        <!-- SIGNATURES SECTION: RECEIVER (LEFT CORNER) AND APPLICANT (RIGHT CORNER) -->
+        <div class="signatures-wrapper">
+            <!-- LEFT CORNER: RECEIVER SIGNATURE (प्राप्त गर्ने व्यक्ति) -->
+            <div class="receiver-signature-area">
+                <div class="receiver-signature-wrapper">
+                    <div class="signature-title">प्राप्त गर्ने व्यक्ति (Receiver)</div>
+                    <div class="signature-container">
+                        <?php 
+                        // Show verifying officer (receiving officer) signature when they have approved
+                        if ($show_verifying_signature && !empty($leave['verifying_officer_signature'])) {
+                            echo displaySignatureImage($leave['verifying_officer_signature'], $leave['verifying_officer_name']);
+                        } elseif ($show_verifying_signature && empty($leave['verifying_officer_signature'])) {
+                            echo '<div class="text-warning italic small-text">(हस्ताक्षर थपिएको छैन)</div>';
+                        } else {
+                            echo '<div class="text-muted italic small-text">(प्राप्त गर्ने अधिकृतको पर्खाइमा)</div>';
+                        }
+                        ?>
+                        <div class="sig-line"></div>
+                    </div>
+                </div>
+                <div class="receiver-officer-name">
+                    <?php if ($show_verifying_signature && !empty($leave['verifying_officer_name'])): ?>
+                        (<?php echo htmlspecialchars($leave['verifying_officer_rank'] ?? '') . ' ' . htmlspecialchars($leave['verifying_officer_name'] ?? ''); ?>)
+                    <?php elseif ($show_verifying_signature && empty($leave['verifying_officer_name'])): ?>
+                        <span class="text-warning small-text">(प्राप्त गर्नेको नाम थपिएको छैन)</span>
+                    <?php else: ?>
+                        <span class="text-muted small-text">(प्राप्त गर्ने अधिकृतको पर्खाइमा)</span>
+                    <?php endif; ?>
                 </div>
             </div>
-            <div class="applicant-officer-name">
-                आज्ञाकारी<br>
-                (<?php echo htmlspecialchars($leave['rank']) . ' ' . htmlspecialchars($leave['personnel_name']); ?>)
+
+            <!-- RIGHT CORNER: APPLICANT SIGNATURE (आज्ञाकारी) -->
+            <div class="applicant-signature-area">
+                <div class="applicant-signature-wrapper">
+                    <div class="signature-title">आज्ञाकारी (Applicant)</div>
+                    <div class="signature-container">
+                        <?php 
+                        $personnel_sig = displaySignatureImage($leave['personnel_signature'], $leave['personnel_name']);
+                        if ($personnel_sig) {
+                            echo $personnel_sig;
+                        }
+                        ?>
+                        <div class="sig-line"></div>
+                    </div>
+                </div>
+                <div class="applicant-officer-name">
+                    (<?php echo htmlspecialchars($leave['rank']) . ' ' . htmlspecialchars($leave['personnel_name']); ?>)
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- BOTTOM SIGNATURES SECTION -->
+    <!-- BOTTOM SIGNATURES SECTION (Initiating and Accepting Officers) -->
     <div class="bottom-signatures">
         <div class="left-signature">
             <div class="signature-title">सिफारिस गर्ने</div>
@@ -548,7 +685,15 @@ if ($is_fully_approved) {
                 <span class="field-label">दस्तखत :</span>
                 <span class="field-value">
                     <div class="signature-container">
-                        <?php echo displaySignatureImage($leave['initiating_officer_signature'], $leave['initiating_officer_name']); ?>
+                        <?php 
+                        if ($show_initiating_signature && !empty($leave['initiating_officer_signature'])) {
+                            echo displaySignatureImage($leave['initiating_officer_signature'], $leave['initiating_officer_name']);
+                        } elseif ($show_initiating_signature) {
+                            echo '<span class="text-warning italic small-text">(हस्ताक्षर थपिएको छैन)</span>';
+                        } else {
+                            echo '<span class="text-muted italic small-text">(प्रारम्भिक स्वीकृत पश्चात् देखिनेछ)</span>';
+                        }
+                        ?>
                         <div class="sig-line"></div>
                     </div>
                 </span>
@@ -567,27 +712,33 @@ if ($is_fully_approved) {
             </div>
         </div>
 
+        <!-- RIGHT BOTTOM: स्वीकृत गर्ने (Accepting Officer) -->
         <div class="right-signature">
             <div class="signature-wrapper">
+                <div class="signature-title">स्वीकृत गर्ने</div>
                 <div class="signature-container">
                     <?php 
-                    // Only show accepting officer signature if the leave is fully approved
-                    if ($show_accepting_signature && !empty($leave['accepting_officer_signature'])) {
-                        echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']);
-                    } elseif (!$show_accepting_signature) {
-                        echo '<div style="font-size: 11px; color: #999; font-style: italic;">(स्वीकृत पश्चात् मात्र देखिनेछ)</div>';
+                    // Show accepting officer signature only when they have approved
+                    if ($show_accepting_signature) {
+                        if (!empty($leave['accepting_officer_signature'])) {
+                            echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']);
+                        } else {
+                            echo '<div class="text-warning italic small-text">(हस्ताक्षर थपिएको छैन)</div>';
+                        }
+                    } else {
+                        echo '<div class="text-muted italic small-text">(अन्तिम स्वीकृत पश्चात् मात्र देखिनेछ)</div>';
                     }
                     ?>
                     <div class="sig-line"></div>
                 </div>
             </div>
             <div class="accepting-officer-name">
-                स्वीकृत गर्नेको द:ख.<br>
-                <?php if (!empty($leave['accepting_officer_name'])): ?>
+                <?php if ($show_accepting_signature && !empty($leave['accepting_officer_name'])): ?>
                     (<?php echo htmlspecialchars($leave['accepting_officer_rank'] ?? '') . ' ' . htmlspecialchars($leave['accepting_officer_name'] ?? ''); ?>)
-                <?php endif; ?>
-                <?php if (!$show_accepting_signature && !empty($leave['accepting_officer_name'])): ?>
-                    <br><small style="font-size: 10px; color: #999;">(स्वीकृत पश्चात् मात्र)</small>
+                <?php elseif ($show_accepting_signature && empty($leave['accepting_officer_name'])): ?>
+                    <span class="text-warning small-text">(स्वीकृत गर्नेको नाम थपिएको छैन)</span>
+                <?php else: ?>
+                    <span class="text-muted small-text">(अन्तिम स्वीकृत पश्चात् मात्र)</span>
                 <?php endif; ?>
             </div>
         </div>

@@ -116,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $filter = $_POST['filter'] ?? 'all';
             $search = $_POST['search'] ?? '';
             $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
-            $per_page = isset($_POST['per_page']) ? (int)$_POST['per_page'] : 5;
+            $per_page = isset($_POST['per_page']) ? (int)$_POST['per_page'] : 10;
             $offset = ($page - 1) * $per_page;
             
             $sql = "SELECT lr.*, 
@@ -125,12 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                            io.personnel_name as initiating_officer_name,
                            io.rank as initiating_officer_rank,
                            ao.personnel_name as accepting_officer_name,
-                           ao.rank as accepting_officer_rank
+                           ao.rank as accepting_officer_rank,
+                           vo.personnel_name as verifying_officer_name,
+                           vo.rank as verifying_officer_rank,
+                           receiver.personnel_name as receiver_name,
+                           receiver.rank as receiver_rank
                     FROM leave_requests lr
                     INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
                     LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
                     LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
+                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
+                    LEFT JOIN military_personnel_status receiver ON lr.receiver_id = receiver.id
                     WHERE 1=1";
             
             $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr WHERE 1=1";
@@ -181,22 +187,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             exit;
         }
         
+        // Get pending requests for receiving officer (verifying_officer)
+        if ($action === 'get_verifying_pending') {
+            $sql = "SELECT lr.*, 
+                           mps.personnel_name, mps.rank,
+                           lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
+                           io.personnel_name as initiating_officer_name,
+                           ao.personnel_name as accepting_officer_name,
+                           vo.personnel_name as verifying_officer_name
+                    FROM leave_requests lr
+                    INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
+                    LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
+                    LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
+                    LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
+                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
+                    WHERE lr.verifying_officer = ? 
+                    AND (lr.verifying_officer_approved = 0 OR lr.verifying_officer_approved IS NULL)
+                    AND lr.status = 'pending'
+                    ORDER BY lr.created_at ASC";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$current_personnel_id]);
+            $leaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            echo json_encode([
+                'success' => true,
+                'data' => $leaves,
+                'officer_type' => 'verifying'
+            ]);
+            exit;
+        }
+        
         // Get pending requests for initiating officer
         if ($action === 'get_initiating_pending') {
             $sql = "SELECT lr.*, 
                            mps.personnel_name, mps.rank,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
                            io.personnel_name as initiating_officer_name,
-                           ao.personnel_name as accepting_officer_name
+                           ao.personnel_name as accepting_officer_name,
+                           vo.personnel_name as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
                     LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
                     LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
+                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
                     WHERE lr.initiating_officer = ? 
+                    AND lr.verifying_officer_approved = 1
                     AND (lr.initiating_officer_approved = 0 OR lr.initiating_officer_approved IS NULL)
-                    AND lr.status = 'pending'
-                    ORDER BY lr.created_at ASC";
+                    AND lr.status = 'verified'
+                    ORDER BY lr.verifying_officer_approved_at ASC";
             
             $stmt = $pdo->prepare($sql);
             $stmt->execute([$current_personnel_id]);
@@ -216,14 +256,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                            mps.personnel_name, mps.rank,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
                            io.personnel_name as initiating_officer_name,
-                           ao.personnel_name as accepting_officer_name
+                           ao.personnel_name as accepting_officer_name,
+                           vo.personnel_name as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
                     LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
                     LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
+                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
                     WHERE lr.accepting_officer = ? 
-                    AND lr.initiating_officer_approved = 1 
+                    AND lr.verifying_officer_approved = 1
+                    AND lr.initiating_officer_approved = 1
                     AND (lr.accepting_officer_approved = 0 OR lr.accepting_officer_approved IS NULL)
                     AND lr.status = 'initiating_approved'
                     ORDER BY lr.initiating_officer_approved_at ASC";
@@ -247,6 +290,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $start_date = $_POST['start_date'] ?? '';
             $end_date = $_POST['end_date'] ?? '';
             $reason = trim($_POST['reason'] ?? '');
+            $receiving_officer = intval($_POST['receiving_officer'] ?? 0);
             $initiating_officer = intval($_POST['initiating_officer'] ?? 0);
             $accepting_officer = intval($_POST['accepting_officer'] ?? 0);
             
@@ -255,8 +299,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($initiating_officer <= 0 || $accepting_officer <= 0) {
-                echo json_encode(['success' => false, 'error' => 'Please select both initiating and accepting officers']);
+            if ($receiving_officer <= 0 || $initiating_officer <= 0 || $accepting_officer <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Please select receiving, initiating and accepting officers']);
                 exit;
             }
             
@@ -288,7 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 SELECT COUNT(*) as count 
                 FROM leave_requests 
                 WHERE personnel_id = ? 
-                AND status IN ('pending', 'initiating_approved', 'approved')
+                AND status IN ('pending', 'verified', 'initiating_approved', 'approved')
                 AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?))
             ");
             $stmt->execute([$personnel_id, $end_date, $start_date, $end_date, $start_date]);
@@ -302,8 +346,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $stmt = $pdo->prepare("
                 INSERT INTO leave_requests 
                 (personnel_id, leave_type, start_date, end_date, leave_days, reason, status, created_by, 
-                 initiating_officer, accepting_officer, initiating_officer_approved, accepting_officer_approved) 
-                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, 0, 0)
+                 verifying_officer, initiating_officer, accepting_officer, 
+                 verifying_officer_approved, initiating_officer_approved, accepting_officer_approved) 
+                VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, 0, 0, 0)
             ");
             
             $result = $stmt->execute([
@@ -314,19 +359,154 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $leave_days, 
                 $reason, 
                 $_SESSION['user_personnel_id'] ?? $personnel_id,
+                $receiving_officer,
                 $initiating_officer,
                 $accepting_officer
             ]);
             
             if ($result) {
-                echo json_encode(['success' => true]);
+                echo json_encode(['success' => true, 'message' => 'Leave request submitted successfully! It will be sent to the receiving officer.']);
             } else {
                 echo json_encode(['success' => false, 'error' => 'Failed to submit leave request']);
             }
             exit;
         }
         
-        // Initiating Officer approves (first level approval)
+        // Receiving Officer approves - FORWARD TO INITIATING OFFICER
+        if ($action === 'verifying_officer_approve') {
+            if ($current_personnel_id <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid user']);
+                exit;
+            }
+            
+            $id = intval($_POST['id'] ?? 0);
+            $remarks = trim($_POST['remarks'] ?? '');
+            
+            $stmt = $pdo->prepare("
+                SELECT verifying_officer, verifying_officer_approved, status, initiating_officer, accepting_officer
+                FROM leave_requests WHERE id = ?
+            ");
+            $stmt->execute([$id]);
+            $leave = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$leave) {
+                echo json_encode(['success' => false, 'error' => 'Leave request not found']);
+                exit;
+            }
+            
+            if ($leave['verifying_officer'] != $current_personnel_id) {
+                echo json_encode(['success' => false, 'error' => 'You are not authorized to approve this request']);
+                exit;
+            }
+            
+            if ($leave['verifying_officer_approved'] == 1) {
+                echo json_encode(['success' => false, 'error' => 'Request already approved by receiving officer']);
+                exit;
+            }
+            
+            if ($leave['status'] != 'pending') {
+                echo json_encode(['success' => false, 'error' => 'Request cannot be approved at this stage']);
+                exit;
+            }
+            
+            // Check if receiving officer is also the initiating officer
+            $isSameAsInitiating = ($current_personnel_id == $leave['initiating_officer']);
+            
+            if ($isSameAsInitiating) {
+                // If same user, automatically approve both stages and go to accepting officer
+                $stmt = $pdo->prepare("
+                    UPDATE leave_requests 
+                    SET verifying_officer_approved = 1,
+                        verifying_officer_approved_by = ?,
+                        verifying_officer_approved_at = NOW(),
+                        verifying_officer_remarks = ?,
+                        receiver_id = ?,
+                        initiating_officer_approved = 1,
+                        initiating_officer_approved_by = ?,
+                        initiating_officer_approved_at = NOW(),
+                        initiating_officer_remarks = CONCAT('Auto-approved by receiving officer (same as initiating): ', ?),
+                        status = 'initiating_approved'
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([
+                    $current_personnel_id, 
+                    $remarks, 
+                    $current_personnel_id,
+                    $current_personnel_id,
+                    $remarks,
+                    $id
+                ]);
+                $message = 'Request received and automatically forwarded to accepting officer (Receiving and Initiating Officer are the same)';
+            } else {
+                // Normal flow - forward to initiating officer
+                $stmt = $pdo->prepare("
+                    UPDATE leave_requests 
+                    SET verifying_officer_approved = 1,
+                        verifying_officer_approved_by = ?,
+                        verifying_officer_approved_at = NOW(),
+                        verifying_officer_remarks = ?,
+                        receiver_id = ?,
+                        status = 'verified'
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([$current_personnel_id, $remarks, $current_personnel_id, $id]);
+                $message = 'Request received and forwarded to initiating officer';
+            }
+            
+            if ($result) {
+                echo json_encode(['success' => true, 'message' => $message]);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Failed to approve request']);
+            }
+            exit;
+        }
+        
+        // Receiving Officer rejects
+        if ($action === 'verifying_officer_reject') {
+            if ($current_personnel_id <= 0) {
+                echo json_encode(['success' => false, 'error' => 'Invalid user']);
+                exit;
+            }
+            
+            $id = intval($_POST['id'] ?? 0);
+            $remarks = trim($_POST['remarks'] ?? '');
+            
+            if (empty($remarks)) {
+                echo json_encode(['success' => false, 'error' => 'Rejection reason is required']);
+                exit;
+            }
+            
+            $stmt = $pdo->prepare("
+                SELECT verifying_officer, status 
+                FROM leave_requests WHERE id = ?
+            ");
+            $stmt->execute([$id]);
+            $leave = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$leave) {
+                echo json_encode(['success' => false, 'error' => 'Leave request not found']);
+                exit;
+            }
+            
+            if ($leave['verifying_officer'] != $current_personnel_id) {
+                echo json_encode(['success' => false, 'error' => 'You are not authorized to reject this request']);
+                exit;
+            }
+            
+            $stmt = $pdo->prepare("
+                UPDATE leave_requests 
+                SET status = 'rejected',
+                    approver_remarks = ?,
+                    approved_by = ?,
+                    approved_at = NOW()
+                WHERE id = ?
+            ");
+            $result = $stmt->execute([$remarks, $current_personnel_id, $id]);
+            echo json_encode(['success' => $result]);
+            exit;
+        }
+        
+        // Initiating Officer approves - FORWARD TO ACCEPTING OFFICER
         if ($action === 'initiating_officer_approve') {
             if ($current_personnel_id <= 0) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
@@ -337,7 +517,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $remarks = trim($_POST['remarks'] ?? '');
             
             $stmt = $pdo->prepare("
-                SELECT initiating_officer, initiating_officer_approved, status, accepting_officer
+                SELECT initiating_officer, initiating_officer_approved, status, verifying_officer_approved, accepting_officer
                 FROM leave_requests WHERE id = ?
             ");
             $stmt->execute([$id]);
@@ -353,17 +533,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
+            if ($leave['verifying_officer_approved'] != 1) {
+                echo json_encode(['success' => false, 'error' => 'Request must be received by receiving officer first']);
+                exit;
+            }
+            
             if ($leave['initiating_officer_approved'] == 1) {
                 echo json_encode(['success' => false, 'error' => 'Request already approved by initiating officer']);
                 exit;
             }
             
-            if ($leave['status'] != 'pending') {
-                echo json_encode(['success' => false, 'error' => 'Request cannot be approved at this stage']);
+            if ($leave['status'] != 'verified') {
+                echo json_encode(['success' => false, 'error' => 'Request cannot be approved at this stage. Current status: ' . $leave['status']]);
                 exit;
             }
             
-            // Update the request - set status to 'initiating_approved'
+            // Forward to accepting officer
             $stmt = $pdo->prepare("
                 UPDATE leave_requests 
                 SET initiating_officer_approved = 1,
@@ -376,7 +561,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $result = $stmt->execute([$current_personnel_id, $remarks, $id]);
             
             if ($result) {
-                echo json_encode(['success' => true, 'message' => 'Request forwarded to accepting officer']);
+                echo json_encode(['success' => true, 'message' => 'Request approved and forwarded to accepting officer for final approval']);
             } else {
                 echo json_encode(['success' => false, 'error' => 'Failed to approve request']);
             }
@@ -428,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             exit;
         }
         
-        // Accepting Officer approves and finalizes (second level approval)
+        // Accepting Officer approves - FINAL APPROVAL
         if ($action === 'accepting_officer_approve') {
             if ($current_personnel_id <= 0) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
@@ -440,7 +625,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             
             $stmt = $pdo->prepare("
                 SELECT personnel_id, leave_type, leave_days, accepting_officer, 
-                       accepting_officer_approved, initiating_officer_approved, status 
+                       accepting_officer_approved, initiating_officer_approved, verifying_officer_approved, status 
                 FROM leave_requests WHERE id = ?
             ");
             $stmt->execute([$id]);
@@ -456,6 +641,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
+            if ($leave['verifying_officer_approved'] != 1) {
+                echo json_encode(['success' => false, 'error' => 'Request must be received by receiving officer first']);
+                exit;
+            }
+            
             if ($leave['initiating_officer_approved'] != 1) {
                 echo json_encode(['success' => false, 'error' => 'Request must be approved by initiating officer first']);
                 exit;
@@ -467,7 +657,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             if ($leave['status'] != 'initiating_approved') {
-                echo json_encode(['success' => false, 'error' => 'Request is not in the correct state for approval']);
+                echo json_encode(['success' => false, 'error' => 'Request is not in the correct state for approval. Current status: ' . $leave['status']]);
                 exit;
             }
             
@@ -503,7 +693,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 WHERE id = ?
             ");
             $result = $stmt->execute([$current_personnel_id, $remarks, $current_personnel_id, $id]);
-            echo json_encode(['success' => $result]);
+            
+            if ($result) {
+                echo json_encode(['success' => true, 'message' => 'Leave request FINALLY APPROVED! Leave has been granted.']);
+            } else {
+                echo json_encode(['success' => false, 'error' => 'Failed to approve request']);
+            }
             exit;
         }
         
@@ -556,7 +751,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         if ($action === 'get_stats') {
             $stats = [];
             
-            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE initiating_officer = ? AND (initiating_officer_approved = 0 OR initiating_officer_approved IS NULL) AND status = 'pending'");
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE verifying_officer = ? AND (verifying_officer_approved = 0 OR verifying_officer_approved IS NULL) AND status = 'pending'");
+            $stmt->execute([$current_personnel_id]);
+            $stats['verifying_pending'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+            
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE initiating_officer = ? AND verifying_officer_approved = 1 AND (initiating_officer_approved = 0 OR initiating_officer_approved IS NULL) AND status = 'verified'");
             $stmt->execute([$current_personnel_id]);
             $stats['initiating_pending'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
             
@@ -605,10 +804,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 $myBalance = getLeaveBalance($pdo, $current_personnel_id);
 
 // Get statistics for initial display
+$verifyingPending = 0;
 $initiatingPending = 0;
 $acceptingPending = 0;
 
-$stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE initiating_officer = ? AND (initiating_officer_approved = 0 OR initiating_officer_approved IS NULL) AND status = 'pending'");
+$stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE verifying_officer = ? AND (verifying_officer_approved = 0 OR verifying_officer_approved IS NULL) AND status = 'pending'");
+$stmt->execute([$current_personnel_id]);
+$verifyingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
+
+$stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE initiating_officer = ? AND verifying_officer_approved = 1 AND (initiating_officer_approved = 0 OR initiating_officer_approved IS NULL) AND status = 'verified'");
 $stmt->execute([$current_personnel_id]);
 $initiatingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
@@ -619,12 +823,10 @@ $acceptingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 // Get officers for dropdown
 $officers = [];
 try {
-    $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status WHERE rank IN ('Officer', 'Major', 'Captain', 'Colonel', 'Lieutenant') OR is_officer = 1 ORDER BY personnel_name");
+    $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
     $officers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    // If is_officer column doesn't exist, just use rank filter
-    $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status WHERE rank IN ('Officer', 'Major', 'Captain', 'Colonel', 'Lieutenant') ORDER BY personnel_name");
-    $officers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $officers = [];
 }
 
 ob_start();
@@ -634,863 +836,148 @@ ob_start();
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>Leave Management System - Two Level Approval</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leave Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root {
-            --primary: #0f3b2c;
-            --primary-dark: #0a2a1f;
-            --primary-light: #1e5a45;
-            --secondary: #c49a6c;
-            --secondary-light: #dbb88c;
-            --gray-50: #f8fafc;
-            --gray-100: #f1f5f9;
-            --gray-200: #e2e8f0;
-            --gray-300: #cbd5e1;
-            --gray-400: #94a3b8;
-            --gray-500: #64748b;
-            --gray-600: #475569;
-            --gray-700: #334155;
-            --gray-800: #1e293b;
-            --gray-900: #0f172a;
-            --success: #10b981;
-            --success-dark: #059669;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --danger-dark: #dc2626;
-            --info: #3b82f6;
-            --border-radius: 1rem;
-            --border-radius-sm: 0.5rem;
-            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #f0f9f4 0%, #e8f0eb 100%);
-            color: var(--gray-800);
-            line-height: 1.5;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 1.5rem;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1.25rem;
-            box-shadow: var(--shadow-md);
-            transition: all 0.2s ease;
-            cursor: pointer;
-            border: 1px solid rgba(0,0,0,0.05);
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
-        }
-
-        .stat-card.initiating {
-            background: linear-gradient(135deg, #fef6e6 0%, #fff9ef 100%);
-            border-left: 4px solid var(--warning);
-        }
-
-        .stat-card.accepting {
-            background: linear-gradient(135deg, #eef2ff 0%, #f5f7ff 100%);
-            border-left: 4px solid var(--info);
-        }
-
-        .stat-card.approved {
-            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf9 100%);
-            border-left: 4px solid var(--success);
-        }
-
-        .stat-icon {
-            width: 56px;
-            height: 56px;
-            background: white;
-            border-radius: 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .stat-card.initiating .stat-icon { color: var(--warning); }
-        .stat-card.accepting .stat-icon { color: var(--info); }
-        .stat-card.approved .stat-icon { color: var(--success); }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--gray-800);
-            line-height: 1.2;
-        }
-
-        .stat-label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: var(--gray-500);
-            margin-top: 0.25rem;
-        }
-
-        .officer-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .officer-card {
-            background: white;
-            border-radius: var(--border-radius);
-            overflow: hidden;
-            box-shadow: var(--shadow-md);
-        }
-
-        .officer-card-header {
-            padding: 1rem 1.5rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-size: 0.9rem;
-        }
-
-        .officer-card-header.initiating {
-            background: #fef3c7;
-            color: #92400e;
-            border-bottom: 2px solid #fde68a;
-        }
-
-        .officer-card-header.accepting {
-            background: #e0e7ff;
-            color: #3730a3;
-            border-bottom: 2px solid #c7d2fe;
-        }
-
-        .badge-new {
-            background: #ef4444;
-            color: white;
-            border-radius: 20px;
-            padding: 0.15rem 0.6rem;
-            font-size: 0.7rem;
-            font-weight: 600;
-            margin-left: 0.5rem;
-        }
-
-        .officer-card-body {
-            padding: 1rem;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .pending-item {
-            padding: 0.75rem;
-            border-bottom: 1px solid var(--gray-100);
-            transition: background 0.2s;
-        }
-
-        .pending-item:hover {
-            background: var(--gray-50);
-        }
-
-        .pending-item:last-child {
-            border-bottom: none;
-        }
-
-        .pending-item-title {
-            font-weight: 600;
-            font-size: 0.9rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .pending-item-details {
-            font-size: 0.7rem;
-            color: var(--gray-500);
-            display: flex;
-            gap: 0.75rem;
-            flex-wrap: wrap;
-            margin-bottom: 0.5rem;
-        }
-
-        .btn-process {
-            padding: 0.3rem 0.8rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 2rem;
-            cursor: pointer;
-            font-size: 0.7rem;
-            font-weight: 500;
-            margin-right: 0.5rem;
-            transition: all 0.2s;
-        }
-
-        .btn-process:hover {
-            background: var(--primary-dark);
-        }
-
-        .btn-process-reject {
-            background: var(--danger);
-        }
-
-        .btn-process-reject:hover {
-            background: var(--danger-dark);
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 2rem;
-            color: var(--gray-400);
-            font-size: 0.8rem;
-        }
-
-        .balance-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .balance-card {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 1.25rem;
-            box-shadow: var(--shadow-md);
-            border-left: 4px solid;
-            transition: transform 0.2s;
-        }
-
-        .balance-card:hover {
-            transform: translateY(-2px);
-        }
-
-        .balance-card:nth-child(1) { border-left-color: var(--primary); }
-        .balance-card:nth-child(2) { border-left-color: var(--secondary); }
-        .balance-card:nth-child(3) { border-left-color: var(--info); }
-
-        .balance-card h4 {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--gray-500);
-            margin-bottom: 0.5rem;
-            letter-spacing: 0.5px;
-        }
-
-        .balance-card .days {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--gray-800);
-        }
-
-        .progress-bar {
-            height: 6px;
-            background: var(--gray-200);
-            border-radius: 3px;
-            margin-top: 0.75rem;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-
-        .balance-card:nth-child(1) .progress-fill { background: var(--primary); }
-        .balance-card:nth-child(2) .progress-fill { background: var(--secondary); }
-        .balance-card:nth-child(3) .progress-fill { background: var(--info); }
-
-        .filter-section {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-bottom: 1.5rem;
-        }
-
-        .filter-btn {
-            padding: 0.5rem 1.2rem;
-            background: white;
-            border: 1px solid var(--gray-200);
-            border-radius: 2rem;
-            cursor: pointer;
-            font-size: 0.8rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            color: var(--gray-600);
-        }
-
-        .filter-btn:hover {
-            background: var(--gray-50);
-            border-color: var(--gray-300);
-        }
-
-        .filter-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        .search-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-bottom: 1.5rem;
-        }
-
-        .search-bar {
-            position: relative;
-            flex: 1;
-            max-width: 380px;
-        }
-
-        .search-bar input {
-            width: 100%;
-            padding: 0.7rem 2.5rem 0.7rem 2.5rem;
-            border: 1px solid var(--gray-200);
-            border-radius: 2rem;
-            font-size: 0.85rem;
-            outline: none;
-            transition: all 0.2s;
-            background: white;
-        }
-
-        .search-bar input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(15, 59, 44, 0.1);
-        }
-
-        .search-bar i {
-            position: absolute;
-            left: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--gray-400);
-            font-size: 0.9rem;
-        }
-
-        .clear-search {
-            position: absolute;
-            right: 1rem;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: var(--gray-400);
-            font-size: 0.8rem;
-        }
-
-        .btn-add {
-            padding: 0.65rem 1.5rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 2rem;
-            cursor: pointer;
-            font-size: 0.85rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: all 0.2s;
-        }
-
-        .btn-add:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-        }
-
-        .data-table {
-            background: white;
-            border-radius: var(--border-radius);
-            overflow-x: auto;
-            box-shadow: var(--shadow-md);
-            margin-bottom: 1.5rem;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 1100px;
-        }
-
-        th {
-            text-align: left;
-            padding: 1rem 1rem;
-            background: var(--gray-50);
-            border-bottom: 1px solid var(--gray-200);
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--gray-500);
-        }
-
-        td {
-            padding: 0.9rem 1rem;
-            border-bottom: 1px solid var(--gray-100);
-            font-size: 0.8rem;
-        }
-
-        tr:hover {
-            background: var(--gray-50);
-        }
-
-        .status-badge {
-            padding: 0.25rem 0.7rem;
-            border-radius: 2rem;
-            font-size: 0.7rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            white-space: nowrap;
-        }
-
-        .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-initiated {
-            background: #e0e7ff;
-            color: #3730a3;
-        }
-
-        .status-approved {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-rejected {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .badge-officer {
-            background: #f1f5f9;
-            color: var(--gray-700);
-            padding: 0.2rem 0.6rem;
-            border-radius: 2rem;
-            font-size: 0.7rem;
-            font-weight: 500;
-            display: inline-block;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 0.4rem;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            padding: 0.3rem 0.8rem;
-            border: none;
-            border-radius: 2rem;
-            cursor: pointer;
-            font-size: 0.7rem;
-            font-weight: 500;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            transition: all 0.2s;
-        }
-
-        .btn-approve {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .btn-approve:hover {
-            background: #a7f3d0;
-        }
-
-        .btn-reject {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .btn-reject:hover {
-            background: #fecaca;
-        }
-
-        .btn-view {
-            background: #e0e7ff;
-            color: #3730a3;
-        }
-
-        .btn-view:hover {
-            background: #c7d2fe;
-        }
-
-        .btn-pass {
-            background: #8b5cf6;
-            color: white;
-        }
-
-        .btn-pass:hover {
-            background: #7c3aed;
-            transform: translateY(-1px);
-        }
-
-        .pagination-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--gray-200);
-        }
-
-        .pagination {
-            display: flex;
-            gap: 0.4rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .page-btn {
-            padding: 0.4rem 0.8rem;
-            background: white;
-            border: 1px solid var(--gray-200);
-            border-radius: 0.5rem;
-            cursor: pointer;
-            font-size: 0.75rem;
-            transition: all 0.2s;
-        }
-
-        .page-btn:hover {
-            background: var(--gray-100);
-        }
-
-        .page-btn.active {
-            background: var(--primary);
-            color: white;
-            border-color: var(--primary);
-        }
-
-        .pagination-info {
-            font-size: 0.75rem;
-            color: var(--gray-500);
-        }
-
-        .records-per-page {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.75rem;
-            margin-top: 0.5rem;
-        }
-
-        .records-per-page select {
-            padding: 0.3rem 0.6rem;
-            border: 1px solid var(--gray-200);
-            border-radius: 0.5rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            backdrop-filter: blur(4px);
-        }
-
-        .modal-content {
-            background-color: white;
-            margin: 5% auto;
-            width: 90%;
-            max-width: 600px;
-            border-radius: var(--border-radius);
-            animation: slideDown 0.2s ease;
-            box-shadow: var(--shadow-lg);
-        }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-30px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .modal-header {
-            padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid var(--gray-200);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-header h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .close, .close-action {
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: var(--gray-400);
-            transition: color 0.2s;
-        }
-
-        .close:hover, .close-action:hover {
-            color: var(--gray-600);
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-
-        .input-field {
-            margin-bottom: 1.25rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.4rem;
-        }
-
-        .input-field label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--gray-700);
-        }
-
-        .input-field input, .input-field select, .input-field textarea {
-            padding: 0.7rem 0.9rem;
-            border: 1px solid var(--gray-200);
-            border-radius: 0.75rem;
-            font-size: 0.85rem;
-            outline: none;
-            font-family: inherit;
-            transition: all 0.2s;
-        }
-
-        .input-field input:focus, .input-field select:focus, .input-field textarea:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(15, 59, 44, 0.1);
-        }
-
-        .required-star {
-            color: var(--danger);
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 0.75rem;
-            justify-content: flex-end;
-            margin-top: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--gray-200);
-        }
-
-        .btn-cancel {
-            padding: 0.6rem 1.2rem;
-            background: var(--gray-100);
-            border: none;
-            border-radius: 0.75rem;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 0.8rem;
-        }
-
-        .btn-submit {
-            padding: 0.6rem 1.5rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 0.75rem;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.8rem;
-            transition: background 0.2s;
-        }
-
-        .btn-submit:hover {
-            background: var(--primary-dark);
-        }
-
-        .info-box {
-            background: #eef2ff;
-            padding: 0.75rem 1rem;
-            border-radius: 0.75rem;
-            margin-bottom: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-size: 0.75rem;
-            color: var(--gray-700);
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            background: var(--gray-800);
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 2rem;
-            font-size: 0.8rem;
-            display: none;
-            z-index: 1100;
-            box-shadow: var(--shadow-lg);
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 1rem;
-            height: 1rem;
-            border: 2px solid var(--gray-200);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
+        .status-pending { background-color: #fff3cd; color: #856404; }
+        .status-verified { background-color: #cce5ff; color: #004085; }
+        .status-initiated { background-color: #d4edda; color: #155724; }
+        .status-approved { background-color: #d4edda; color: #155724; }
+        .status-rejected { background-color: #f8d7da; color: #721c24; }
+        .badge-officer { background-color: #e9ecef; padding: 3px 8px; border-radius: 12px; font-size: 11px; }
+        .btn-process { padding: 4px 12px; font-size: 12px; margin: 2px; border-radius: 4px; cursor: pointer; }
+        .btn-approve { background: #28a745; color: white; border: none; }
+        .btn-reject { background: #dc3545; color: white; border: none; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .stat-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; }
+        .stat-card.verifying { border-left: 4px solid #ffc107; }
+        .stat-card.initiating { border-left: 4px solid #17a2b8; }
+        .stat-card.accepting { border-left: 4px solid #28a745; }
+        .stat-value { font-size: 28px; font-weight: bold; }
+        .officer-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .officer-card { background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
+        .officer-card-header { padding: 15px; font-weight: bold; }
+        .officer-card-header.verifying { background: #fff3cd; color: #856404; }
+        .officer-card-header.initiating { background: #cce5ff; color: #004085; }
+        .officer-card-header.accepting { background: #d4edda; color: #155724; }
+        .officer-card-body { padding: 15px; max-height: 400px; overflow-y: auto; }
+        .pending-item { border-bottom: 1px solid #eee; padding: 10px; margin-bottom: 10px; }
+        .pending-item:last-child { border-bottom: none; }
+        .badge-new { background: #dc3545; color: white; border-radius: 20px; padding: 2px 8px; font-size: 11px; margin-left: 10px; }
+        .balance-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .balance-card { background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .balance-card .days { font-size: 24px; font-weight: bold; }
+        .filter-section { margin-bottom: 20px; }
+        .filter-btn { margin: 5px; padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; }
+        .filter-btn.active { background: #007bff; color: white; border-color: #007bff; }
+        .search-section { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .search-bar { position: relative; width: 300px; }
+        .search-bar input { width: 100%; padding: 8px 35px 8px 15px; border: 1px solid #ddd; border-radius: 20px; }
+        .clear-search { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; }
+        .btn-add { background: #28a745; color: white; border: none; padding: 8px 20px; border-radius: 20px; cursor: pointer; }
+        .data-table { background: white; border-radius: 10px; overflow-x: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; }
+        .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .action-btn { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .btn-approve-action { background: #28a745; color: white; }
+        .btn-reject-action { background: #dc3545; color: white; }
+        .btn-view-action { background: #17a2b8; color: white; }
+        .btn-pass-action { background: #6f42c1; color: white; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal-content { background: white; margin: 5% auto; width: 90%; max-width: 600px; border-radius: 10px; }
+        .modal-header { padding: 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+        .modal-body { padding: 20px; }
+        .input-field { margin-bottom: 15px; }
+        .input-field label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .input-field input, .input-field select, .input-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
+        .required-star { color: red; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .btn-cancel { background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
+        .btn-submit { background: #007bff; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius: 5px; display: none; z-index: 1100; }
+        .info-box { background: #e7f3ff; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px; }
+        .close, .close-action { cursor: pointer; font-size: 24px; }
         @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            .stats-grid, .balance-cards, .officer-actions {
-                grid-template-columns: 1fr;
-            }
-            .modal-content {
-                margin: 15% auto;
-                width: 95%;
-            }
-            .search-section {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .search-bar {
-                max-width: none;
-            }
-            .btn-add {
-                justify-content: center;
-            }
+            .stats-grid, .officer-actions, .balance-cards { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- Statistics Dashboard -->
+    <h2>Leave Management System</h2>
+    
+    <!-- Statistics -->
     <div class="stats-grid">
-        <div class="stat-card initiating" onclick="filterByStatus('pending')">
-            <div class="stat-icon"><i class="fas fa-clock"></i></div>
-            <div>
-                <div class="stat-value" id="initiatingPending"><?php echo $initiatingPending; ?></div>
-                <div class="stat-label">Pending for Initiating Officer</div>
-            </div>
+        <div class="stat-card verifying" onclick="filterByStatus('pending')">
+            <div class="stat-value" id="verifyingPending"><?php echo $verifyingPending; ?></div>
+            <div>प्राप्त गर्ने (Receiving Officer)</div>
+        </div>
+        <div class="stat-card initiating" onclick="filterByStatus('verified')">
+            <div class="stat-value" id="initiatingPending"><?php echo $initiatingPending; ?></div>
+            <div>Initiating Officer</div>
         </div>
         <div class="stat-card accepting" onclick="filterByStatus('initiating_approved')">
-            <div class="stat-icon"><i class="fas fa-share"></i></div>
-            <div>
-                <div class="stat-value" id="acceptingPending"><?php echo $acceptingPending; ?></div>
-                <div class="stat-label">Pending for Accepting Officer</div>
-            </div>
-        </div>
-        <div class="stat-card approved" onclick="filterByStatus('approved')">
-            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-            <div>
-                <div class="stat-value" id="approvedCount">0</div>
-                <div class="stat-label">Approved Leaves</div>
-            </div>
+            <div class="stat-value" id="acceptingPending"><?php echo $acceptingPending; ?></div>
+            <div>Accepting Officer (Final)</div>
         </div>
     </div>
 
     <!-- Officer Action Cards -->
     <div class="officer-actions">
         <div class="officer-card">
+            <div class="officer-card-header verifying">
+                📋 प्राप्त गर्ने (Receiving Officer)
+                <span class="badge-new" id="verifyingBadge"><?php echo $verifyingPending; ?></span>
+            </div>
+            <div class="officer-card-body" id="verifyingPendingList">
+                <div class="loading-spinner"></div> Loading...
+            </div>
+        </div>
+        
+        <div class="officer-card">
             <div class="officer-card-header initiating">
-                <i class="fas fa-user-shield"></i> 
-                <span>Initiating Officer - Pending Approvals</span>
+                📌 Initiating Officer
                 <span class="badge-new" id="initiatingBadge"><?php echo $initiatingPending; ?></span>
             </div>
             <div class="officer-card-body" id="initiatingPendingList">
-                <div style="text-align: center; padding: 2rem;"><div class="loading-spinner"></div> Loading...</div>
+                <div class="loading-spinner"></div> Loading...
             </div>
         </div>
         
         <div class="officer-card">
             <div class="officer-card-header accepting">
-                <i class="fas fa-user-check"></i> 
-                <span>Accepting Officer - Pending Final Approval</span>
+                ✅ Accepting Officer (Final)
                 <span class="badge-new" id="acceptingBadge"><?php echo $acceptingPending; ?></span>
             </div>
             <div class="officer-card-body" id="acceptingPendingList">
-                <div style="text-align: center; padding: 2rem;"><div class="loading-spinner"></div> Loading...</div>
+                <div class="loading-spinner"></div> Loading...
             </div>
         </div>
     </div>
 
-    <!-- Leave Balance Cards -->
+    <!-- Balance Cards -->
     <div class="balance-cards">
         <div class="balance-card">
-            <h4><i class="fas fa-home"></i> Gharpari Bida</h4>
+            <h4>🏠 Gharpari Bida</h4>
             <div class="days" id="gharpariBalance"><?php echo $myBalance['gharpari_bida_days']; ?></div>
-            <div class="progress-bar"><div class="progress-fill" id="gharpariProgress" style="width: <?php echo min(100, ($myBalance['gharpari_bida_days'] / 15) * 100); ?>%;"></div></div>
             <small>Days remaining</small>
         </div>
         <div class="balance-card">
-            <h4><i class="fas fa-calendar-alt"></i> Parba Bida</h4>
+            <h4>🎉 Parba Bida</h4>
             <div class="days" id="parbaBalance"><?php echo $myBalance['parba_bida_days']; ?></div>
-            <div class="progress-bar"><div class="progress-fill" id="parbaProgress" style="width: <?php echo min(100, ($myBalance['parba_bida_days'] / 12) * 100); ?>%;"></div></div>
             <small>Days remaining</small>
         </div>
         <div class="balance-card">
-            <h4><i class="fas fa-hand-holding-heart"></i> Bhaeepari Bida</h4>
+            <h4>🤝 Bhaeepari Bida</h4>
             <div class="days" id="bhaeepariBalance"><?php echo $myBalance['bhaeepari_bida_days']; ?></div>
-            <div class="progress-bar"><div class="progress-fill" id="bhaeepariProgress" style="width: <?php echo min(100, ($myBalance['bhaeepari_bida_days'] / 10) * 100); ?>%;"></div></div>
             <small>Days remaining</small>
         </div>
     </div>
@@ -1498,20 +985,20 @@ ob_start();
     <!-- Search and Actions -->
     <div class="search-section">
         <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" id="searchInput" placeholder="Search by name, rank, or reason...">
-            <button class="clear-search" id="clearSearch" style="display: none;">✕</button>
+            <input type="text" id="searchInput" placeholder="Search...">
+            <button class="clear-search" id="clearSearch">✕</button>
         </div>
-        <button class="btn-add" id="newLeaveBtn"><i class="fas fa-plus-circle"></i> New Leave Request</button>
+        <button class="btn-add" id="newLeaveBtn">+ New Leave Request</button>
     </div>
 
     <!-- Filter Tabs -->
     <div class="filter-section">
-        <button class="filter-btn active" data-filter="all">📋 All Requests</button>
-        <button class="filter-btn" data-filter="pending">⏳ Pending (Initiating Officer)</button>
-        <button class="filter-btn" data-filter="initiating_approved">📤 Awaiting Accepting Officer</button>
-        <button class="filter-btn" data-filter="approved">✅ Approved</button>
-        <button class="filter-btn" data-filter="rejected">❌ Rejected</button>
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="pending">Pending (Receiving)</button>
+        <button class="filter-btn" data-filter="verified">Verified (Initiating)</button>
+        <button class="filter-btn" data-filter="initiating_approved">Awaiting Final</button>
+        <button class="filter-btn" data-filter="approved">Approved</button>
+        <button class="filter-btn" data-filter="rejected">Rejected</button>
     </div>
 
     <!-- Leave Requests Table -->
@@ -1519,7 +1006,7 @@ ob_start();
         <table>
             <thead>
                 <tr>
-                    <th>S.N.</th>
+                    <th>ID</th>
                     <th>Personnel</th>
                     <th>Rank</th>
                     <th>Leave Type</th>
@@ -1527,37 +1014,27 @@ ob_start();
                     <th>Days</th>
                     <th>Reason</th>
                     <th>Status</th>
-                    <th>Balance</th>
+                    <th>Receiver</th>
+                    <th>Receiving Officer</th>
                     <th>Initiating Officer</th>
                     <th>Accepting Officer</th>
-                    <th>Submitted</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="leaveTableBody">
-                <tr><td colspan="13" style="text-align:center"><div class="loading-spinner"></div> Loading leave requests...<\/td><\/tr>
+                <tr><td colspan="13" style="text-align:center">Loading...<\/td><\/tr>
             </tbody>
         </table>
     </div>
 
-    <div id="paginationContainer" class="pagination-container"></div>
-    <div class="records-per-page">
-        <label>Show:</label>
-        <select id="recordsPerPage">
-            <option value="5">5</option>
-            <option value="10" selected>10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-        </select>
-        <span>entries per page</span>
-    </div>
+    <div id="paginationContainer" class="pagination-container" style="margin-top:20px"></div>
 </div>
 
 <!-- New Leave Request Modal -->
 <div id="leaveModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3><i class="fas fa-calendar-plus"></i> New Leave Request</h3>
+            <h3>New Leave Request</h3>
             <span class="close">&times;</span>
         </div>
         <div class="modal-body">
@@ -1565,82 +1042,94 @@ ob_start();
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 
                 <div class="input-field">
-                    <label><i class="fas fa-user"></i> Personnel <span class="required-star">*</span></label>
+                    <label>Personnel <span class="required-star">*</span></label>
                     <select id="personnelId" required>
                         <option value="">Select Personnel</option>
                         <?php
                         $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
                         while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            $selected = ($user_role_int === 0 && $row['id'] == $current_personnel_id) ? 'selected' : '';
-                            echo "<option value='{$row['id']}' $selected>" . htmlspecialchars($row['rank'] . ' ' . $row['personnel_name']) . "</option>";
+                            echo "<option value='{$row['id']}'>" . htmlspecialchars($row['rank'] . ' ' . $row['personnel_name']) . "</option>";
                         }
                         ?>
                     </select>
                 </div>
                 
                 <div class="input-field">
-                    <label><i class="fas fa-tag"></i> Leave Type <span class="required-star">*</span></label>
+                    <label>Leave Type <span class="required-star">*</span></label>
                     <select id="leaveType" required>
                         <option value="">Select Type</option>
-                        <option value="gharpari_bida">🏠 Gharpari Bida (Family Leave)</option>
-                        <option value="parba_bida">🎉 Parba Bida (Festival Leave)</option>
-                        <option value="bhaeepari_bida">🤝 Bhaeepari Bida (Emergency Leave)</option>
+                        <option value="gharpari_bida">🏠 Gharpari Bida</option>
+                        <option value="parba_bida">🎉 Parba Bida</option>
+                        <option value="bhaeepari_bida">🤝 Bhaeepari Bida</option>
                     </select>
                 </div>
                 
                 <div class="info-box">
-                    <i class="fas fa-user-tie"></i>
-                    <span><strong>Two-Level Approval Required</strong> - Select both officers for approval workflow</span>
+                    <strong>Three-Level Approval Workflow:</strong><br>
+                    1. Receiving Officer receives and verifies<br>
+                    2. Initiating Officer approves<br>
+                    3. Accepting Officer gives final approval
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
                     <div class="input-field">
-                        <label><i class="fas fa-user-shield"></i> Initiating Officer <span class="required-star">*</span></label>
+                        <label>प्राप्त गर्ने (Receiving Officer) <span class="required-star">*</span></label>
+                        <select id="receivingOfficer" required>
+                            <option value="">Select Receiving Officer</option>
+                            <?php foreach ($officers as $officer): ?>
+                                <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small>Step 1: This person will receive and verify the request</small>
+                    </div>
+                    
+                    <div class="input-field">
+                        <label>Initiating Officer <span class="required-star">*</span></label>
                         <select id="initiatingOfficer" required>
                             <option value="">Select Initiating Officer</option>
                             <?php foreach ($officers as $officer): ?>
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Level 1: Reviews and forwards</small>
+                        <small>Step 2: First level approval after receiving</small>
                     </div>
                     
                     <div class="input-field">
-                        <label><i class="fas fa-user-check"></i> Accepting Officer <span class="required-star">*</span></label>
+                        <label>Accepting Officer <span class="required-star">*</span></label>
                         <select id="acceptingOfficer" required>
                             <option value="">Select Accepting Officer</option>
                             <?php foreach ($officers as $officer): ?>
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Level 2: Final approval</small>
+                        <small>Step 3: Final approval</small>
                     </div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <div class="input-field">
-                        <label><i class="fas fa-calendar-day"></i> Start Date <span class="required-star">*</span></label>
+                        <label>Start Date <span class="required-star">*</span></label>
                         <input type="date" id="startDate" required>
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-calendar-day"></i> End Date <span class="required-star">*</span></label>
+                        <label>End Date <span class="required-star">*</span></label>
                         <input type="date" id="endDate" required>
                     </div>
                 </div>
                 
                 <div class="input-field">
-                    <label><i class="fas fa-sort-numeric-up"></i> Total Days</label>
-                    <input type="text" id="totalDays" readonly style="background: var(--gray-50);">
+                    <label>Total Days</label>
+                    <input type="text" id="totalDays" readonly>
                 </div>
                 
                 <div class="input-field">
-                    <label><i class="fas fa-chart-line"></i> Available Days</label>
-                    <input type="text" id="availableBalance" readonly style="background: #e8f5e9; font-weight: 500;">
+                    <label>Available Balance</label>
+                    <input type="text" id="availableBalance" readonly>
                 </div>
                 
                 <div class="input-field">
-                    <label><i class="fas fa-comment"></i> Reason for Leave <span class="required-star">*</span></label>
-                    <textarea id="reason" rows="3" placeholder="Please provide detailed reason for leave..." required></textarea>
+                    <label>Reason <span class="required-star">*</span></label>
+                    <textarea id="reason" rows="3" required></textarea>
                 </div>
                 
                 <div class="modal-buttons">
@@ -1656,7 +1145,7 @@ ob_start();
 <div id="actionModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3 id="actionModalTitle">Process Leave Request</h3>
+            <h3 id="actionModalTitle">Process Request</h3>
             <span class="close-action">&times;</span>
         </div>
         <div class="modal-body">
@@ -1667,58 +1156,68 @@ ob_start();
                 
                 <div class="input-field">
                     <label id="actionLabel">Remarks <span class="required-star">*</span></label>
-                    <textarea id="actionRemarks" rows="3" placeholder="Enter remarks..."></textarea>
+                    <textarea id="actionRemarks" rows="3"></textarea>
                 </div>
                 
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" id="cancelActionBtn">Cancel</button>
-                    <button type="submit" class="btn-submit" id="submitActionBtn">Confirm</button>
+                    <button type="submit" class="btn-submit">Confirm</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<div id="toast" class="toast"><span id="toastMessage"></span></div>
+<div id="toast" class="toast"></div>
 
 <script>
-    let leaveData = [];
     let currentFilter = 'all';
     let currentPage = 1;
+    let currentPerPage = 10;
     let totalPages = 1;
-    let totalRecords = 0;
-    let currentPerPage = parseInt(localStorage.getItem('leaveRecordsPerPage') || '10');
     let currentUserRole = <?php echo $user_role_int; ?>;
     let currentPersonnelId = <?php echo $current_personnel_id; ?>;
-    
-    // Set initial records per page dropdown
-    document.addEventListener('DOMContentLoaded', function() {
-        const perPageSelect = document.getElementById('recordsPerPage');
-        if (perPageSelect) {
-            perPageSelect.value = currentPerPage;
+
+    // Load receiving officer pending requests
+    async function loadVerifyingPending() {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'get_verifying_pending');
+            formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
+            
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const result = await response.json();
+            
+            const container = document.getElementById('verifyingPendingList');
+            if (result.success && result.data && result.data.length > 0) {
+                let html = '';
+                result.data.forEach(leave => {
+                    const isSame = leave.verifying_officer == leave.initiating_officer;
+                    html += `
+                        <div class="pending-item">
+                            <strong>📋 From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
+                            <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
+                            <small>Will forward to: ${escapeHtml(leave.initiating_officer_name)}</small><br>
+                            ${isSame ? '<small style="color:orange">⚠️ Same as Initiating Officer - Will auto-forward to Accepting Officer</small><br>' : ''}
+                            <button class="btn-process btn-approve" onclick="openApprovalModal(${leave.id}, 'verifying', 'approve')">✅ Receive & Forward</button>
+                            <button class="btn-process btn-reject" onclick="openApprovalModal(${leave.id}, 'verifying', 'reject')">❌ Reject</button>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } else {
+                container.innerHTML = '<div class="empty-state">📭 No pending requests for receiving officer</div>';
+            }
+        } catch (error) {
+            console.error(error);
+            document.getElementById('verifyingPendingList').innerHTML = '<div class="empty-state">Error loading</div>';
         }
-    });
-    
-    // View Leave Pass function - opens the leave pass in new tab
-    function viewLeavePass(leaveId) {
-        window.open(`generate_leave_pass.php?id=${leaveId}`, '_blank');
     }
-    
-    // View Details - Now directly opens the leave pass for any leave request
-    async function viewDetails(id) {
-        const leave = leaveData.find(l => l.id == id);
-        if (!leave) return;
-        
-        // For ALL leave requests, open the leave pass
-        // The generate_leave_pass.php will handle showing appropriate signatures
-        // based on approval status and user role
-        if (leave.personnel_id === currentPersonnelId || currentUserRole >= 1) {
-            window.open(`generate_leave_pass.php?id=${id}`, '_blank');
-        } else {
-            showToast('You are not authorized to view this leave request.', 'error');
-        }
-    }
-    
+
     // Load initiating officer pending requests
     async function loadInitiatingPending() {
         try {
@@ -1739,30 +1238,25 @@ ob_start();
                 result.data.forEach(leave => {
                     html += `
                         <div class="pending-item">
-                            <div class="pending-item-title">${escapeHtml(leave.personnel_name)} (${escapeHtml(leave.rank)})</div>
-                            <div class="pending-item-details">
-                                <span>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari' : (leave.leave_type === 'parba_bida' ? '🎉 Parba' : '🤝 Bhaeepari')}</span>
-                                <span>📅 ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span>
-                                <span>📆 ${leave.leave_days} days</span>
-                            </div>
-                            <div class="pending-item-details" style="font-size: 11px; color: var(--gray-500); margin-top: 5px;">
-                                Accepting Officer: ${escapeHtml(leave.accepting_officer_name) || '-'}
-                            </div>
-                            <button class="btn-process" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')"><i class="fas fa-check"></i> Approve & Forward</button>
-                            <button class="btn-process btn-process-reject" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')"><i class="fas fa-times"></i> Reject</button>
+                            <strong>📌 From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
+                            <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
+                            <small>Received by: ${escapeHtml(leave.verifying_officer_name)}</small><br>
+                            <small>Will forward to: ${escapeHtml(leave.accepting_officer_name)}</small><br>
+                            <button class="btn-process btn-approve" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')">✅ Approve & Forward</button>
+                            <button class="btn-process btn-reject" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')">❌ Reject</button>
                         </div>
                     `;
                 });
                 container.innerHTML = html;
             } else {
-                container.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><br>No pending requests for approval</div>';
+                container.innerHTML = '<div class="empty-state">📭 No pending requests for initiating officer</div>';
             }
         } catch (error) {
-            console.error('Error loading initiating pending:', error);
-            document.getElementById('initiatingPendingList').innerHTML = '<div class="empty-state">Error loading requests</div>';
+            console.error(error);
+            document.getElementById('initiatingPendingList').innerHTML = '<div class="empty-state">Error loading</div>';
         }
     }
-    
+
     // Load accepting officer pending requests
     async function loadAcceptingPending() {
         try {
@@ -1783,51 +1277,28 @@ ob_start();
                 result.data.forEach(leave => {
                     html += `
                         <div class="pending-item">
-                            <div class="pending-item-title">${escapeHtml(leave.personnel_name)} (${escapeHtml(leave.rank)})</div>
-                            <div class="pending-item-details">
-                                <span>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari' : (leave.leave_type === 'parba_bida' ? '🎉 Parba' : '🤝 Bhaeepari')}</span>
-                                <span>📅 ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span>
-                                <span>📆 ${leave.leave_days} days</span>
-                            </div>
-                            <div class="pending-item-details" style="font-size: 11px; color: var(--gray-500); margin-top: 5px;">
-                                Initiated by: ${escapeHtml(leave.initiating_officer_name) || '-'}
-                                ${leave.initiating_officer_approved_at ? `<br>Forwarded on: ${new Date(leave.initiating_officer_approved_at).toLocaleString()}` : ''}
-                            </div>
-                            <button class="btn-process" onclick="openApprovalModal(${leave.id}, 'accepting', 'approve')"><i class="fas fa-check-circle"></i> Final Approve</button>
-                            <button class="btn-process btn-process-reject" onclick="openApprovalModal(${leave.id}, 'accepting', 'reject')"><i class="fas fa-times"></i> Reject</button>
+                            <strong>✅ From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
+                            <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
+                            <small>Verified by: ${escapeHtml(leave.verifying_officer_name)}</small><br>
+                            <small>Initiated by: ${escapeHtml(leave.initiating_officer_name)}</small><br>
+                            <button class="btn-process btn-approve" onclick="openApprovalModal(${leave.id}, 'accepting', 'approve')">✅ Final Approve</button>
+                            <button class="btn-process btn-reject" onclick="openApprovalModal(${leave.id}, 'accepting', 'reject')">❌ Reject</button>
                         </div>
                     `;
                 });
                 container.innerHTML = html;
             } else {
-                container.innerHTML = '<div class="empty-state"><i class="fas fa-clock"></i><br>No pending requests for final approval</div>';
+                container.innerHTML = '<div class="empty-state">📭 No pending requests for final approval</div>';
             }
         } catch (error) {
-            console.error('Error loading accepting pending:', error);
-            document.getElementById('acceptingPendingList').innerHTML = '<div class="empty-state">Error loading requests</div>';
+            console.error(error);
+            document.getElementById('acceptingPendingList').innerHTML = '<div class="empty-state">Error loading</div>';
         }
     }
-    
-    function openApprovalModal(id, officerType, action) {
-        document.getElementById('actionLeaveId').value = id;
-        document.getElementById('actionOfficerType').value = officerType;
-        document.getElementById('actionType').value = action;
-        
-        if (officerType === 'initiating') {
-            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Approve as Initiating Officer' : 'Reject as Initiating Officer';
-            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Forwarding Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
-        } else {
-            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Final Approve as Accepting Officer' : 'Reject as Accepting Officer';
-            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Approval Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
-        }
-        
-        document.getElementById('actionRemarks').value = '';
-        document.getElementById('actionModal').style.display = 'block';
-    }
-    
-    async function loadDataFromDatabase(page = 1) {
+
+    // Load all leave requests for table
+    async function loadLeaveRequests() {
         try {
-            currentPage = page;
             const formData = new FormData();
             formData.append('action', 'get_all');
             formData.append('filter', currentFilter);
@@ -1844,120 +1315,115 @@ ob_start();
             const result = await response.json();
             
             if (result.success) {
-                leaveData = result.data || [];
-                totalPages = result.pagination.total_pages;
-                totalRecords = result.pagination.total_records;
-                renderLeaveTable();
-                renderPaginationUI();
-                loadStatistics();
-                loadMyBalance();
+                renderTable(result.data);
+                renderPagination(result.pagination);
             } else {
-                showToast(result.error || 'Failed to load data', 'error');
+                showToast(result.error || 'Failed to load', 'error');
             }
         } catch (error) {
-            console.error('Error:', error);
+            console.error(error);
             showToast('Error loading data', 'error');
         }
     }
-    
-    function renderLeaveTable() {
+
+    function renderTable(leaves) {
         const tbody = document.getElementById('leaveTableBody');
-        if (!tbody) return;
-        
-        if (!leaveData || leaveData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; padding: 2rem;">No leave requests found<\/td><\/tr>';
+        if (!leaves || leaves.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center">No leave requests found<\/td><\/tr>';
             return;
         }
         
         tbody.innerHTML = '';
-        
-        leaveData.forEach((leave, idx) => {
-            let balance = 0;
-            if (leave.leave_type === 'gharpari_bida') balance = leave.gharpari_bida_days || 0;
-            else if (leave.leave_type === 'parba_bida') balance = leave.parba_bida_days || 0;
-            else if (leave.leave_type === 'bhaeepari_bida') balance = leave.bhaeepari_bida_days || 0;
-            
+        leaves.forEach((leave, idx) => {
             let statusClass = '', statusText = '';
-            if (leave.status === 'pending') { statusClass = 'status-pending'; statusText = 'Pending (Initiating Officer)'; }
-            else if (leave.status === 'initiating_approved') { statusClass = 'status-initiated'; statusText = 'Awaiting Accepting Officer'; }
+            if (leave.status === 'pending') { statusClass = 'status-pending'; statusText = 'Pending (Receiving)'; }
+            else if (leave.status === 'verified') { statusClass = 'status-verified'; statusText = 'Verified (Initiating)'; }
+            else if (leave.status === 'initiating_approved') { statusClass = 'status-initiated'; statusText = 'Awaiting Final'; }
             else if (leave.status === 'approved') { statusClass = 'status-approved'; statusText = 'Approved'; }
             else if (leave.status === 'rejected') { statusClass = 'status-rejected'; statusText = 'Rejected'; }
-            else { statusClass = 'status-pending'; statusText = leave.status; }
             
-            let actionBtns = `<div class="action-buttons">
-                <button class="action-btn btn-view" onclick="viewDetails(${leave.id})"><i class="fas fa-eye"></i> View Pass</button>`;
+            let actions = `<div class="action-buttons">
+                <button class="action-btn btn-view-action" onclick="viewDetails(${leave.id})">View</button>`;
             
-            // Generate Pass button - ONLY for approved leaves
-            if (leave.status === 'approved') {
-                if (leave.personnel_id === currentPersonnelId || currentUserRole >= 1) {
-                    actionBtns += `<button class="action-btn btn-pass" onclick="viewLeavePass(${leave.id})"><i class="fas fa-passport"></i> Generate Pass</button>`;
-                }
+            if (leave.verifying_officer == currentPersonnelId && leave.verifying_officer_approved == 0 && leave.status === 'pending') {
+                actions += `<button class="action-btn btn-approve-action" onclick="openApprovalModal(${leave.id}, 'verifying', 'approve')">Receive</button>
+                           <button class="action-btn btn-reject-action" onclick="openApprovalModal(${leave.id}, 'verifying', 'reject')">Reject</button>`;
             }
             
-            if (leave.initiating_officer == currentPersonnelId && leave.initiating_officer_approved == 0 && leave.status === 'pending') {
-                actionBtns += `<button class="action-btn btn-approve" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')"><i class="fas fa-check"></i> Approve</button>
-                              <button class="action-btn btn-reject" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')"><i class="fas fa-times"></i> Reject</button>`;
+            if (leave.initiating_officer == currentPersonnelId && leave.verifying_officer_approved == 1 && leave.initiating_officer_approved == 0 && leave.status === 'verified') {
+                actions += `<button class="action-btn btn-approve-action" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')">Approve</button>
+                           <button class="action-btn btn-reject-action" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')">Reject</button>`;
             }
             
             if (leave.accepting_officer == currentPersonnelId && leave.initiating_officer_approved == 1 && leave.accepting_officer_approved == 0 && leave.status === 'initiating_approved') {
-                actionBtns += `<button class="action-btn btn-approve" onclick="openApprovalModal(${leave.id}, 'accepting', 'approve')"><i class="fas fa-check-circle"></i> Final Approve</button>
-                              <button class="action-btn btn-reject" onclick="openApprovalModal(${leave.id}, 'accepting', 'reject')"><i class="fas fa-times"></i> Reject</button>`;
+                actions += `<button class="action-btn btn-approve-action" onclick="openApprovalModal(${leave.id}, 'accepting', 'approve')">Final Approve</button>
+                           <button class="action-btn btn-reject-action" onclick="openApprovalModal(${leave.id}, 'accepting', 'reject')">Reject</button>`;
             }
             
-            actionBtns += `</div>`;
+            actions += `</div>`;
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${idx + 1 + ((currentPage - 1) * currentPerPage)}</span></td>
-                <td><strong>${escapeHtml(leave.personnel_name)}</strong></span></td>
-                <td>${escapeHtml(leave.rank)}</span></td>
-                <td>${leave.leave_type === 'gharpari_bida' ? '🏠 Gharpari Bida' : (leave.leave_type === 'parba_bida' ? '🎉 Parba Bida' : '🤝 Bhaeepari Bida')}</span></td>
-                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span></td>
-                <td><strong>${leave.leave_days}</strong> days</span></td>
-                <td>${escapeHtml(leave.reason.substring(0, 40))}${leave.reason.length > 40 ? '...' : ''}</span></td>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></span></td>
-                <td>${balance} days</span></td>
-                <td>${leave.initiating_officer_name ? `<span class="badge-officer"><i class="fas fa-user-shield"></i> ${escapeHtml(leave.initiating_officer_name)}</span>` : '-'}</span></td>
-                <td>${leave.accepting_officer_name ? `<span class="badge-officer"><i class="fas fa-user-check"></i> ${escapeHtml(leave.accepting_officer_name)}</span>` : '-'}</span></td>
-                <td>${new Date(leave.created_at).toLocaleDateString()}</span></td>
-                <td>${actionBtns}</span></tr>
+                <td>${leave.id}</span></span>
+                <td>${escapeHtml(leave.personnel_name)}</span></span>
+                <td>${escapeHtml(leave.rank)}</span></span>
+                <td>${leave.leave_type}</span></span>
+                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span></span>
+                <td>${leave.leave_days}</span></span>
+                <td>${escapeHtml((leave.reason || '').substring(0, 50))}</span></span>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></span></span>
+                <td>${leave.receiver_name || '-'}</span></span>
+                <td>${leave.verifying_officer_name || '-'}</span></span>
+                <td>${leave.initiating_officer_name || '-'}</span></span>
+                <td>${leave.accepting_officer_name || '-'}</span></span>
+                <td>${actions}</span></span>
             `;
         });
     }
-    
-    function renderPaginationUI() {
+
+    function renderPagination(pagination) {
         const container = document.getElementById('paginationContainer');
-        if (!container) return;
-        
-        if (totalPages <= 1) {
-            container.style.display = 'none';
+        if (!pagination || pagination.total_pages <= 1) {
+            container.innerHTML = '';
             return;
         }
         
-        container.style.display = 'flex';
-        const start = (currentPage - 1) * currentPerPage + 1;
-        const end = Math.min(currentPage * currentPerPage, totalRecords);
-        
-        let html = `<div class="pagination-info">Showing ${start} to ${end} of ${totalRecords} entries</div><div class="pagination">`;
-        
-        if (currentPage > 1) {
-            html += `<button onclick="loadDataFromDatabase(1)" class="page-btn"><i class="fas fa-angle-double-left"></i></button>`;
-            html += `<button onclick="loadDataFromDatabase(${currentPage - 1})" class="page-btn"><i class="fas fa-angle-left"></i></button>`;
+        let html = '<div class="pagination">';
+        for (let i = 1; i <= pagination.total_pages; i++) {
+            html += `<button class="page-btn ${i === pagination.current_page ? 'active' : ''}" onclick="loadLeaveRequestsPage(${i})">${i}</button>`;
         }
-        
-        for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
-            html += `<button onclick="loadDataFromDatabase(${i})" class="page-btn ${i === currentPage ? 'active' : ''}">${i}</button>`;
-        }
-        
-        if (currentPage < totalPages) {
-            html += `<button onclick="loadDataFromDatabase(${currentPage + 1})" class="page-btn"><i class="fas fa-angle-right"></i></button>`;
-            html += `<button onclick="loadDataFromDatabase(${totalPages})" class="page-btn"><i class="fas fa-angle-double-right"></i></button>`;
-        }
-        
-        html += `</div>`;
+        html += '</div>';
         container.innerHTML = html;
     }
-    
+
+    function loadLeaveRequestsPage(page) {
+        currentPage = page;
+        loadLeaveRequests();
+    }
+
+    function openApprovalModal(id, officerType, action) {
+        document.getElementById('actionLeaveId').value = id;
+        document.getElementById('actionOfficerType').value = officerType;
+        document.getElementById('actionType').value = action;
+        
+        if (officerType === 'verifying') {
+            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Receive Leave Request' : 'Reject Leave Request';
+            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Receiving Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
+            document.getElementById('actionRemarks').placeholder = action === 'approve' ? 'Add any receiving remarks...' : 'Please provide reason for rejection...';
+        } else if (officerType === 'initiating') {
+            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Approve Leave Request' : 'Reject Leave Request';
+            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Forwarding Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
+            document.getElementById('actionRemarks').placeholder = action === 'approve' ? 'Add any forwarding remarks...' : 'Please provide reason for rejection...';
+        } else {
+            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Final Approve Leave Request' : 'Reject Leave Request';
+            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Approval Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
+            document.getElementById('actionRemarks').placeholder = action === 'approve' ? 'Add any approval remarks...' : 'Please provide reason for rejection...';
+        }
+        
+        document.getElementById('actionRemarks').value = '';
+        document.getElementById('actionModal').style.display = 'block';
+    }
+
     async function loadStatistics() {
         try {
             const formData = new FormData();
@@ -1971,17 +1437,18 @@ ob_start();
             });
             const result = await response.json();
             
-            if (result.success && result.data) {
+            if (result.success) {
+                document.getElementById('verifyingPending').textContent = result.data.verifying_pending || 0;
+                document.getElementById('verifyingBadge').textContent = result.data.verifying_pending || 0;
                 document.getElementById('initiatingPending').textContent = result.data.initiating_pending || 0;
                 document.getElementById('initiatingBadge').textContent = result.data.initiating_pending || 0;
                 document.getElementById('acceptingPending').textContent = result.data.accepting_pending || 0;
                 document.getElementById('acceptingBadge').textContent = result.data.accepting_pending || 0;
-                document.getElementById('approvedCount').textContent = result.data.total_approved || 0;
             }
         } catch (e) { console.error(e); }
     }
-    
-    async function loadMyBalance() {
+
+    async function loadBalance() {
         try {
             const formData = new FormData();
             formData.append('action', 'get_my_balance');
@@ -1994,99 +1461,33 @@ ob_start();
             });
             const result = await response.json();
             
-            if (result.success && result.data) {
+            if (result.success) {
                 document.getElementById('gharpariBalance').textContent = result.data.gharpari_bida_days || 0;
                 document.getElementById('parbaBalance').textContent = result.data.parba_bida_days || 0;
                 document.getElementById('bhaeepariBalance').textContent = result.data.bhaeepari_bida_days || 0;
-                
-                const gPercent = Math.min(100, ((result.data.gharpari_bida_days || 0) / 15) * 100);
-                const pPercent = Math.min(100, ((result.data.parba_bida_days || 0) / 12) * 100);
-                const bPercent = Math.min(100, ((result.data.bhaeepari_bida_days || 0) / 10) * 100);
-                
-                document.getElementById('gharpariProgress').style.width = gPercent + '%';
-                document.getElementById('parbaProgress').style.width = pPercent + '%';
-                document.getElementById('bhaeepariProgress').style.width = bPercent + '%';
             }
         } catch (e) { console.error(e); }
     }
-    
-    async function getLeaveBalance(personnelId, leaveType) {
-        try {
-            const formData = new FormData();
-            formData.append('action', 'get_leave_balance');
-            formData.append('personnel_id', personnelId);
-            formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
-            
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            const result = await response.json();
-            
-            if (result.success && result.data) {
-                if (leaveType === 'gharpari_bida') return result.data.gharpari_bida_days || 0;
-                if (leaveType === 'parba_bida') return result.data.parba_bida_days || 0;
-                if (leaveType === 'bhaeepari_bida') return result.data.bhaeepari_bida_days || 0;
-            }
-            return 0;
-        } catch (e) { return 0; }
-    }
-    
+
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
+
     function showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toastMessage');
-        toastMessage.textContent = message;
-        toast.style.backgroundColor = type === 'success' ? 'var(--primary)' : 'var(--danger)';
+        toast.textContent = message;
+        toast.style.backgroundColor = type === 'success' ? '#28a745' : '#dc3545';
         toast.style.display = 'block';
         setTimeout(() => { toast.style.display = 'none'; }, 4000);
     }
-    
-    function calculateDays() {
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-            document.getElementById('totalDays').value = days;
-            checkBalanceAndDisplay();
-        }
+
+    function viewDetails(id) {
+        window.open(`generate_leave_pass.php?id=${id}`, '_blank');
     }
-    
-    async function checkBalanceAndDisplay() {
-        const personnelId = document.getElementById('personnelId').value;
-        const leaveType = document.getElementById('leaveType').value;
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        
-        if (personnelId && leaveType && startDate && endDate) {
-            const balance = await getLeaveBalance(personnelId, leaveType);
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-            
-            const balanceInput = document.getElementById('availableBalance');
-            balanceInput.value = `${balance} days available`;
-            
-            if (days > balance) {
-                balanceInput.style.color = '#dc2626';
-                balanceInput.style.background = '#fee2e2';
-                showToast(`⚠️ Warning: Requesting ${days} days but only ${balance} days available!`, 'error');
-            } else {
-                balanceInput.style.color = '#065f46';
-                balanceInput.style.background = '#d1fae5';
-            }
-        }
-    }
-    
+
     function filterByStatus(status) {
         currentFilter = status;
         currentPage = 1;
@@ -2097,133 +1498,89 @@ ob_start();
                 btn.classList.remove('active');
             }
         });
-        loadDataFromDatabase(1);
+        loadLeaveRequests();
     }
-    
-    function searchTable() {
-        currentPage = 1;
-        loadDataFromDatabase(1);
-        const clearBtn = document.getElementById('clearSearch');
-        const searchInput = document.getElementById('searchInput');
-        if (clearBtn && searchInput) {
-            clearBtn.style.display = searchInput.value.trim() !== '' ? 'block' : 'none';
-        }
-    }
-    
-    function clearSearch() {
-        const searchInput = document.getElementById('searchInput');
-        if (searchInput) {
-            searchInput.value = '';
-            searchTable();
-            searchInput.focus();
-        }
-    }
-    
+
     // Event Listeners
-    document.getElementById('recordsPerPage')?.addEventListener('change', function() {
-        currentPerPage = parseInt(this.value);
-        localStorage.setItem('leaveRecordsPerPage', currentPerPage);
-        currentPage = 1;
-        loadDataFromDatabase(1);
-    });
-    
     document.getElementById('newLeaveBtn')?.addEventListener('click', () => {
         document.getElementById('leaveForm').reset();
-        document.getElementById('totalDays').value = '';
-        document.getElementById('availableBalance').value = '';
         document.getElementById('startDate').min = new Date().toISOString().split('T')[0];
         document.getElementById('leaveModal').style.display = 'block';
     });
-    
+
     document.querySelectorAll('.close, .close-action').forEach(btn => {
         btn.onclick = () => {
             document.getElementById('leaveModal').style.display = 'none';
             document.getElementById('actionModal').style.display = 'none';
         };
     });
-    
+
     document.querySelectorAll('#cancelBtn, #cancelActionBtn').forEach(btn => {
         btn.onclick = () => {
             document.getElementById('leaveModal').style.display = 'none';
             document.getElementById('actionModal').style.display = 'none';
         };
     });
-    
+
     window.onclick = (event) => {
         if (event.target.classList.contains('modal')) {
             event.target.style.display = 'none';
         }
     };
-    
-    const startDateInput = document.getElementById('startDate');
-    const endDateInput = document.getElementById('endDate');
-    const personnelSelect = document.getElementById('personnelId');
-    const leaveTypeSelect = document.getElementById('leaveType');
-    
-    if (startDateInput) {
-        startDateInput.min = new Date().toISOString().split('T')[0];
-        startDateInput.addEventListener('change', function() {
-            if (endDateInput) endDateInput.min = this.value;
-            calculateDays();
-        });
+
+    document.getElementById('startDate')?.addEventListener('change', calculateDays);
+    document.getElementById('endDate')?.addEventListener('change', calculateDays);
+
+    async function calculateDays() {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            document.getElementById('totalDays').value = days;
+            
+            const personnelId = document.getElementById('personnelId').value;
+            const leaveType = document.getElementById('leaveType').value;
+            if (personnelId && leaveType) {
+                const formData = new FormData();
+                formData.append('action', 'get_leave_balance');
+                formData.append('personnel_id', personnelId);
+                formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
+                
+                const response = await fetch(window.location.href, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const result = await response.json();
+                let balance = 0;
+                if (result.success) {
+                    if (leaveType === 'gharpari_bida') balance = result.data.gharpari_bida_days;
+                    else if (leaveType === 'parba_bida') balance = result.data.parba_bida_days;
+                    else if (leaveType === 'bhaeepari_bida') balance = result.data.bhaeepari_bida_days;
+                }
+                document.getElementById('availableBalance').value = `${balance} days available`;
+                if (days > balance) {
+                    showToast(`Warning: Only ${balance} days available!`, 'error');
+                }
+            }
+        }
     }
-    
-    if (endDateInput) {
-        endDateInput.addEventListener('change', calculateDays);
-    }
-    
-    if (personnelSelect) {
-        personnelSelect.addEventListener('change', () => {
-            if (leaveTypeSelect && leaveTypeSelect.value) checkBalanceAndDisplay();
-        });
-    }
-    
-    if (leaveTypeSelect) {
-        leaveTypeSelect.addEventListener('change', () => {
-            if (personnelSelect && personnelSelect.value) checkBalanceAndDisplay();
-        });
-    }
-    
+
     document.getElementById('leaveForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const personnelId = document.getElementById('personnelId').value;
-        const leaveType = document.getElementById('leaveType').value;
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        const reason = document.getElementById('reason').value;
-        const initiatingOfficer = document.getElementById('initiatingOfficer').value;
-        const acceptingOfficer = document.getElementById('acceptingOfficer').value;
-        
-        if (!personnelId || !leaveType || !startDate || !endDate || !reason) {
-            showToast('Please fill all required fields', 'error');
-            return;
-        }
-        
-        if (!initiatingOfficer || !acceptingOfficer) {
-            showToast('Please select both initiating and accepting officers', 'error');
-            return;
-        }
-        
-        const balance = await getLeaveBalance(personnelId, leaveType);
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-        
-        if (days > balance) {
-            showToast(`❌ Insufficient balance! You have ${balance} days available but requested ${days} days.`, 'error');
-            return;
-        }
-        
         const formData = new FormData();
         formData.append('action', 'submit_leave');
-        formData.append('personnel_id', personnelId);
-        formData.append('leave_type', leaveType);
-        formData.append('start_date', startDate);
-        formData.append('end_date', endDate);
-        formData.append('reason', reason);
-        formData.append('initiating_officer', initiatingOfficer);
-        formData.append('accepting_officer', acceptingOfficer);
+        formData.append('personnel_id', document.getElementById('personnelId').value);
+        formData.append('leave_type', document.getElementById('leaveType').value);
+        formData.append('start_date', document.getElementById('startDate').value);
+        formData.append('end_date', document.getElementById('endDate').value);
+        formData.append('reason', document.getElementById('reason').value);
+        formData.append('receiving_officer', document.getElementById('receivingOfficer').value);
+        formData.append('initiating_officer', document.getElementById('initiatingOfficer').value);
+        formData.append('accepting_officer', document.getElementById('acceptingOfficer').value);
         formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
         
         try {
@@ -2235,19 +1592,23 @@ ob_start();
             const result = await response.json();
             
             if (result.success) {
-                showToast('✅ Leave request submitted successfully. Awaiting initiating officer approval.', 'success');
+                showToast(result.message || 'Leave request submitted successfully!');
                 document.getElementById('leaveModal').style.display = 'none';
-                loadDataFromDatabase(1);
-                loadMyBalance();
+                loadLeaveRequests();
                 loadStatistics();
+                loadBalance();
+                loadVerifyingPending();
                 loadInitiatingPending();
                 loadAcceptingPending();
             } else {
-                showToast(result.error || 'Failed to submit leave request', 'error');
+                showToast(result.error, 'error');
             }
-        } catch (e) { showToast('Error submitting leave request', 'error'); }
+        } catch (error) {
+            console.error(error);
+            showToast('Error submitting request', 'error');
+        }
     });
-    
+
     document.getElementById('actionForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -2257,29 +1618,22 @@ ob_start();
         const remarks = document.getElementById('actionRemarks').value;
         
         if (action === 'reject' && !remarks) {
-            showToast('Please provide remarks', 'error');
+            showToast('Remarks required for rejection', 'error');
             return;
         }
         
         let endpoint = '';
-        let successMessage = '';
+        let successMsg = '';
         
-        if (officerType === 'initiating') {
-            if (action === 'approve') {
-                endpoint = 'initiating_officer_approve';
-                successMessage = '✅ Leave request approved and forwarded to accepting officer!';
-            } else {
-                endpoint = 'initiating_officer_reject';
-                successMessage = '❌ Leave request rejected.';
-            }
+        if (officerType === 'verifying') {
+            endpoint = action === 'approve' ? 'verifying_officer_approve' : 'verifying_officer_reject';
+            successMsg = action === 'approve' ? 'Request received and forwarded!' : 'Request rejected!';
+        } else if (officerType === 'initiating') {
+            endpoint = action === 'approve' ? 'initiating_officer_approve' : 'initiating_officer_reject';
+            successMsg = action === 'approve' ? 'Request approved and forwarded to accepting officer!' : 'Request rejected!';
         } else {
-            if (action === 'approve') {
-                endpoint = 'accepting_officer_approve';
-                successMessage = '✅ Leave request FINALLY APPROVED! Leave has been granted.';
-            } else {
-                endpoint = 'accepting_officer_reject';
-                successMessage = '❌ Leave request rejected by accepting officer.';
-            }
+            endpoint = action === 'approve' ? 'accepting_officer_approve' : 'accepting_officer_reject';
+            successMsg = action === 'approve' ? 'Request FINALLY APPROVED! Leave granted.' : 'Request rejected!';
         }
         
         const formData = new FormData();
@@ -2297,50 +1651,50 @@ ob_start();
             const result = await response.json();
             
             if (result.success) {
-                showToast(successMessage, 'success');
+                showToast(result.message || successMsg, 'success');
                 document.getElementById('actionModal').style.display = 'none';
-                loadDataFromDatabase(currentPage);
-                loadMyBalance();
+                loadLeaveRequests();
                 loadStatistics();
+                loadBalance();
+                loadVerifyingPending();
                 loadInitiatingPending();
                 loadAcceptingPending();
             } else {
-                showToast(result.error || 'Failed to process request', 'error');
+                showToast(result.error, 'error');
             }
-        } catch (e) { showToast('Error processing request', 'error'); }
+        } catch (error) {
+            console.error(error);
+            showToast('Error processing request', 'error');
+        }
     });
-    
+
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             filterByStatus(this.getAttribute('data-filter'));
         });
     });
-    
+
     document.getElementById('searchInput')?.addEventListener('input', function() {
         clearTimeout(window.searchTimeout);
-        window.searchTimeout = setTimeout(searchTable, 500);
-        const clearBtn = document.getElementById('clearSearch');
-        if (clearBtn) clearBtn.style.display = this.value.trim() !== '' ? 'block' : 'none';
+        window.searchTimeout = setTimeout(() => {
+            currentPage = 1;
+            loadLeaveRequests();
+        }, 500);
     });
-    
-    document.getElementById('clearSearch')?.addEventListener('click', clearSearch);
-    
-    document.addEventListener('DOMContentLoaded', () => {
-        loadDataFromDatabase(1);
-        loadStatistics();
-        loadMyBalance();
-        loadInitiatingPending();
-        loadAcceptingPending();
-        
-        // Refresh every 30 seconds
-        setInterval(() => {
-            loadDataFromDatabase(currentPage);
-            loadMyBalance();
-            loadStatistics();
-            loadInitiatingPending();
-            loadAcceptingPending();
-        }, 30000);
+
+    document.getElementById('clearSearch')?.addEventListener('click', function() {
+        document.getElementById('searchInput').value = '';
+        currentPage = 1;
+        loadLeaveRequests();
     });
+
+    // Initial load
+    loadLeaveRequests();
+    loadStatistics();
+    loadBalance();
+    loadVerifyingPending();
+    loadInitiatingPending();
+    loadAcceptingPending();
 </script>
 
 </body>
