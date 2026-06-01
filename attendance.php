@@ -1,11 +1,15 @@
 <?php
+session_start();
 include('includes/config.php');
-include ('helper/rank.php');
-
+include('helper/rank.php');
 
 $pageTitle = "Military Personnel Status Register";
-$pageSubtitle = "Track attendance, leave, work status of military personnel with date/time stamps.";
+$pageSubtitle = "Track attendance, leave, and work status";
 $activePage = "attendance";
+
+// Get user role from session
+$user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
+$isSuperAdmin = ($user_role === 2);
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
@@ -14,565 +18,244 @@ try {
     die("Connection failed: " . $e->getMessage());
 }
 
-// Handle AJAX requests
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
-    header('Content-Type: application/json');
-    
-    $action = $_POST['action'] ?? '';
-    
-    // Get all personnel
-    if ($action === 'get_all') {
-        $stmt = $pdo->query("SELECT * FROM military_personnel_status ORDER BY record_date DESC, id DESC");
-        $personnel = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        echo json_encode(['success' => true, 'data' => $personnel]);
-        exit;
-    }
-    
-    // Add new personnel
-    if ($action === 'add') {
-        $name = $_POST['name'] ?? '';
-        $rank = $_POST['rank'] ?? '';
-        $status = $_POST['status'] ?? '';
-        $date = $_POST['date'] ?? '';
-        $inTime = $_POST['inTime'] ?: null;
-        $outTime = $_POST['outTime'] ?: null;
-        $remarks = $_POST['remarks'] ?? '';
-        
-        $stmt = $pdo->prepare("INSERT INTO military_personnel_status (personnel_name, rank, status, record_date, in_time, out_time, remarks) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $result = $stmt->execute([$name, $rank, $status, $date, $inTime, $outTime, $remarks]);
-        
-        echo json_encode(['success' => $result, 'id' => $pdo->lastInsertId()]);
-        exit;
-    }
-    
-    // Update personnel
-    if ($action === 'update') {
-        $id = $_POST['id'] ?? 0;
-        $name = $_POST['name'] ?? '';
-        $rank = $_POST['rank'] ?? '';
-        $status = $_POST['status'] ?? '';
-        $date = $_POST['date'] ?? '';
-        $inTime = $_POST['inTime'] ?: null;
-        $outTime = $_POST['outTime'] ?: null;
-        $remarks = $_POST['remarks'] ?? '';
-        
-        $stmt = $pdo->prepare("UPDATE military_personnel_status SET personnel_name = ?, rank = ?, status = ?, record_date = ?, in_time = ?, out_time = ?, remarks = ? WHERE id = ?");
-        $result = $stmt->execute([$name, $rank, $status, $date, $inTime, $outTime, $remarks, $id]);
-        
-        echo json_encode(['success' => $result]);
-        exit;
-    }
-    
-    // Delete personnel
-    if ($action === 'delete') {
-        $id = $_POST['id'] ?? 0;
-        $stmt = $pdo->prepare("DELETE FROM military_personnel_status WHERE id = ?");
-        $result = $stmt->execute([$id]);
-        
-        echo json_encode(['success' => $result]);
-        exit;
-    }
+// Fetch personnel for dropdown (only needed for Super Admin)
+$personnelList = [];
+if ($isSuperAdmin) {
+    $personnelList = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en ASC")->fetchAll(PDO::FETCH_ASSOC);
 }
 
-// Prepare the content
+// Handle AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+    header('Content-Type: application/json');
+    $action = $_POST['action'] ?? '';
+    
+    if ($action === 'get_records') {
+        $date = $_POST['date'] ?? date('Y-m-d');
+        $stmt = $pdo->prepare("SELECT * FROM military_personnel_status WHERE record_date = ? ORDER BY id DESC");
+        $stmt->execute([$date]);
+        echo json_encode(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        exit;
+    }
+    
+    // Only Super Admin can add/update/delete
+    if ($isSuperAdmin) {
+        if ($action === 'add' || $action === 'update') {
+            $id = $_POST['id'] ?? 0;
+            $data = [
+                $_POST['personnel_number'], $_POST['personnel_name'], $_POST['rank'],
+                $_POST['status'], $_POST['date'], $_POST['inTime'] ?: null,
+                $_POST['outTime'] ?: null, $_POST['remarks']
+            ];
+            
+            if ($action === 'add') {
+                $stmt = $pdo->prepare("INSERT INTO military_personnel_status (personnel_number, personnel_name, rank, status, record_date, in_time, out_time, remarks) VALUES (?,?,?,?,?,?,?,?)");
+            } else {
+                $stmt = $pdo->prepare("UPDATE military_personnel_status SET personnel_number=?, personnel_name=?, rank=?, status=?, record_date=?, in_time=?, out_time=?, remarks=? WHERE id=?");
+                $data[] = $id;
+            }
+            echo json_encode(['success' => $stmt->execute($data)]);
+            exit;
+        }
+        
+        if ($action === 'delete') {
+            $stmt = $pdo->prepare("DELETE FROM military_personnel_status WHERE id=?");
+            echo json_encode(['success' => $stmt->execute([$_POST['id']])]);
+            exit;
+        }
+    }
+    
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
+
 ob_start();
 ?>
 
-<!-- Search and Action Section -->
-<div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
-    <div class="search-container">
-        <i class="fas fa-search search-icon"></i>
-        <input type="text" id="searchInput" class="search-input" placeholder="Search by name, rank, status, or remarks...">
-        <button id="clearSearch" class="clear-search" style="display: none;">✕</button>
-    </div>
-    <div style="display: flex; gap: 10px;">
-        <button class="btn-add" id="markStatusBtn">
-            <i class="fas fa-plus-circle"></i> Add Personnel
-        </button>
-        <button class="btn-export" id="exportBtn">
-            <i class="fas fa-download"></i> Export
-        </button>
-    </div>
-</div>
-
-<!-- Date Filter Section -->
-<div style="margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; padding: 12px; background: #f8fafc; border-radius: 8px;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <i class="fas fa-calendar-week" style="color: #2c5f4e;"></i>
-        <span style="font-weight: 500;">Filter by Date:</span>
-        <input type="date" id="dateFilter" style="padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px;">
-        <button id="clearDateFilter" class="btn-clear-date" style="padding: 8px 12px; background: #f1f3f5; border: none; border-radius: 8px; cursor: pointer;">
-            <i class="fas fa-times"></i> Clear
-        </button>
-    </div>
-    <div style="display: flex; align-items: center; gap: 10px; margin-left: auto;">
-        <i class="fas fa-chart-line" style="color: #2c5f4e;"></i>
-        <span style="font-size: 13px; color: #6c7a8e;">Showing data grouped by date</span>
-    </div>
-</div>
-
-<!-- Status Filter Buttons - Military Specific -->
-<div style="margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap;">
-    <button class="filter-btn active" data-filter="all">📋 All</button>
-    <button class="filter-btn" data-filter="present">✅ Present (Duty)</button>
-    <button class="filter-btn" data-filter="leave">🏖️ On Leave</button>
-    <button class="filter-btn" data-filter="sick">🤒 Sick Report</button>
-    <button class="filter-btn" data-filter="work">💼 Work Detail</button>
-    <button class="filter-btn" data-filter="workout">🏃‍♂️ Work-Out / PT</button>
-    <button class="filter-btn" data-filter="tdy">✈️ TDY/Temporary Duty</button>
-    <button class="filter-btn" data-filter="course">📚 Course/Training</button>
-</div>
-
-<div class="data-table">
-    <table id="statusTable">
-        <thead>
-            <tr>
-                <th style="width: 50px;">S.No.</th>
-                <th>Name</th>
-                <th>Rank</th>
-                <th style="width: 140px;">Status</th>
-                <th>Date</th>
-                <th>IN Time</th>
-                <th>OUT Time</th>
-                <th style="min-width: 200px;">Remarks / Reason</th>
-                <th style="width: 100px;">Actions</th>
-            </tr>
-        </thead>
-        <tbody id="statusTableBody">
-            <!-- Data will be loaded dynamically from database -->
-        </tbody>
-    </table>
-</div>
-
-<!-- No Results Message -->
-<div id="noResults" style="display: none; text-align: center; padding: 40px; color: #6c7a8e;">
-    <i class="fas fa-search" style="font-size: 48px; margin-bottom: 10px;"></i>
-    <p>No personnel records found matching your search criteria.</p>
-</div>
-
-<!-- Modal for Add/Edit Personnel -->
-<div id="statusModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="modalTitle"><i class="fas fa-user-plus"></i> Add Personnel</h3>
-            <span class="close">&times;</span>
-        </div>
-        <div class="modal-body">
-            <form id="statusForm">
-                <input type="hidden" id="recordId" value="">
-                <div class="form-grid">
-                    <div class="input-field">
-                        <label><i class="fas fa-user"></i> Personnel Name <span class="required-star">*</span></label>
-                        <input type="text" id="personnelName" placeholder="Enter full name with rank" required>
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-star-of-life"></i> Rank <span class="required-star">*</span></label>
-                        <select id="rank" name="rank" required>
-                            <option value="">Select Rank</option>
-                            <?php foreach ($nepal_army_ranks as $rank): ?>
-                                <option value="<?php echo htmlspecialchars($rank); ?>">
-                                    <?php echo htmlspecialchars($rank); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-calendar-alt"></i> Date <span class="required-star">*</span></label>
-                        <input type="date" id="recordDate" required>
-                    </div>
-                    <div class="input-field">
-                        <label><i class="fas fa-tag"></i> Status <span class="required-star">*</span></label>
-                        <select id="status" required onchange="toggleTimeFields()">
-                            <option value="" disabled selected>Select status</option>
-                            <option value="present">✅ Present (Duty)</option>
-                            <option value="leave">🏖️ On Leave</option>
-                            <option value="sick">🤒 Sick Report</option>
-                            <option value="work">💼 Work Detail</option>
-                            <option value="workout">🏃‍♂️ Work-Out / PT</option>
-                            <option value="tdy">✈️ TDY/Temporary Duty</option>
-                            <option value="course">📚 Course/Training</option>
-                        </select>
-                    </div>
-                    <div class="input-field" id="inTimeField" style="display: none;">
-                        <label><i class="fas fa-clock"></i> IN Time</label>
-                        <input type="time" id="inTime">
-                    </div>
-                    <div class="input-field" id="outTimeField" style="display: none;">
-                        <label><i class="fas fa-clock"></i> OUT Time</label>
-                        <input type="time" id="outTime">
-                    </div>
-                    <div class="input-field full-width">
-                        <label><i class="fas fa-sticky-note"></i> Remarks / Reason <span class="required-star">*</span></label>
-                        <textarea id="remarks" rows="3" placeholder="For Present/Work Detail: Specify duties&#10;For Leave/Sick: Specify leave details and duration&#10;For Work-Out: Specify PT/exercise details&#10;For TDY/Course: Specify location and duration" required></textarea>
-                    </div>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
-                    <button type="submit" class="btn-submit">Save Record</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Toast Notification -->
-<div id="toast" class="toast" style="display: none;">
-    <span id="toastMessage"></span>
-</div>
-
-<!-- Summary Cards -->
-<div class="summary-cards" style="margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 15px;">
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-users"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">Total Personnel</div>
-            <div class="summary-value" id="totalPersonnel">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-check-circle"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">Present (Duty)</div>
-            <div class="summary-value" id="presentCount">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-umbrella-beach"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">On Leave</div>
-            <div class="summary-value" id="leaveCount">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-thermometer-half"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">Sick Report</div>
-            <div class="summary-value" id="sickCount">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-briefcase"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">Work Detail</div>
-            <div class="summary-value" id="workCount">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-running"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">Work-Out/PT</div>
-            <div class="summary-value" id="workoutCount">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-plane"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">TDY</div>
-            <div class="summary-value" id="tdyCount">0</div>
-        </div>
-    </div>
-    <div class="summary-card">
-        <div class="summary-icon"><i class="fas fa-graduation-cap"></i></div>
-        <div class="summary-info">
-            <div class="summary-label">Course/Training</div>
-            <div class="summary-value" id="courseCount">0</div>
-        </div>
-    </div>
-</div>
-
 <style>
-    /* Search Container Styles */
-    .search-container {
+    * { box-sizing: border-box; }
+    body { background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    
+    /* Search & Action Bar */
+    .action-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+    .search-group {
+        display: flex;
+        gap: 10px;
+        flex: 1;
+        max-width: 500px;
+    }
+    .search-box {
         position: relative;
         flex: 1;
-        max-width: 400px;
     }
-    
-    .search-icon {
+    .search-box i {
         position: absolute;
         left: 12px;
         top: 50%;
         transform: translateY(-50%);
-        color: #9aa9bc;
-        font-size: 14px;
+        color: #9ca3af;
     }
-    
     .search-input {
         width: 100%;
-        padding: 10px 35px 10px 38px;
+        padding: 10px 15px 10px 38px;
         border: 1.5px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 10px;
         font-size: 14px;
-        transition: all 0.2s;
         outline: none;
     }
+    .search-input:focus { border-color: #1e3a32; }
     
-    .search-input:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
-    }
-    
-    .clear-search {
-        position: absolute;
-        right: 12px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        cursor: pointer;
-        color: #9aa9bc;
-        font-size: 14px;
-        padding: 0;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
+    .date-filter {
         display: flex;
         align-items: center;
-        justify-content: center;
-        transition: all 0.2s;
+        gap: 8px;
     }
-    
-    .clear-search:hover {
-        background: #e2e8f0;
-        color: #c2410c;
+    .date-filter label {
+        font-size: 13px;
+        font-weight: 500;
+        color: #475569;
     }
+    .date-input {
+        padding: 9px 12px;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 14px;
+        outline: none;
+        cursor: pointer;
+    }
+    .date-input:focus { border-color: #1e3a32; }
     
-    /* Filter Buttons */
-    .filter-btn {
-        padding: 8px 16px;
+    /* Buttons */
+    .btn { padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 8px; }
+    .btn-primary { background: #1e3a32; color: white; }
+    .btn-primary:hover { background: #14362c; }
+    .btn-secondary { background: #2c5f4e; color: white; }
+    
+    /* Filter Pills with Counts */
+    .filter-pills {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+    .pill {
+        padding: 8px 18px;
         border: 1.5px solid #e2e8f0;
         background: white;
-        border-radius: 20px;
+        border-radius: 30px;
         cursor: pointer;
         font-size: 13px;
         font-weight: 500;
         transition: all 0.2s;
-    }
-    
-    .filter-btn:hover {
-        background: #f1f5f9;
-        border-color: #2c5f4e;
-    }
-    
-    .filter-btn.active {
-        background: #1e3a32;
-        color: white;
-        border-color: #1e3a32;
-    }
-    
-    /* Button Styles */
-    .btn-add, .btn-export {
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        transition: all 0.2s;
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        border: none;
     }
-    
-    .btn-add {
-        background: #1e3a32;
-        color: white;
-    }
-    
-    .btn-add:hover {
-        background: #14362c;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    
-    .btn-export {
-        background: #2c5f4e;
-        color: white;
-    }
-    
-    .btn-export:hover {
-        background: #1e4a3a;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    
-    .btn-clear-date {
-        padding: 8px 12px;
-        background: #f1f3f5;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    
-    .btn-clear-date:hover {
+    .pill:hover { background: #f1f5f9; border-color: #1e3a32; }
+    .pill.active { background: #1e3a32; color: white; border-color: #1e3a32; }
+    .pill.active .pill-count { background: rgba(255,255,255,0.2); color: white; }
+    .pill-count {
         background: #e2e8f0;
-    }
-    
-    /* Action Buttons */
-    .btn-icon {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 5px 8px;
-        margin: 0 3px;
-        border-radius: 4px;
-        transition: all 0.2s;
-        font-size: 14px;
-    }
-    
-    .edit-btn {
-        color: #2c5f4e;
-    }
-    
-    .edit-btn:hover {
-        background: #e8f5f0;
-        transform: scale(1.1);
-    }
-    
-    .delete-btn {
-        color: #dc2626;
-    }
-    
-    .delete-btn:hover {
-        background: #fee2e2;
-        transform: scale(1.1);
-    }
-    
-    /* Badge Styles - Military Specific */
-    .badge {
-        padding: 6px 12px;
+        color: #475569;
         border-radius: 20px;
-        font-size: 12px;
+        padding: 2px 8px;
+        font-size: 11px;
         font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+        min-width: 28px;
+        text-align: center;
     }
     
-    .badge-present {
-        background: #d1fae5;
-        color: #065f46;
-    }
-    
-    .badge-leave {
-        background: #dbeafe;
-        color: #1e40af;
-    }
-    
-    .badge-sick {
-        background: #fef3c7;
-        color: #92400e;
-    }
-    
-    .badge-work {
-        background: #e0e7ff;
-        color: #3730a3;
-    }
-    
-    .badge-workout {
-        background: #fed7aa;
-        color: #9a3412;
-    }
-    
-    .badge-tdy {
-        background: #e0f2fe;
-        color: #075985;
-    }
-    
-    .badge-course {
-        background: #f3e8ff;
-        color: #6b21a5;
-    }
-    
-    /* Summary Cards */
-    .summary-card {
+    /* Table - Fixed Layout */
+    .data-table {
         background: white;
         border-radius: 12px;
-        padding: 16px;
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        border: 1px solid #eef2f6;
-    }
-    
-    .summary-icon {
-        width: 48px;
-        height: 48px;
-        background: #f0fdf4;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        color: #2c5f4e;
-    }
-    
-    .summary-info {
-        flex: 1;
-    }
-    
-    .summary-label {
-        font-size: 11px;
-        color: #6c7a8e;
-        margin-bottom: 4px;
-    }
-    
-    .summary-value {
-        font-size: 20px;
-        font-weight: 700;
-        color: #1a2c3e;
-    }
-    
-    /* Table Styles */
-    .data-table {
         overflow-x: auto;
+        border: 1px solid #e2e8f0;
+    }
+    table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        table-layout: fixed;
+        min-width: 800px;
+    }
+    th { 
+        text-align: left; 
+        padding: 12px 8px; 
+        background: #f8fafc; 
+        border-bottom: 2px solid #e2e8f0; 
+        font-weight: 600; 
+        font-size: 12px; 
+        text-transform: uppercase; 
+        color: #475569;
+        white-space: nowrap;
+    }
+    td { 
+        padding: 10px 8px; 
+        border-bottom: 1px solid #eef2f6; 
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    tr:hover { background: #f8fafc; }
+    
+    /* Column specific styles */
+    .col-sno { width: 45px; text-align: center; }
+    .col-personnel { width: 110px; }
+    .col-name { width: 130px; }
+    .col-rank { width: 90px; }
+    .col-status { width: 100px; }
+    .col-time { width: 55px; text-align: center; }
+    .col-remarks { width: auto; }
+    .col-actions { width: 80px; text-align: center; }
+    
+    /* Text overflow handling */
+    .cell-ellipsis {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     
-    .data-table table {
-        width: 100%;
-        border-collapse: collapse;
-        min-width: 900px;
+    /* Remarks cell */
+    .remarks-cell {
+        word-break: break-word;
+        white-space: normal;
+        line-height: 1.4;
+        cursor: help;
     }
     
-    .data-table th {
-        text-align: left;
-        padding: 12px;
-        background: #f8fafc;
-        border-bottom: 2px solid #e2e8f0;
-        font-weight: 600;
-        color: #1a2c3e;
+    /* Badges */
+    .badge { 
+        padding: 4px 8px; 
+        border-radius: 20px; 
+        font-size: 11px; 
+        font-weight: 600; 
+        display: inline-flex; 
+        align-items: center; 
+        gap: 4px;
+        white-space: nowrap;
     }
+    .badge-present { background: #d1fae5; color: #065f46; }
+    .badge-leave { background: #dbeafe; color: #1e40af; }
+    .badge-sick { background: #fef3c7; color: #92400e; }
+    .badge-work { background: #e0e7ff; color: #3730a3; }
+    .badge-workout { background: #fed7aa; color: #9a3412; }
+    .badge-tdy { background: #e0f2fe; color: #075985; }
+    .badge-course { background: #f3e8ff; color: #6b21a5; }
     
-    .data-table td {
-        padding: 12px;
-        border-bottom: 1px solid #eef2f6;
-    }
+    /* Action Icons */
+    .action-icons { display: flex; gap: 5px; justify-content: center; }
+    .action-btn { background: none; border: none; cursor: pointer; padding: 5px 8px; border-radius: 6px; font-size: 14px; }
+    .action-btn.edit { color: #1e3a32; }
+    .action-btn.edit:hover { background: #e8f5f0; }
+    .action-btn.delete { color: #dc2626; }
+    .action-btn.delete:hover { background: #fee2e2; }
     
-    /* Date header row styling */
-    .date-header-row td {
-        background: #f0f7f4 !important;
-        border-top: 2px solid #cbd5e1;
-        border-bottom: 1px solid #cbd5e1;
-        font-weight: 600;
-    }
-    
-    .date-header-row:first-child td {
-        border-top: none;
-    }
-    
-    /* Zebra striping for better readability */
-    #statusTable tbody tr:not(.date-header-row):nth-child(even) {
-        background-color: #fafcfb;
-    }
-    
-    #statusTable tbody tr:not(.date-header-row):hover {
-        background-color: #f1f5f9;
-        transition: background-color 0.2s;
-    }
-    
-    /* Modal Styles */
+    /* Modal */
     .modal {
         display: none;
         position: fixed;
@@ -581,701 +264,547 @@ ob_start();
         top: 0;
         width: 100%;
         height: 100%;
-        background-color: rgba(0,0,0,0.5);
-        animation: fadeIn 0.3s;
+        background: rgba(0,0,0,0.5);
     }
-    
     .modal-content {
-        background-color: #fff;
+        background: white;
         margin: 5% auto;
         width: 90%;
         max-width: 700px;
         border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        animation: slideDown 0.3s;
+        max-height: 85vh;
+        overflow-y: auto;
     }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-    
-    @keyframes slideDown {
-        from {
-            transform: translateY(-50px);
-            opacity: 0;
-        }
-        to {
-            transform: translateY(0);
-            opacity: 1;
-        }
-    }
-    
     .modal-header {
-        padding: 20px 24px;
-        border-bottom: 1px solid #eef2f6;
+        padding: 15px 20px;
+        border-bottom: 1px solid #e2e8f0;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        position: sticky;
+        top: 0;
+        background: white;
     }
+    .modal-header h3 { margin: 0; font-size: 1.2rem; color: #1e3a32; }
+    .modal-close { font-size: 24px; cursor: pointer; color: #9ca3af; }
+    .modal-close:hover { color: #dc2626; }
+    .modal-body { padding: 20px; }
     
-    .modal-header h3 {
-        margin: 0;
-        color: #1a2c3e;
-        font-size: 20px;
-    }
-    
-    .close {
-        font-size: 28px;
-        font-weight: bold;
-        cursor: pointer;
-        color: #9aa9bc;
-        transition: 0.2s;
-    }
-    
-    .close:hover {
-        color: #c2410c;
-    }
-    
-    .modal-body {
-        padding: 24px;
-        max-height: 70vh;
-        overflow-y: auto;
-    }
-    
-    .form-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-    }
-    
-    .input-field {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-    
-    .input-field label {
-        font-size: 13px;
-        font-weight: 600;
-        color: #334155;
-    }
-    
-    .input-field input, .input-field select, .input-field textarea {
-        padding: 10px 12px;
+    /* Form */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full { grid-column: span 2; }
+    .form-group label { font-size: 12px; font-weight: 600; color: #475569; }
+    .form-control {
+        padding: 8px 12px;
         border: 1.5px solid #e2e8f0;
         border-radius: 8px;
         font-size: 14px;
-        transition: all 0.2s;
         outline: none;
-        font-family: inherit;
     }
+    .form-control:focus { border-color: #1e3a32; }
+    .form-control:read-only { background: #f8fafc; }
     
-    .input-field input:focus, .input-field select:focus, .input-field textarea:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
-    }
-    
-    .full-width {
-        grid-column: span 2;
-    }
-    
-    .required-star {
-        color: #c2410c;
-    }
-    
-    .modal-buttons {
+    .modal-footer {
         display: flex;
-        gap: 12px;
         justify-content: flex-end;
-        margin-top: 24px;
-        padding-top: 20px;
-        border-top: 1px solid #eef2f6;
+        gap: 10px;
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid #e2e8f0;
     }
+    .btn-cancel { padding: 8px 20px; background: #f1f5f9; border: none; border-radius: 8px; cursor: pointer; }
+    .btn-save { padding: 8px 24px; background: #1e3a32; color: white; border: none; border-radius: 8px; cursor: pointer; }
     
-    .btn-cancel {
-        padding: 10px 20px;
-        background: #f1f3f5;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-        transition: 0.2s;
-    }
-    
-    .btn-cancel:hover {
-        background: #e9ecef;
-    }
-    
-    .btn-submit {
-        padding: 10px 24px;
-        background: #1e3a32;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 600;
-        transition: 0.2s;
-    }
-    
-    .btn-submit:hover {
-        background: #14362c;
-    }
-    
-    /* Toast Notification */
     .toast {
         position: fixed;
         bottom: 20px;
         right: 20px;
         background: #1e3a32;
         color: white;
-        padding: 12px 20px;
+        padding: 10px 20px;
         border-radius: 8px;
         font-size: 14px;
+        display: none;
         z-index: 1100;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        animation: slideIn 0.3s ease-out;
     }
-    
-    @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    /* Highlight matching text */
-    .highlight {
-        background-color: #fef3c7;
-        font-weight: 600;
+    .empty-state { text-align: center; padding: 40px; color: #6c7a8e; }
+    .readonly-message {
+        text-align: center;
+        padding: 12px;
+        background: #fef3c7;
+        color: #92400e;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        font-size: 13px;
     }
     
     @media (max-width: 700px) {
-        .form-grid {
-            grid-template-columns: 1fr;
-        }
-        .full-width {
-            grid-column: span 1;
-        }
-        .modal-content {
-            margin: 10% auto;
-            width: 95%;
-        }
-        .search-container {
-            max-width: 100%;
-        }
-        .summary-cards {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .filter-btn {
-            font-size: 11px;
-            padding: 6px 12px;
-        }
+        .form-grid { grid-template-columns: 1fr; }
+        .form-group.full { grid-column: span 1; }
+        .action-bar { flex-direction: column; align-items: stretch; }
+        .search-group { max-width: 100%; }
+        .date-filter { justify-content: flex-end; }
+        .pill { padding: 6px 12px; font-size: 12px; }
+        .pill-count { padding: 1px 6px; font-size: 10px; }
+        td, th { padding: 8px 6px; font-size: 12px; }
+        .badge { padding: 2px 6px; font-size: 10px; }
+        .col-personnel { width: 90px; }
+        .col-name { width: 100px; }
     }
 </style>
 
+<!-- Read-only warning for non-admin users -->
+<?php if (!$isSuperAdmin): ?>
+<div class="readonly-message">
+    <i class="fas fa-info-circle"></i> You are in read-only mode. Contact administrator to add or edit attendance records.
+</div>
+<?php endif; ?>
+
+<!-- Search & Actions -->
+<div class="action-bar">
+    <div class="search-group">
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search by name, rank or number...">
+        </div>
+        <div class="date-filter">
+            <label><i class="fas fa-calendar"></i></label>
+            <input type="date" id="dateFilter" class="date-input" value="<?php echo date('Y-m-d'); ?>">
+        </div>
+    </div>
+    <?php if ($isSuperAdmin): ?>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn btn-primary" id="addBtn"><i class="fas fa-plus"></i> Add Status</button>
+        <button class="btn btn-secondary" id="exportBtn"><i class="fas fa-download"></i> Export</button>
+    </div>
+    <?php endif; ?>
+</div>
+
+<!-- Status Filter Pills with Counts -->
+<div class="filter-pills">
+    <button class="pill active" data-filter="all">
+        📋 All <span class="pill-count" id="countAll">0</span>
+    </button>
+    <button class="pill" data-filter="present">
+        ✅ Present <span class="pill-count" id="countPresent">0</span>
+    </button>
+    <button class="pill" data-filter="leave">
+        🏖️ Leave <span class="pill-count" id="countLeave">0</span>
+    </button>
+    <button class="pill" data-filter="sick">
+        🤒 Sick <span class="pill-count" id="countSick">0</span>
+    </button>
+    <button class="pill" data-filter="work">
+        💼 Work <span class="pill-count" id="countWork">0</span>
+    </button>
+    <button class="pill" data-filter="workout">
+        🏃 PT <span class="pill-count" id="countWorkout">0</span>
+    </button>
+    <button class="pill" data-filter="tdy">
+        ✈️ TDY <span class="pill-count" id="countTdy">0</span>
+    </button>
+    <button class="pill" data-filter="course">
+        📚 Course <span class="pill-count" id="countCourse">0</span>
+    </button>
+</div>
+
+<!-- Table -->
+<div class="data-table">
+    <table id="statusTable" style="table-layout: fixed;">
+        <colgroup>
+            <col class="col-sno">
+            <col class="col-personnel">
+            <col class="col-name">
+            <col class="col-rank">
+            <col class="col-status">
+            <col class="col-time">
+            <col class="col-time">
+            <col class="col-remarks">
+            <?php if ($isSuperAdmin): ?>
+            <col class="col-actions">
+            <?php endif; ?>
+        </colgroup>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Personnel No.</th>
+                <th>Name</th>
+                <th>Rank</th>
+                <th>Status</th>
+                <th>IN</th>
+                <th>OUT</th>
+                <th>Remarks</th>
+                <?php if ($isSuperAdmin): ?>
+                    <th>Actions</th>
+                <?php endif; ?>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+<div id="noResults" class="empty-state" style="display:none">
+    <i class="fas fa-info-circle"></i>
+    <p>No attendance records for selected date</p>
+    <?php if (!$isSuperAdmin): ?>
+        <p style="font-size: 12px; margin-top: 10px;">Contact administrator to mark attendance</p>
+    <?php else: ?>
+        <p style="font-size: 12px; margin-top: 10px;">Click "Add Status" to mark attendance</p>
+    <?php endif; ?>
+</div>
+
+<!-- Modal (Only for Super Admin) -->
+<?php if ($isSuperAdmin): ?>
+<div id="modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header"><h3 id="modalTitle"><i class="fas fa-plus"></i> Add Status</h3><span class="modal-close">&times;</span></div>
+        <div class="modal-body">
+            <form id="statusForm">
+                <input type="hidden" id="recordId">
+                <div class="form-grid">
+                    <div class="form-group full">
+                        <label>Select Personnel *</label>
+                        <select id="personnelSelect" class="form-control" required>
+                            <option value="">-- Select Personnel --</option>
+                            <?php foreach ($personnelList as $p): ?>
+                                <option value="<?php echo $p['personnel_number']; ?>" data-name="<?php echo $p['full_name_en']; ?>" data-rank="<?php echo $p['rank']; ?>">
+                                    <?php echo $p['personnel_number'] . ' - ' . $p['full_name_en'] . ' (' . $p['rank'] . ')'; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Name</label><input type="text" id="personnelName" class="form-control" readonly></div>
+                    <div class="form-group"><label>Rank</label><input type="text" id="rank" class="form-control" readonly></div>
+                    <div class="form-group"><label>Date *</label><input type="date" id="recordDate" class="form-control" required></div>
+                    <div class="form-group"><label>Status *</label>
+                        <select id="status" class="form-control" required>
+                            <option value="">Select Status</option>
+                            <option value="present">Present</option>
+                            <option value="leave">Leave</option>
+                            <option value="sick">Sick</option>
+                            <option value="work">Work</option>
+                            <option value="workout">PT</option>
+                            <option value="tdy">TDY</option>
+                            <option value="course">Course</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="inTimeGroup" style="display:none"><label>IN Time</label><input type="time" id="inTime" class="form-control"></div>
+                    <div class="form-group" id="outTimeGroup" style="display:none"><label>OUT Time</label><input type="time" id="outTime" class="form-control"></div>
+                    <div class="form-group full"><label>Remarks *</label><textarea id="remarks" class="form-control" rows="2" required placeholder="Enter remarks..."></textarea></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn-cancel" id="cancelBtn">Cancel</button><button type="submit" class="btn-save">Save</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<div id="toast" class="toast"></div>
+
 <script>
-    let personnelData = [];
-    let currentFilter = 'all';
+let allData = [], currentFilter = 'all';
+let currentDate = '<?php echo date('Y-m-d'); ?>';
+const isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
+
+<?php if ($isSuperAdmin): ?>
+const modal = document.getElementById('modal');
+const addBtn = document.getElementById('addBtn');
+const exportBtn = document.getElementById('exportBtn');
+const closeModal = document.querySelector('.modal-close');
+const cancelBtn = document.getElementById('cancelBtn');
+const form = document.getElementById('statusForm');
+let isEditing = false, editId = null;
+<?php endif; ?>
+
+// Load data for selected date
+async function loadData() {
+    const fd = new FormData(); 
+    fd.append('action', 'get_records');
+    fd.append('date', currentDate);
+    const res = await fetch(window.location.href, { 
+        method: 'POST', 
+        body: fd, 
+        headers: { 'X-Requested-With': 'XMLHttpRequest' } 
+    });
+    const data = await res.json();
+    if (data.success) { 
+        allData = data.data; 
+        updateCounts();
+        render(); 
+    }
+}
+
+// Update count badges
+function updateCounts() {
+    const counts = {
+        all: allData.length,
+        present: 0,
+        leave: 0,
+        sick: 0,
+        work: 0,
+        workout: 0,
+        tdy: 0,
+        course: 0
+    };
     
-    // Set today's date as default
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('recordDate').value = today;
-    
-    // Modal elements
-    const modal = document.getElementById('statusModal');
-    const markBtn = document.getElementById('markStatusBtn');
-    const closeBtn = document.querySelector('.close');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const modalTitle = document.getElementById('modalTitle');
-    const form = document.getElementById('statusForm');
-    const searchInput = document.getElementById('searchInput');
-    const clearSearchBtn = document.getElementById('clearSearch');
-    const tableBody = document.getElementById('statusTableBody');
-    const noResultsDiv = document.getElementById('noResults');
-    const table = document.getElementById('statusTable');
-    
-    let isEditing = false;
-    let editingId = null;
-    
-    // Load data from database
-    async function loadDataFromDatabase() {
-        try {
-            const formData = new FormData();
-            formData.append('action', 'get_all');
-            
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-            
-            const result = await response.json();
-            if (result.success) {
-                personnelData = result.data;
-                renderTable();
-                updateSummary();
-            } else {
-                showToast('Failed to load data', 'error');
-            }
-        } catch (error) {
-            console.error('Error loading data:', error);
-            showToast('Error loading data from database', 'error');
+    allData.forEach(item => {
+        switch(item.status) {
+            case 'present': counts.present++; break;
+            case 'leave': counts.leave++; break;
+            case 'sick': counts.sick++; break;
+            case 'work': counts.work++; break;
+            case 'workout': counts.workout++; break;
+            case 'tdy': counts.tdy++; break;
+            case 'course': counts.course++; break;
         }
-    }
-    
-    // Helper function to group data by date
-    function groupDataByDate(data) {
-        const grouped = {};
-        data.forEach(item => {
-            const date = item.record_date;
-            if (!grouped[date]) {
-                grouped[date] = [];
-            }
-            grouped[date].push(item);
-        });
-        // Sort dates in descending order (newest first)
-        return Object.keys(grouped).sort().reverse().map(date => ({
-            date: date,
-            records: grouped[date]
-        }));
-    }
-    
-    // Helper function to format date header
-    function formatDateHeader(dateString) {
-        const date = new Date(dateString);
-        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        return date.toLocaleDateString(undefined, options);
-    }
-    
-    // Helper function to escape HTML
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    // Status badge mapping
-    function getStatusBadge(status) {
-        const icons = {
-            'present': '<i class="fas fa-check-circle"></i> Present (Duty)',
-            'leave': '<i class="fas fa-umbrella-beach"></i> On Leave',
-            'sick': '<i class="fas fa-thermometer-half"></i> Sick Report',
-            'work': '<i class="fas fa-briefcase"></i> Work Detail',
-            'workout': '<i class="fas fa-running"></i> Work-Out / PT',
-            'tdy': '<i class="fas fa-plane"></i> TDY/Temporary Duty',
-            'course': '<i class="fas fa-graduation-cap"></i> Course/Training'
-        };
-        
-        const badgeClasses = {
-            'present': 'badge-present',
-            'leave': 'badge-leave',
-            'sick': 'badge-sick',
-            'work': 'badge-work',
-            'workout': 'badge-workout',
-            'tdy': 'badge-tdy',
-            'course': 'badge-course'
-        };
-        
-        return `<span class="badge ${badgeClasses[status]}">${icons[status] || status}</span>`;
-    }
-    
-    // Render table with date-wise grouping
-    function renderTable() {
-        tableBody.innerHTML = '';
-        let filteredData = personnelData;
-        
-        // Apply status filter
-        if (currentFilter !== 'all') {
-            filteredData = personnelData.filter(person => person.status === currentFilter);
-        }
-        
-        // Apply search filter
-        const searchTerm = searchInput.value.toLowerCase().trim();
-        if (searchTerm) {
-            filteredData = filteredData.filter(person => 
-                person.personnel_name.toLowerCase().includes(searchTerm) ||
-                person.rank.toLowerCase().includes(searchTerm) ||
-                getStatusText(person.status).toLowerCase().includes(searchTerm) ||
-                person.remarks.toLowerCase().includes(searchTerm)
-            );
-        }
-        
-        if (filteredData.length === 0) {
-            noResultsDiv.style.display = 'block';
-            table.style.display = 'none';
-            return;
-        }
-        
-        noResultsDiv.style.display = 'none';
-        table.style.display = 'table';
-        
-        // Group data by date
-        const groupedData = groupDataByDate(filteredData);
-        let globalIndex = 0;
-        
-        // Render each date group
-        groupedData.forEach(group => {
-            // Add date header row
-            const dateRow = tableBody.insertRow();
-            dateRow.classList.add('date-header-row');
-            dateRow.setAttribute('data-date', group.date);
-            dateRow.innerHTML = `
-                <td colspan="9" style="background: #f0f7f4; padding: 12px; font-weight: 700; color: #1e3a32;">
-                    <i class="fas fa-calendar-alt" style="margin-right: 8px;"></i>
-                    ${formatDateHeader(group.date)}
-                    <span style="margin-left: 12px; font-size: 12px; font-weight: normal; color: #6c7a8e;">
-                        (${group.records.length} personnel)
-                    </span>
-                </td>
-            `;
-            
-            // Render records for this date
-            group.records.forEach((person) => {
-                const row = tableBody.insertRow();
-                const inTimeDisplay = person.in_time ? person.in_time : '-';
-                const outTimeDisplay = person.out_time ? person.out_time : '-';
-                
-                globalIndex++;
-                
-                row.setAttribute('data-status', person.status);
-                row.setAttribute('data-id', person.id);
-                row.innerHTML = `
-                    <td style="padding-left: 24px;">${globalIndex}</td>
-                    <td>${escapeHtml(person.personnel_name)}</td>
-                    <td>${escapeHtml(person.rank)}</td>
-                    <td>${getStatusBadge(person.status)}</td>
-                    <td>${person.record_date}</td>
-                    <td>${inTimeDisplay}</td>
-                    <td>${outTimeDisplay}</td>
-                    <td>${escapeHtml(person.remarks)}</td>
-                    <td>
-                        <button class="btn-icon edit-btn" onclick='editPersonnel(${JSON.stringify(person).replace(/'/g, "&#39;")})'>
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon delete-btn" onclick="deletePersonnel(${person.id})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-                
-                // Apply highlight if search term exists
-                if (searchTerm) {
-                    highlightText(row.cells[1], searchTerm);
-                    highlightText(row.cells[2], searchTerm);
-                    highlightText(row.cells[7], searchTerm);
-                }
-            });
-        });
-    }
-    
-    // Render filtered data by date
-    function renderFilteredData(filteredData) {
-        tableBody.innerHTML = '';
-        
-        if (filteredData.length === 0) {
-            noResultsDiv.style.display = 'block';
-            table.style.display = 'none';
-            return;
-        }
-        
-        noResultsDiv.style.display = 'none';
-        table.style.display = 'table';
-        
-        // Group by date (should be just one date if filtering)
-        const groupedData = groupDataByDate(filteredData);
-        let globalIndex = 0;
-        
-        groupedData.forEach(group => {
-            const dateRow = tableBody.insertRow();
-            dateRow.classList.add('date-header-row');
-            dateRow.innerHTML = `
-                <td colspan="9" style="background: #f0f7f4; padding: 12px; font-weight: 700; color: #1e3a32;">
-                    <i class="fas fa-calendar-alt" style="margin-right: 8px;"></i>
-                    ${formatDateHeader(group.date)}
-                    <span style="margin-left: 12px; font-size: 12px; font-weight: normal; color: #6c7a8e;">
-                        (${group.records.length} personnel)
-                    </span>
-                </td>
-            `;
-            
-            group.records.forEach((person) => {
-                const row = tableBody.insertRow();
-                globalIndex++;
-                const inTimeDisplay = person.in_time ? person.in_time : '-';
-                const outTimeDisplay = person.out_time ? person.out_time : '-';
-                
-                row.innerHTML = `
-                    <td style="padding-left: 24px;">${globalIndex}</td>
-                    <td>${escapeHtml(person.personnel_name)}</td>
-                    <td>${escapeHtml(person.rank)}</td>
-                    <td>${getStatusBadge(person.status)}</td>
-                    <td>${person.record_date}</td>
-                    <td>${inTimeDisplay}</td>
-                    <td>${outTimeDisplay}</td>
-                    <td>${escapeHtml(person.remarks)}</td>
-                    <td>
-                        <button class="btn-icon edit-btn" onclick='editPersonnel(${JSON.stringify(person).replace(/'/g, "&#39;")})'>
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon delete-btn" onclick="deletePersonnel(${person.id})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </td>
-                `;
-            });
-        });
-    }
-    
-    function getStatusText(status) {
-        const statusMap = {
-            'present': 'Present (Duty)',
-            'leave': 'On Leave',
-            'sick': 'Sick Report',
-            'work': 'Work Detail',
-            'workout': 'Work-Out / PT',
-            'tdy': 'TDY/Temporary Duty',
-            'course': 'Course/Training'
-        };
-        return statusMap[status] || status;
-    }
-    
-    function highlightText(cell, searchTerm) {
-        const originalText = cell.textContent;
-        const regex = new RegExp(`(${searchTerm})`, 'gi');
-        if (originalText.toLowerCase().includes(searchTerm)) {
-            cell.innerHTML = originalText.replace(regex, '<span class="highlight">$1</span>');
-        }
-    }
-    
-    // Toggle time fields based on status
-    function toggleTimeFields() {
-        const status = document.getElementById('status').value;
-        const inTimeField = document.getElementById('inTimeField');
-        const outTimeField = document.getElementById('outTimeField');
-        
-        if (status === 'present' || status === 'work') {
-            inTimeField.style.display = 'block';
-            outTimeField.style.display = 'none';
-            document.getElementById('outTime').value = '';
-        } else if (status === 'workout') {
-            inTimeField.style.display = 'block';
-            outTimeField.style.display = 'block';
-        } else {
-            inTimeField.style.display = 'none';
-            outTimeField.style.display = 'none';
-            document.getElementById('inTime').value = '';
-            document.getElementById('outTime').value = '';
-        }
-    }
-    
-    // Show toast notification
-    function showToast(message, type = 'success') {
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toastMessage');
-        toastMessage.textContent = message;
-        toast.style.backgroundColor = type === 'success' ? '#1e3a32' : '#dc2626';
-        toast.style.display = 'block';
-        
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 3000);
-    }
-    
-    // Update summary statistics
-    function updateSummary() {
-        let total = personnelData.length;
-        let presentCount = 0, leaveCount = 0, sickCount = 0, workCount = 0, workoutCount = 0, tdyCount = 0, courseCount = 0;
-        
-        personnelData.forEach(person => {
-            switch(person.status) {
-                case 'present': presentCount++; break;
-                case 'leave': leaveCount++; break;
-                case 'sick': sickCount++; break;
-                case 'work': workCount++; break;
-                case 'workout': workoutCount++; break;
-                case 'tdy': tdyCount++; break;
-                case 'course': courseCount++; break;
-            }
-        });
-        
-        document.getElementById('totalPersonnel').textContent = total;
-        document.getElementById('presentCount').textContent = presentCount;
-        document.getElementById('leaveCount').textContent = leaveCount;
-        document.getElementById('sickCount').textContent = sickCount;
-        document.getElementById('workCount').textContent = workCount;
-        document.getElementById('workoutCount').textContent = workoutCount;
-        document.getElementById('tdyCount').textContent = tdyCount;
-        document.getElementById('courseCount').textContent = courseCount;
-    }
-    
-    // Filter by status
-    function filterByStatus(status) {
-        currentFilter = status;
-        renderTable();
-        
-        // Update active button style
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            if (btn.getAttribute('data-filter') === status) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-    }
-    
-    // Search functionality
-    function searchTable() {
-        renderTable();
-        clearSearchBtn.style.display = searchInput.value.trim() !== '' ? 'block' : 'none';
-    }
-    
-    function clearSearch() {
-        searchInput.value = '';
-        searchTable();
-        searchInput.focus();
-    }
-    
-    // Date filter functionality
-    function filterByDate() {
-        const selectedDate = document.getElementById('dateFilter').value;
-        if (selectedDate) {
-            const filtered = personnelData.filter(person => person.record_date === selectedDate);
-            renderFilteredData(filtered);
-        } else {
-            renderTable();
-        }
-    }
-    
-    function clearDateFilter() {
-        document.getElementById('dateFilter').value = '';
-        renderTable();
-    }
-    
-    // Open modal for adding
-    markBtn.onclick = function() {
-        isEditing = false;
-        editingId = null;
-        modalTitle.innerHTML = '<i class="fas fa-user-plus"></i> Add Personnel';
-        form.reset();
-        document.getElementById('recordId').value = '';
-        document.getElementById('recordDate').value = today;
-        document.getElementById('inTimeField').style.display = 'none';
-        document.getElementById('outTimeField').style.display = 'none';
-        modal.style.display = 'block';
-    }
-    
-    function closeModal() {
-        modal.style.display = 'none';
-        form.reset();
-        isEditing = false;
-        editingId = null;
-    }
-    
-    closeBtn.onclick = closeModal;
-    cancelBtn.onclick = closeModal;
-    
-    window.onclick = function(event) {
-        if (event.target == modal) {
-            closeModal();
-        }
-    }
-    
-    function editPersonnel(person) {
-        isEditing = true;
-        editingId = person.id;
-        modalTitle.innerHTML = '<i class="fas fa-edit"></i> Edit Personnel';
-        
-        document.getElementById('recordId').value = person.id;
-        document.getElementById('personnelName').value = person.personnel_name;
-        document.getElementById('rank').value = person.rank;
-        document.getElementById('recordDate').value = person.record_date;
-        document.getElementById('status').value = person.status;
-        document.getElementById('inTime').value = person.in_time || '';
-        document.getElementById('outTime').value = person.out_time || '';
-        document.getElementById('remarks').value = person.remarks;
-        
-        toggleTimeFields();
-        modal.style.display = 'block';
-    }
-    
-    async function deletePersonnel(id) {
-        if (confirm('Are you sure you want to delete this record?')) {
-            try {
-                const formData = new FormData();
-                formData.append('action', 'delete');
-                formData.append('id', id);
-                
-                const response = await fetch(window.location.href, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    showToast('Record deleted successfully', 'success');
-                    await loadDataFromDatabase();
-                } else {
-                    showToast('Failed to delete record', 'error');
-                }
-            } catch (error) {
-                console.error('Error deleting:', error);
-                showToast('Error deleting record', 'error');
-            }
-        }
-    }
-    
-    // Export to CSV
-    document.getElementById('exportBtn').addEventListener('click', function() {
-        const rows = [];
-        const headers = ['S.No.', 'Name', 'Rank', 'Status', 'Date', 'IN Time', 'OUT Time', 'Remarks'];
-        rows.push(headers);
-        
-        personnelData.forEach((person, index) => {
-            const statusText = getStatusText(person.status);
-            const inTimeDisplay = person.in_time || '-';
-            const outTimeDisplay = person.out_time || '-';
-            
-            rows.push([
-                index + 1,
-                person.personnel_name,
-                person.rank,
-                statusText,
-                person.record_date,
-                inTimeDisplay,
-                outTimeDisplay,
-                person.remarks
-            ]);
-        });
-        
-        const csvContent = rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `military_status_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        showToast('Personnel data exported successfully', 'success');
     });
     
-    // Handle form submission
-    form.onsubmit = async function(e) {
+    document.getElementById('countAll').textContent = counts.all;
+    document.getElementById('countPresent').textContent = counts.present;
+    document.getElementById('countLeave').textContent = counts.leave;
+    document.getElementById('countSick').textContent = counts.sick;
+    document.getElementById('countWork').textContent = counts.work;
+    document.getElementById('countWorkout').textContent = counts.workout;
+    document.getElementById('countTdy').textContent = counts.tdy;
+    document.getElementById('countCourse').textContent = counts.course;
+}
+
+// Helper function to clean text (remove line breaks)
+function cleanText(text) {
+    if (!text) return '';
+    return String(text).replace(/[\n\r]+/g, ' ').trim();
+}
+
+// Escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function render() {
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    let filtered = allData;
+    
+    if (currentFilter !== 'all') {
+        filtered = filtered.filter(p => p.status === currentFilter);
+    }
+    
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    if (term) {
+        filtered = filtered.filter(p => 
+            (p.personnel_name?.toLowerCase().includes(term)) || 
+            (p.rank?.toLowerCase().includes(term)) ||
+            (p.personnel_number?.toLowerCase().includes(term))
+        );
+    }
+    
+    if (filtered.length === 0) {
+        document.getElementById('noResults').style.display = 'block';
+        document.getElementById('statusTable').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('noResults').style.display = 'none';
+    document.getElementById('statusTable').style.display = 'table';
+    
+    let idx = 0;
+    filtered.forEach(p => {
+        const row = tbody.insertRow();
+        idx++;
+        
+        // Clean and escape all text fields
+        const personnelNumber = cleanText(p.personnel_number || '-');
+        const personnelName = cleanText(p.personnel_name || '-');
+        const personnelRank = cleanText(p.rank || '-');
+        const remarks = cleanText(p.remarks || '');
+        
+        // Truncate remarks if too long
+        const shortRemarks = remarks.length > 65 ? remarks.substring(0, 65) + '...' : remarks;
+        
+        const badgeClass = { 
+            present:'badge-present', leave:'badge-leave', sick:'badge-sick', 
+            work:'badge-work', workout:'badge-workout', tdy:'badge-tdy', course:'badge-course' 
+        }[p.status] || '';
+        const badgeText = { 
+            present:'Present', leave:'Leave', sick:'Sick', work:'Work', 
+            workout:'PT', tdy:'TDY', course:'Course' 
+        }[p.status] || p.status;
+        
+        let actionsHtml = '';
+        if (isSuperAdmin) {
+            actionsHtml = `<div class="action-icons">
+                <button class="action-btn edit" onclick='editRecord(${JSON.stringify(p).replace(/'/g, "&#39;")})' title="Edit"><i class="fas fa-edit"></i></button>
+                <button class="action-btn delete" onclick="deleteRecord(${p.id})" title="Delete"><i class="fas fa-trash"></i></button>
+            </div>`;
+        }
+        
+        // Create row with proper styling
+        const snoCell = row.insertCell(0);
+        const personnelNoCell = row.insertCell(1);
+        const nameCell = row.insertCell(2);
+        const rankCell = row.insertCell(3);
+        const statusCell = row.insertCell(4);
+        const inCell = row.insertCell(5);
+        const outCell = row.insertCell(6);
+        const remarksCell = row.insertCell(7);
+        
+        // Set cell contents with proper classes
+        snoCell.textContent = idx;
+        snoCell.style.textAlign = 'center';
+        
+        personnelNoCell.textContent = personnelNumber;
+        personnelNoCell.className = 'cell-ellipsis';
+        personnelNoCell.title = personnelNumber;
+        
+        nameCell.textContent = personnelName;
+        nameCell.className = 'cell-ellipsis';
+        nameCell.title = personnelName;
+        
+        rankCell.textContent = personnelRank;
+        rankCell.className = 'cell-ellipsis';
+        
+        statusCell.innerHTML = `<span class="badge ${badgeClass}">${badgeText}</span>`;
+        
+        inCell.textContent = p.in_time || '-';
+        inCell.style.textAlign = 'center';
+        
+        outCell.textContent = p.out_time || '-';
+        outCell.style.textAlign = 'center';
+        
+        remarksCell.textContent = shortRemarks;
+        remarksCell.className = 'remarks-cell';
+        if (remarks.length > 65) {
+            remarksCell.title = remarks;
+        }
+        
+        if (isSuperAdmin) {
+            const actionsCell = row.insertCell(8);
+            actionsCell.innerHTML = actionsHtml;
+            actionsCell.style.textAlign = 'center';
+        }
+    });
+}
+
+function showToast(msg, type='success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = type === 'success' ? '#1e3a32' : '#dc2626';
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+<?php if ($isSuperAdmin): ?>
+// Personnel select
+const personnelSelect = document.getElementById('personnelSelect');
+if (personnelSelect) {
+    personnelSelect.onchange = function() {
+        const opt = this.options[this.selectedIndex];
+        document.getElementById('personnelName').value = opt.dataset.name || '';
+        document.getElementById('rank').value = opt.dataset.rank || '';
+    };
+}
+
+// Set today's date for new records
+const recordDateInput = document.getElementById('recordDate');
+if (recordDateInput) {
+    recordDateInput.value = new Date().toISOString().split('T')[0];
+}
+
+// Toggle time fields
+function toggleTimeFields() {
+    const status = document.getElementById('status').value;
+    const inGroup = document.getElementById('inTimeGroup');
+    const outGroup = document.getElementById('outTimeGroup');
+    if (status === 'present' || status === 'work') {
+        inGroup.style.display = 'block';
+        outGroup.style.display = 'none';
+        document.getElementById('outTime').value = '';
+    } else if (status === 'workout') {
+        inGroup.style.display = 'block';
+        outGroup.style.display = 'block';
+    } else {
+        inGroup.style.display = 'none';
+        outGroup.style.display = 'none';
+        document.getElementById('inTime').value = '';
+        document.getElementById('outTime').value = '';
+    }
+}
+
+const statusSelect = document.getElementById('status');
+if (statusSelect) {
+    statusSelect.onchange = toggleTimeFields;
+}
+
+// Modal handlers
+if (addBtn) {
+    addBtn.onclick = () => { 
+        isEditing = false; 
+        editId = null; 
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus"></i> Add Status'; 
+        form.reset(); 
+        document.getElementById('recordId').value = '';
+        document.getElementById('personnelSelect').value = '';
+        document.getElementById('personnelName').value = '';
+        document.getElementById('rank').value = '';
+        document.getElementById('recordDate').value = currentDate;
+        document.getElementById('remarks').value = '';
+        modal.style.display = 'block'; 
+    };
+}
+
+function closeModalFunc() { 
+    modal.style.display = 'none'; 
+}
+if (closeModal) closeModal.onclick = closeModalFunc;
+if (cancelBtn) cancelBtn.onclick = closeModalFunc;
+window.onclick = e => { if (e.target === modal) closeModalFunc(); };
+
+window.editRecord = (p) => {
+    isEditing = true; 
+    editId = p.id;
+    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> Edit Status';
+    document.getElementById('recordId').value = p.id;
+    document.getElementById('personnelSelect').value = p.personnel_number;
+    const changeEvent = new Event('change');
+    document.getElementById('personnelSelect').dispatchEvent(changeEvent);
+    document.getElementById('recordDate').value = p.record_date;
+    document.getElementById('status').value = p.status;
+    document.getElementById('inTime').value = p.in_time || '';
+    document.getElementById('outTime').value = p.out_time || '';
+    document.getElementById('remarks').value = p.remarks;
+    toggleTimeFields();
+    modal.style.display = 'block';
+};
+
+window.deleteRecord = async (id) => {
+    if (!confirm('Delete this record?')) return;
+    const fd = new FormData(); 
+    fd.append('action', 'delete'); 
+    fd.append('id', id);
+    const res = await fetch(window.location.href, { 
+        method: 'POST', 
+        body: fd, 
+        headers: { 'X-Requested-With': 'XMLHttpRequest' } 
+    });
+    const data = await res.json();
+    if (data.success) { 
+        showToast('Record deleted'); 
+        loadData(); 
+    } else { 
+        showToast('Delete failed', 'error'); 
+    }
+};
+
+// Form submit
+if (form) {
+    form.onsubmit = async (e) => {
         e.preventDefault();
         
-        const id = document.getElementById('recordId').value;
-        const name = document.getElementById('personnelName').value;
+        const personnel_number = document.getElementById('personnelSelect').value;
+        const personnel_name = document.getElementById('personnelName').value;
         const rank = document.getElementById('rank').value;
         const date = document.getElementById('recordDate').value;
         const status = document.getElementById('status').value;
@@ -1283,71 +812,101 @@ ob_start();
         const outTime = document.getElementById('outTime').value || '';
         const remarks = document.getElementById('remarks').value;
         
-        if (!name || !rank || !date || !status || !remarks) {
+        if (!personnel_number || !personnel_name || !rank || !status || !remarks) {
             showToast('Please fill all required fields', 'error');
             return;
         }
         
-        try {
-            const formData = new FormData();
-            formData.append('action', isEditing ? 'update' : 'add');
-            formData.append('name', name);
-            formData.append('rank', rank);
-            formData.append('status', status);
-            formData.append('date', date);
-            formData.append('inTime', inTime);
-            formData.append('outTime', outTime);
-            formData.append('remarks', remarks);
-            if (isEditing) {
-                formData.append('id', id);
-            }
-            
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-            
-            const result = await response.json();
-            if (result.success) {
-                showToast(isEditing ? 'Record updated successfully' : 'Record added successfully', 'success');
-                closeModal();
-                await loadDataFromDatabase();
-            } else {
-                showToast('Failed to save record', 'error');
-            }
-        } catch (error) {
-            console.error('Error saving:', error);
-            showToast('Error saving record', 'error');
-        }
-    }
-    
-    // Initialize
-    loadDataFromDatabase();
-    
-    // Filter button event listeners
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            filterByStatus(this.getAttribute('data-filter'));
+        const fd = new FormData();
+        fd.append('action', isEditing ? 'update' : 'add');
+        fd.append('personnel_number', personnel_number);
+        fd.append('personnel_name', personnel_name);
+        fd.append('rank', rank);
+        fd.append('status', status);
+        fd.append('date', date);
+        fd.append('inTime', inTime);
+        fd.append('outTime', outTime);
+        fd.append('remarks', remarks);
+        if (isEditing) fd.append('id', editId);
+        
+        const res = await fetch(window.location.href, { 
+            method: 'POST', 
+            body: fd, 
+            headers: { 'X-Requested-With': 'XMLHttpRequest' } 
         });
-    });
-    
-    // Event listeners for search
-    searchInput.addEventListener('input', searchTable);
-    clearSearchBtn.addEventListener('click', clearSearch);
-    
-    // Event listeners for date filter
-    const dateFilter = document.getElementById('dateFilter');
-    const clearDateFilterBtn = document.getElementById('clearDateFilter');
-    
-    if (dateFilter) {
-        dateFilter.addEventListener('change', filterByDate);
-    }
-    if (clearDateFilterBtn) {
-        clearDateFilterBtn.addEventListener('click', clearDateFilter);
-    }
+        const data = await res.json();
+        if (data.success) { 
+            showToast(isEditing ? 'Updated' : 'Added'); 
+            closeModalFunc(); 
+            if (date === currentDate) {
+                loadData(); 
+            } else {
+                showToast(`Record added for ${date}. Change date filter to view.`);
+            }
+        } else { 
+            showToast('Save failed', 'error'); 
+        }
+    };
+}
+
+// Export functionality
+if (exportBtn) {
+    exportBtn.onclick = () => {
+        const rows = [['#', 'Personnel No.', 'Name', 'Rank', 'Status', 'IN Time', 'OUT Time', 'Remarks']];
+        allData.forEach((p, i) => {
+            const statusText = { present:'Present', leave:'Leave', sick:'Sick', work:'Work', workout:'PT', tdy:'TDY', course:'Course' }[p.status] || p.status;
+            rows.push([i+1, p.personnel_number||'-', p.personnel_name, p.rank, statusText, p.in_time||'-', p.out_time||'-', p.remarks]);
+        });
+        const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv' });
+        const a = document.createElement('a'); 
+        a.href = URL.createObjectURL(blob); 
+        a.download = `attendance_${currentDate}.csv`; 
+        a.click(); 
+        URL.revokeObjectURL(blob);
+        showToast('Exported successfully');
+    };
+}
+<?php else: ?>
+// For non-admin users, disable export
+const exportBtn = document.getElementById('exportBtn');
+if (exportBtn) {
+    exportBtn.style.opacity = '0.6';
+    exportBtn.style.cursor = 'not-allowed';
+    exportBtn.title = 'Export is only available for administrators';
+    exportBtn.onclick = () => {
+        showToast('Export is only available for administrators', 'error');
+    };
+}
+<?php endif; ?>
+
+// Date filter change
+const dateFilter = document.getElementById('dateFilter');
+if (dateFilter) {
+    dateFilter.onchange = () => {
+        currentDate = dateFilter.value;
+        loadData();
+    };
+}
+
+// Filters
+document.querySelectorAll('.pill').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        render();
+    };
+});
+
+// Search input
+const searchInput = document.getElementById('searchInput');
+if (searchInput) {
+    searchInput.oninput = () => render();
+}
+
+// Initial load
+loadData();
 </script>
 
 <?php
