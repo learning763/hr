@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>HRMS | Army Personnel Portal</title>
+    <title>HRMS | Nepali Army Personnel Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         * {
@@ -13,19 +14,35 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #f0f2f5;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a2e25 0%, #1a5a4a 50%, #0d3d32 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 30px 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Military Pattern Overlay */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
         }
 
         .container {
             width: 100%;
             max-width: 500px;
-            transition: all 0.3s ease;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 1;
         }
 
         /* Signup gets wider */
@@ -43,46 +60,64 @@
         }
 
         .form-card {
-            background: #ffffff;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
             border-radius: 32px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             overflow: hidden;
-            transition: all 0.25s ease;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        /* Header - clean minimal */
+        /* Header - Enhanced Military Style */
         .form-header {
-            background: #ffffff;
-            padding: 32px 32px 20px 32px;
+            background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
+            padding: 32px 32px 28px 32px;
             text-align: center;
-            border-bottom: 1px solid #eef2f6;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .form-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 60%;
+            height: 200%;
+            background: rgba(255, 215, 0, 0.08);
+            transform: rotate(35deg);
         }
 
         .form-header h3 {
-            font-size: 26px;
-            font-weight: 600;
-            letter-spacing: -0.3px;
-            color: #1a2c3e;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: #ffd700;
             margin-bottom: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 12px;
+            position: relative;
+            z-index: 1;
         }
 
         .form-header h3 i {
-            color: #2c5f4e;
-            font-size: 26px;
+            font-size: 32px;
+            color: #ffd700;
         }
 
         .form-header p {
             font-size: 14px;
-            color: #6c7a8e;
+            color: rgba(255, 255, 255, 0.85);
             margin-top: 6px;
+            position: relative;
+            z-index: 1;
         }
 
         form {
-            padding: 28px 32px 36px;
+            padding: 32px 36px 40px;
         }
 
         /* Grid for signup - two columns */
@@ -100,7 +135,7 @@
         .input-field {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
             position: relative;
         }
 
@@ -111,16 +146,16 @@
             letter-spacing: -0.2px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .input-field label i {
-            font-size: 12px;
-            color: #6c7a8e;
+            font-size: 13px;
+            color: #2c5f4e;
         }
 
         .input-field .required-star {
-            color: #c2410c;
+            color: #dc2626;
             font-size: 12px;
         }
 
@@ -135,14 +170,15 @@
             top: 50%;
             transform: translateY(-50%);
             color: #9aa9bc;
-            font-size: 15px;
+            font-size: 16px;
             pointer-events: none;
             z-index: 2;
+            transition: color 0.2s;
         }
 
         .input-wrapper input, .input-wrapper select {
             width: 100%;
-            padding: 12px 16px 12px 42px;
+            padding: 12px 16px 12px 44px;
             border: 1.5px solid #e2e8f0;
             border-radius: 14px;
             font-size: 14px;
@@ -151,11 +187,11 @@
             background: #ffffff;
             font-family: inherit;
             color: #1e2a3e;
-            font-weight: 450;
+            font-weight: 500;
         }
 
         .input-wrapper select {
-            padding: 12px 36px 12px 42px;
+            padding: 12px 40px 12px 44px;
             cursor: pointer;
             appearance: none;
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23899ab3" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>');
@@ -165,7 +201,12 @@
 
         .input-wrapper input:focus, .input-wrapper select:focus {
             border-color: #2c5f4e;
-            box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+            box-shadow: 0 0 0 4px rgba(44, 95, 78, 0.1);
+        }
+
+        .input-wrapper input:focus + i.input-icon,
+        .input-wrapper select:focus + i.input-icon {
+            color: #2c5f4e;
         }
 
         .toggle-eye {
@@ -175,9 +216,9 @@
             transform: translateY(-50%);
             cursor: pointer;
             color: #9aa9bc;
-            font-size: 15px;
+            font-size: 16px;
             z-index: 3;
-            transition: 0.2s;
+            transition: all 0.2s;
         }
 
         .toggle-eye:hover {
@@ -198,7 +239,7 @@
         .strength-fill {
             width: 0%;
             height: 100%;
-            transition: width 0.2s;
+            transition: width 0.3s ease;
             background: #cbd5e1;
         }
         .strength-label {
@@ -207,13 +248,14 @@
             color: #7c8ba0;
             display: block;
             text-align: right;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .match-hint {
             font-size: 11px;
             margin-top: 6px;
             display: block;
+            font-weight: 500;
         }
 
         /* Options row */
@@ -221,83 +263,90 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin: 18px 0 24px;
+            margin: 20px 0 28px;
             font-size: 13px;
         }
 
         .checkbox {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             cursor: pointer;
             color: #4a5a72;
+            font-weight: 500;
         }
 
         .checkbox input {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             cursor: pointer;
             accent-color: #2c5f4e;
         }
 
         .link-btn {
-            color: #5c6f87;
+            color: #2c5f4e;
             text-decoration: none;
             font-size: 13px;
-            font-weight: 500;
-            transition: 0.2s;
+            font-weight: 600;
+            transition: all 0.2s;
         }
 
         .link-btn:hover {
-            color: #2c5f4e;
+            color: #1e3a32;
             text-decoration: underline;
         }
 
         .btn-submit {
             width: 100%;
-            padding: 13px;
-            background: #1e3a32;
+            padding: 14px;
+            background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
             color: white;
             border: none;
             border-radius: 40px;
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            margin-top: 8px;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
         }
 
         .btn-submit:hover {
-            background: #14362c;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(30, 58, 50, 0.3);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
         }
 
         .terms-box {
-            margin: 18px 0 6px;
+            margin: 10px 0 5px;
         }
 
         .switch-text {
             text-align: center;
-            font-size: 13.5px;
+            font-size: 14px;
             color: #6a7b94;
             margin-top: 28px;
-            padding-top: 4px;
+            padding-top: 8px;
         }
 
         .switch-text a {
-            color: #1e3a32;
+            color: #2c5f4e;
             text-decoration: none;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
+            transition: all 0.2s;
         }
 
         .switch-text a:hover {
             text-decoration: underline;
+            color: #1e3a32;
         }
 
         /* Loading state */
@@ -309,13 +358,13 @@
         .btn-submit.loading::after {
             content: '';
             position: absolute;
-            width: 18px;
-            height: 18px;
+            width: 20px;
+            height: 20px;
             top: 50%;
             left: 50%;
-            margin-left: -9px;
-            margin-top: -9px;
-            border: 2px solid rgba(255,255,255,0.7);
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 2px solid rgba(255,255,255,0.3);
             border-top-color: #fff;
             border-radius: 50%;
             animation: spin 0.6s linear infinite;
@@ -347,14 +396,15 @@
     <!-- LOGIN CARD -->
     <div class="form-card" id="loginCard">
         <div class="form-header">
-            <h3><i class="fas fa-shield-alt"></i> HR Access</h3>
+            <h3><i class="fas fa-shield-alt"></i> Nepali Army HRMS</h3>
+            <p>Secure Personnel Management System</p>
         </div>
         <form id="loginForm">
             <div class="input-field">
                 <label><i class="fas fa-envelope"></i> Email Address <span class="required-star">*</span></label>
                 <div class="input-wrapper">
                     <i class="fas fa-envelope input-icon"></i>
-                    <input type="email" id="loginEmail" placeholder="your.email@domain.com" autocomplete="email" required>
+                    <input type="email" id="loginEmail" placeholder="your.email@nepalarmy.mil.np" autocomplete="email" required>
                 </div>
             </div>
             <div class="input-field">
@@ -371,7 +421,7 @@
                 </label>
                 <a href="#" class="link-btn" id="forgotBtn">Forgot password?</a>
             </div>
-            <button type="submit" class="btn-submit"><i class="fas fa-arrow-right-to-bracket"></i> Login</button>
+            <button type="submit" class="btn-submit"><i class="fas fa-arrow-right-to-bracket"></i> Sign In</button>
             <div class="switch-text">
                 New to HRMS? <a id="goToSignup">Create account →</a>
             </div>
@@ -381,7 +431,8 @@
     <!-- SIGNUP CARD (wider, with army fields + labels) -->
     <div class="form-card" id="signupCard" style="display: none;">
         <div class="form-header">
-            <h3><i class="fas fa-user-check"></i> Registration</h3>
+            <h3><i class="fas fa-user-plus"></i> Personnel Registration</h3>
+            <p>Complete your military profile to get access</p>
         </div>
         <form id="signupForm">
             <div class="form-grid">
@@ -398,7 +449,7 @@
                     <label><i class="fas fa-envelope"></i> Email Address <span class="required-star">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-envelope input-icon"></i>
-                        <input type="email" id="signupEmail" placeholder="official@email.com" required>
+                        <input type="email" id="signupEmail" placeholder="official@nepalarmy.mil.np" required>
                     </div>
                 </div>
                 <!-- Rank dropdown -->
@@ -409,24 +460,25 @@
                         <select id="armyRank" required>
                             <option value="" disabled selected>Select rank</option>
                             <option>General</option><option>Lieutenant General</option><option>Major General</option>
-                            <option>Brigadier</option><option>Colonel</option><option>Lieutenant Colonel</option>
+                            <option>Brigadier General</option><option>Colonel</option><option>Lieutenant Colonel</option>
                             <option>Major</option><option>Captain</option><option>Lieutenant</option>
-                            <option>Subedar Major</option><option>Subedar</option><option>Naib Subedar</option>
-                            <option>Havildar</option><option>Naik</option><option>Lance Naik</option><option>Sepoy</option>
+                            <option>Second Lieutenant</option><option>Subedar Major</option><option>Subedar</option>
+                            <option>Naib Subedar</option><option>Havildar</option><option>Naik</option>
+                            <option>Lance Naik</option><option>Sepoy</option>
                         </select>
                     </div>
                 </div>
                 <!-- Branch / Unit (Arm) -->
                 <div class="input-field">
-                    <label><i class="fas fa-gun"></i> Branch / Arm <span class="required-star">*</span></label>
+                    <label><i class="fas fa-building"></i> Unit/Branch <span class="required-star">*</span></label>
                     <div class="input-wrapper">
-                        <i class="fas fa-gun input-icon"></i>
+                        <i class="fas fa-building input-icon"></i>
                         <select id="branchArm" required>
                             <option value="" disabled selected>Select branch</option>
                             <option>Infantry</option><option>Armoured Corps</option><option>Artillery</option>
                             <option>Corps of Engineers</option><option>Signals</option><option>Army Aviation</option>
-                            <option>Intelligence</option><option>Medical Corps</option><option>Ordnance</option>
-                            <option>EME</option><option>Education Corps</option>
+                            <option>Intelligence Corps</option><option>Medical Corps</option><option>Ordnance Corps</option>
+                            <option>EME</option><option>Education Corps</option><option>Judge Advocate General</option>
                         </select>
                     </div>
                 </div>
@@ -435,14 +487,14 @@
                     <label><i class="fas fa-id-card"></i> Personnel Number <span class="required-star">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-id-card input-icon"></i>
-                        <input type="text" id="serviceNo" placeholder="e.g., IC-12345" required>
+                        <input type="text" id="serviceNo" placeholder="e.g., NA-12345" required>
                     </div>
                 </div>
                 <!-- Date of commission -->
                 <div class="input-field">
-                    <label><i class="fas fa-calendar"></i> Commission Date <span class="required-star">*</span></label>
+                    <label><i class="fas fa-calendar-alt"></i> Commission Date <span class="required-star">*</span></label>
                     <div class="input-wrapper">
-                        <i class="fas fa-calendar input-icon"></i>
+                        <i class="fas fa-calendar-alt input-icon"></i>
                         <input type="date" id="commissionDate" required>
                     </div>
                 </div>
@@ -451,14 +503,14 @@
                     <label><i class="fas fa-key"></i> Password <span class="required-star">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-lock input-icon"></i>
-                        <input type="password" id="signupPassword" placeholder="Minimum 6 characters" required>
+                        <input type="password" id="signupPassword" placeholder="Minimum 8 characters" required>
                         <i class="fas fa-eye-slash toggle-eye" data-target="signupPassword"></i>
                     </div>
                     <div class="strength-wrapper">
                         <div class="strength-bar">
                             <div class="strength-fill" id="strengthFill"></div>
                         </div>
-                        <span class="strength-label" id="strengthText">Use 6+ characters</span>
+                        <span class="strength-label" id="strengthText">Use 8+ characters with letters & numbers</span>
                     </div>
                 </div>
                 <!-- Confirm password -->
@@ -489,7 +541,9 @@
 
 <script src="helper/toast.js"></script>
 <script>
-    // Wait for toast.js to load
+    // No fallback needed - using the toast.js system
+    // The showToast function is provided by helper/toast.js
+
     document.addEventListener('DOMContentLoaded', function() {
         // ========== TOGGLE FORMS ==========
         const loginCard = document.getElementById('loginCard');
@@ -544,24 +598,24 @@
             const textSpan = document.getElementById('strengthText');
             if (!fill) return;
             let score = 0;
-            if(pwd.length >= 6) score += 1;
-            if(pwd.length >= 9) score += 1;
+            if(pwd.length >= 8) score += 1;
+            if(pwd.length >= 12) score += 1;
             if(/[A-Z]/.test(pwd)) score += 1;
             if(/[0-9]/.test(pwd)) score += 1;
             if(/[^A-Za-z0-9]/.test(pwd)) score += 1;
             let percent = Math.min(100, score * 20);
             fill.style.width = percent + '%';
             if(percent <= 20) {
-                fill.style.backgroundColor = '#c2410c';
-                if(textSpan) textSpan.innerText = 'Weak';
+                fill.style.backgroundColor = '#dc2626';
+                if(textSpan) textSpan.innerText = 'Weak - Use 8+ characters';
             } else if(percent <= 60) {
-                fill.style.backgroundColor = '#eab308';
-                if(textSpan) textSpan.innerText = 'Medium';
+                fill.style.backgroundColor = '#f59e0b';
+                if(textSpan) textSpan.innerText = 'Medium - Add numbers & symbols';
             } else {
-                fill.style.backgroundColor = '#2c5f4e';
-                if(textSpan) textSpan.innerText = 'Strong';
+                fill.style.backgroundColor = '#10b981';
+                if(textSpan) textSpan.innerText = 'Strong password!';
             }
-            if(pwd.length === 0 && textSpan) textSpan.innerText = 'Use 6+ characters';
+            if(pwd.length === 0 && textSpan) textSpan.innerText = 'Use 8+ characters with letters & numbers';
         }
 
         function checkMatch() {
@@ -572,10 +626,10 @@
             if(confirm.length === 0) { hint.innerHTML = ''; return; }
             if(pwd === confirm) {
                 hint.innerHTML = '✓ Passwords match';
-                hint.style.color = '#2c5f4e';
+                hint.style.color = '#10b981';
             } else {
                 hint.innerHTML = '✗ Passwords do not match';
-                hint.style.color = '#c2410c';
+                hint.style.color = '#dc2626';
             }
         }
 
@@ -628,7 +682,7 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showToast(result.message, 'success');
+                    showToast(result.message || 'Login successful! Redirecting...', 'success');
                     
                     // Store user info
                     sessionStorage.setItem('user_email', result.user.email);
@@ -650,7 +704,7 @@
                         window.location.href = 'dashboard.php';
                     }, 1500);
                 } else {
-                    showToast(result.error, 'error');
+                    showToast(result.error || 'Invalid email or password', 'error');
                     btn.classList.remove('loading');
                 }
             } catch (error) {
@@ -683,8 +737,8 @@
                 showToast('Enter valid email address', 'error');
                 return;
             }
-            if(password.length < 6) {
-                showToast('Password must be at least 6 characters', 'error');
+            if(password.length < 8) {
+                showToast('Password must be at least 8 characters', 'error');
                 return;
             }
             if(password !== confirm) {
