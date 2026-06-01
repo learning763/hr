@@ -212,6 +212,174 @@ function calculateYearsOfService($join_date) {
 ob_start();
 ?>
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personnel Profile - Nepali Army</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f0f2f5; }
+        
+        .army-header {
+            background: linear-gradient(135deg, #0f2c24 0%, #1a5a4a 100%);
+            border-radius: 20px;
+            margin-bottom: 30px;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .army-header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 60%;
+            height: 200%;
+            background: rgba(255, 215, 0, 0.05);
+            transform: rotate(35deg);
+            pointer-events: none;
+        }
+        
+        .army-header-content { display: flex; align-items: center; gap: 25px; position: relative; z-index: 1; }
+        .army-logo { width: 80px; height: 80px; background: rgba(255, 215, 0, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 42px; color: #ffd700; border: 2px solid rgba(255, 215, 0, 0.3); }
+        .army-title h1 { color: #ffd700; font-size: 28px; letter-spacing: 3px; margin-bottom: 5px; font-weight: 700; }
+        .army-title p { color: rgba(255, 255, 255, 0.85); font-size: 14px; letter-spacing: 1px; }
+        .army-title span { color: rgba(255, 215, 0, 0.8); font-size: 12px; font-weight: 500; }
+        
+        .personnel-list-section { background: white; border-radius: 20px; padding: 25px; margin-bottom: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
+        .search-container { position: relative; max-width: 400px; margin-bottom: 25px; }
+        .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 14px; }
+        .search-input { width: 100%; padding: 12px 20px 12px 45px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 14px; transition: all 0.3s; font-family: inherit; }
+        .search-input:focus { border-color: #1a5a4a; outline: none; box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1); }
+        .clear-search { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: #f1f5f9; border: none; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #64748b; font-size: 12px; }
+        
+        .personnel-table-container { overflow-x: auto; }
+        .personnel-table { width: 100%; border-collapse: collapse; }
+        .personnel-table th { text-align: left; padding: 15px; background: #f8fafc; color: #475569; font-weight: 600; font-size: 13px; border-bottom: 2px solid #e2e8f0; }
+        .personnel-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #334155; }
+        .personnel-row { cursor: pointer; transition: all 0.2s; }
+        .personnel-row:hover { background: #f8fafc; }
+        .personnel-row.active-row { background: linear-gradient(90deg, #e8f5e9, transparent); border-left: 3px solid #1a5a4a; }
+        .photo-cell { width: 55px; }
+        .table-profile-img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #1a5a4a; cursor: pointer; }
+        .table-avatar-placeholder { width: 42px; height: 42px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px dashed #cbd5e1; color: #94a3b8; font-size: 18px; }
+        .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .status-active { background: #d1fae5; color: #065f46; }
+        .status-leave { background: #fed7aa; color: #9a3412; }
+        .status-retired { background: #fee2e2; color: #991b1b; }
+        .view-profile-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #1a5a4a; color: white; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 500; transition: all 0.2s; }
+        .view-profile-btn:hover { background: #0f3d32; transform: translateY(-1px); }
+        
+        .premium-profile { background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .profile-cover { background: linear-gradient(135deg, #1a5a4a, #0f3d32); height: 180px; position: relative; }
+        .cover-overlay { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.6)); }
+        .profile-avatar-wrapper { position: absolute; bottom: -50px; left: 40px; }
+        .profile-avatar { width: 130px; height: 130px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); cursor: pointer; background: white; }
+        .profile-avatar-placeholder { width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; border: 4px solid white; cursor: pointer; color: #ffd700; font-size: 55px; }
+        .avatar-edit-btn { position: absolute; bottom: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; background: #ffd700; border: 2px solid white; color: #1a5a4a; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .avatar-edit-btn:hover { transform: scale(1.1); }
+        .close-profile { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; width: 40px; height: 40px; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
+        .close-profile:hover { background: rgba(220, 38, 38, 0.8); }
+        .profile-info-bar { padding: 20px 30px 20px 190px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; border-bottom: 1px solid #f1f5f9; }
+        .profile-name-section h2 { font-size: 24px; color: #1e293b; margin-bottom: 8px; font-weight: 700; }
+        .profile-badges { display: flex; gap: 12px; flex-wrap: wrap; }
+        .badge-rank, .badge-id, .badge-unit { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #f1f5f9; border-radius: 20px; font-size: 12px; color: #475569; }
+        .edit-main-btn { background: #1a5a4a; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+        .edit-main-btn:hover { background: #0f3d32; transform: translateY(-2px); }
+        .print-profile-btn { background: #2563eb; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+        .print-profile-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 25px 30px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+        .stat-card { display: flex; align-items: center; gap: 15px; background: white; padding: 15px 20px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+        .stat-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #e8f5e9, #c8e6d9); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #1a5a4a; }
+        .stat-info { flex: 1; }
+        .stat-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: block; }
+        .stat-value { font-size: 18px; font-weight: 700; color: #1e293b; display: block; margin-top: 4px; }
+        
+        .profile-tabs { display: flex; gap: 5px; padding: 0 30px; background: white; border-bottom: 1px solid #e2e8f0; }
+        .tab-btn { padding: 15px 25px; background: none; border: none; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; position: relative; }
+        .tab-btn:hover { color: #1a5a4a; }
+        .tab-btn.active { color: #1a5a4a; }
+        .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background: #1a5a4a; border-radius: 3px 3px 0 0; }
+        .tab-pane { display: none; padding: 30px; animation: fadeIn 0.3s ease; }
+        .tab-pane.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .info-item { background: #f8fafc; padding: 16px 20px; border-radius: 14px; transition: all 0.2s; }
+        .info-item:hover { background: #f1f5f9; transform: translateX(3px); }
+        .info-item.full-width { grid-column: span 2; }
+        .info-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .info-value { font-size: 15px; font-weight: 600; color: #1e293b; }
+        .blood-badge { display: inline-block; background: linear-gradient(135deg, #dc2626, #ef4444); color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; }
+        
+        .info-card { background: #f8fafc; border-radius: 16px; margin-bottom: 20px; overflow: hidden; }
+        .info-card-title { background: #f1f5f9; padding: 15px 20px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e2e8f0; }
+        .info-card-content { padding: 20px; line-height: 1.6; color: #475569; }
+        
+        .training-table-wrapper { overflow-x: auto; }
+        .training-table { width: 100%; border-collapse: collapse; }
+        .training-table th { padding: 12px 15px; text-align: left; background: #f1f5f9; font-weight: 600; font-size: 13px; color: #475569; }
+        .training-table td { padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #334155; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 900px; max-height: 85vh; overflow-y: auto; animation: modalSlide 0.3s ease; }
+        @keyframes modalSlide { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header { padding: 20px 25px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
+        .modal-header h3 { font-size: 20px; color: #1e293b; }
+        .modal-close, .modal-close-photo, .modal-close-view { font-size: 28px; cursor: pointer; color: #94a3b8; transition: all 0.2s; }
+        .modal-close:hover, .modal-close-photo:hover, .modal-close-view:hover { color: #dc2626; }
+        .modal-body { padding: 25px; }
+        
+        .form-section-title { font-size: 16px; font-weight: 700; color: #1a5a4a; margin: 20px 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 10px; }
+        .form-section-title:first-of-type { margin-top: 0; }
+        .modal-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full-width { grid-column: span 2; }
+        .form-group label { font-size: 12px; font-weight: 600; color: #475569; }
+        .form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-family: inherit; font-size: 14px; transition: all 0.2s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #1a5a4a; outline: none; box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1); }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+        .btn-cancel { padding: 10px 20px; background: #f1f5f9; border: none; border-radius: 10px; cursor: pointer; font-weight: 500; }
+        .btn-submit { padding: 10px 24px; background: #1a5a4a; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; }
+        .btn-delete { padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        
+        .photo-preview { text-align: center; margin-bottom: 20px; padding: 20px; background: #f8fafc; border-radius: 16px; }
+        .photo-preview img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #1a5a4a; }
+        .status-badge-lg { display: inline-flex; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+        .empty-state { text-align: center; padding: 60px; background: white; border-radius: 24px; }
+        .empty-state i { font-size: 64px; color: #cbd5e1; margin-bottom: 20px; }
+        .empty-state h3 { font-size: 20px; color: #475569; margin-bottom: 8px; }
+        .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 24px; border-radius: 12px; font-size: 14px; z-index: 1100; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .pagination-wrapper { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 15px; }
+        .pagination-info { font-size: 13px; color: #64748b; }
+        .pagination { display: flex; gap: 6px; flex-wrap: wrap; }
+        .page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; color: #475569; text-decoration: none; font-size: 13px; transition: all 0.2s; }
+        .page-btn:hover { border-color: #1a5a4a; color: #1a5a4a; }
+        .page-btn.active { background: #1a5a4a; border-color: #1a5a4a; color: white; }
+        
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .info-grid { grid-template-columns: 1fr; }
+            .info-item.full-width { grid-column: span 1; }
+            .profile-info-bar { padding: 20px; }
+            .profile-avatar-wrapper { left: 20px; }
+            .profile-avatar, .profile-avatar-placeholder { width: 90px; height: 90px; }
+            .profile-info-bar { padding-left: 130px; }
+            .profile-tabs { overflow-x: auto; }
+            .modal-form-grid { grid-template-columns: 1fr; }
+            .form-group.full-width { grid-column: span 1; }
+        }
+    </style>
+</head>
+<body>
+
 <!-- Nepali Army Header -->
 <div class="army-header">
     <div class="army-header-content">
@@ -279,7 +447,7 @@ ob_start();
                 <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
-        </table>
+        </tr>
     </div>
     
     <div class="pagination-wrapper">
@@ -309,27 +477,21 @@ ob_start();
 
 <!-- Premium Profile Card -->
 <div class="premium-profile" id="profileContainer">
-    <!-- Cover Image Section -->
     <div class="profile-cover">
         <div class="cover-overlay"></div>
         <div class="profile-avatar-wrapper">
             <?php if (!empty($selectedPersonnel['profile_picture_path'])): ?>
-                <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>" 
-                     class="profile-avatar" id="mainProfilePhoto"
-                     onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+                <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>" class="profile-avatar" onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
             <?php else: ?>
-                <div class="profile-avatar-placeholder" id="mainProfilePhoto" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+                <div class="profile-avatar-placeholder" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
                     <i class="fas fa-user"></i>
                 </div>
             <?php endif; ?>
-            <button class="avatar-edit-btn" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
-                <i class="fas fa-camera"></i>
-            </button>
+            <button class="avatar-edit-btn" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')"><i class="fas fa-camera"></i></button>
         </div>
         <button class="close-profile" id="closeProfileBtn"><i class="fas fa-times"></i></button>
     </div>
     
-    <!-- Profile Info Bar -->
     <div class="profile-info-bar">
         <div class="profile-name-section">
             <h2><?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?></h2>
@@ -339,42 +501,19 @@ ob_start();
                 <span class="badge-unit"><i class="fas fa-building"></i> <?php echo htmlspecialchars($selectedPersonnel['unit'] ?? 'Corps of Engineers'); ?></span>
             </div>
         </div>
-        <button class="edit-main-btn" id="editProfileBtn"><i class="fas fa-edit"></i> Edit Profile</button>
+        <div style="display: flex; gap: 12px;">
+            <button class="edit-main-btn" id="editProfileBtn"><i class="fas fa-edit"></i> Edit Profile</button>
+            <button class="print-profile-btn" id="printProfileBtn" onclick="window.open('print_profile.php?personnel_number=<?php echo urlencode($selectedPersonnel['personnel_number']); ?>', '_blank')"><i class="fas fa-print"></i> Print A4 Profile</button>
+        </div>
     </div>
     
-    <!-- Stats Cards -->
     <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
-            <div class="stat-info">
-                <span class="stat-label">Years of Service</span>
-                <span class="stat-value"><?php echo calculateYearsOfService($selectedPersonnel['recruitment_date'] ?? null); ?></span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-tint"></i></div>
-            <div class="stat-info">
-                <span class="stat-label">Blood Group</span>
-                <span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? 'AB+'); ?></span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-flag-checkered"></i></div>
-            <div class="stat-info">
-                <span class="stat-label">Status</span>
-                <span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['current_status'] ?? 'Active'); ?></span>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon"><i class="fas fa-envelope"></i></div>
-            <div class="stat-info">
-                <span class="stat-label">Email</span>
-                <span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['email'] ?? 'Not provided'); ?></span>
-            </div>
-        </div>
+        <div class="stat-card"><div class="stat-icon"><i class="fas fa-calendar-alt"></i></div><div class="stat-info"><span class="stat-label">Years of Service</span><span class="stat-value"><?php echo calculateYearsOfService($selectedPersonnel['recruitment_date'] ?? null); ?></span></div></div>
+        <div class="stat-card"><div class="stat-icon"><i class="fas fa-tint"></i></div><div class="stat-info"><span class="stat-label">Blood Group</span><span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? 'AB+'); ?></span></div></div>
+        <div class="stat-card"><div class="stat-icon"><i class="fas fa-flag-checkered"></i></div><div class="stat-info"><span class="stat-label">Status</span><span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['current_status'] ?? 'Active'); ?></span></div></div>
+        <div class="stat-card"><div class="stat-icon"><i class="fas fa-envelope"></i></div><div class="stat-info"><span class="stat-label">Email</span><span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['email'] ?? 'Not provided'); ?></span></div></div>
     </div>
     
-    <!-- Tabs Navigation -->
     <div class="profile-tabs">
         <button class="tab-btn active" data-tab="personal"><i class="fas fa-user"></i> Personal</button>
         <button class="tab-btn" data-tab="official"><i class="fas fa-briefcase"></i> Official</button>
@@ -383,7 +522,6 @@ ob_start();
         <button class="tab-btn" data-tab="family"><i class="fas fa-users"></i> Family</button>
     </div>
     
-    <!-- Tab Content: Personal Details -->
     <div class="tab-pane active" id="personal-tab">
         <div class="info-grid">
             <div class="info-item"><div class="info-label"><i class="fas fa-building"></i> Unit</div><div class="info-value"><?php echo htmlspecialchars($selectedPersonnel['unit'] ?? 'Corps of Engineers'); ?></div></div>
@@ -399,7 +537,6 @@ ob_start();
         </div>
     </div>
     
-    <!-- Tab Content: Official Details -->
     <div class="tab-pane" id="official-tab">
         <div class="info-grid">
             <div class="info-item"><div class="info-label"><i class="fas fa-calendar-plus"></i> Enrollment Date</div><div class="info-value"><?php echo $selectedPersonnel['recruitment_date'] && $selectedPersonnel['recruitment_date'] != '0000-00-00' ? date('F j, Y', strtotime($selectedPersonnel['recruitment_date'])) : 'N/A'; ?></div></div>
@@ -409,45 +546,23 @@ ob_start();
         </div>
     </div>
     
-    <!-- Tab Content: Education -->
     <div class="tab-pane" id="education-tab">
-        <div class="info-card">
-            <div class="info-card-title"><i class="fas fa-graduation-cap"></i> Academic Qualifications</div>
-            <div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['higher_education'] ?? 'B.E Computer Engineering')); ?></div>
-        </div>
+        <div class="info-card"><div class="info-card-title"><i class="fas fa-graduation-cap"></i> Academic Qualifications</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['higher_education'] ?? 'B.E Computer Engineering')); ?></div></div>
     </div>
     
-    <!-- Tab Content: Training -->
     <div class="tab-pane" id="training-tab">
-        <div class="info-card">
-            <div class="info-card-title"><i class="fas fa-shield-alt"></i> Military Trainings</div>
-            <div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['military_trainings'] ?? 'Basic Cybersecurity Course')); ?></div>
-        </div>
-        
-        <div class="info-card">
-            <div class="info-card-title"><i class="fas fa-chalkboard-teacher"></i> Professional Trainings</div>
-            <div class="training-table-wrapper">
-                <table class="training-table">
-                    <thead><tr><th>S.No</th><th>Training Name</th><th>Location</th></tr></thead>
-                    <tbody>
-                        <tr><td>1</td><td><?php echo htmlspecialchars($selectedPersonnel['training'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? '-'); ?></td></tr>
-                        <tr><td>2</td><td><?php echo htmlspecialchars($selectedPersonnel['training1'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? '-'); ?></td></tr>
-                        <tr><td>3</td><td><?php echo htmlspecialchars($selectedPersonnel['training2'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training2_address'] ?? '-'); ?></td></tr>
-                        <tr><td>4</td><td><?php echo htmlspecialchars($selectedPersonnel['training3'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training3'] ?? '-'); ?></td></tr>
-                        <tr><td>5</td><td><?php echo htmlspecialchars($selectedPersonnel['training4'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training4'] ?? '-'); ?></td></tr>
-                        <tr><td>6</td><td><?php echo htmlspecialchars($selectedPersonnel['training5'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training5'] ?? '-'); ?></td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <div class="info-card">
-            <div class="info-card-title"><i class="fas fa-globe"></i> Foreign Training</div>
-            <div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['foreign_training'] ?? 'Not specified')); ?></div>
-        </div>
+        <div class="info-card"><div class="info-card-title"><i class="fas fa-shield-alt"></i> Military Trainings</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['military_trainings'] ?? 'Basic Cybersecurity Course')); ?></div></div>
+        <div class="info-card"><div class="info-card-title"><i class="fas fa-chalkboard-teacher"></i> Professional Trainings</div><div class="training-table-wrapper"><table class="training-table"><thead><tr><th>S.No</th><th>Training Name</th><th>Location</th></tr></thead><tbody>
+            <tr><td>1</td><td><?php echo htmlspecialchars($selectedPersonnel['training'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? '-'); ?></td></tr>
+            <tr><td>2</td><td><?php echo htmlspecialchars($selectedPersonnel['training1'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? '-'); ?></td></tr>
+            <tr><td>3</td><td><?php echo htmlspecialchars($selectedPersonnel['training2'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training2_address'] ?? '-'); ?></td></tr>
+            <tr><td>4</td><td><?php echo htmlspecialchars($selectedPersonnel['training3'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training3'] ?? '-'); ?></td></tr>
+            <tr><td>5</td><td><?php echo htmlspecialchars($selectedPersonnel['training4'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training4'] ?? '-'); ?></td></tr>
+            <tr><td>6</td><td><?php echo htmlspecialchars($selectedPersonnel['training5'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training5'] ?? '-'); ?></td></tr>
+        </tbody></table></div></div>
+        <div class="info-card"><div class="info-card-title"><i class="fas fa-globe"></i> Foreign Training</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['foreign_training'] ?? 'Not specified')); ?></div></div>
     </div>
     
-    <!-- Tab Content: Family -->
     <div class="tab-pane" id="family-tab">
         <div class="info-grid">
             <div class="info-item"><div class="info-label"><i class="fas fa-male"></i> Father's Name</div><div class="info-value"><?php echo htmlspecialchars($selectedPersonnel['father_name'] ?? 'Not specified'); ?></div></div>
@@ -460,7 +575,7 @@ ob_start();
     </div>
 </div>
 
-<!-- Edit Profile Modal - COMPLETE WITH ALL FIELDS -->
+<!-- Edit Profile Modal -->
 <div id="editProfileModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -471,7 +586,6 @@ ob_start();
             <form id="editProfileForm">
                 <input type="hidden" name="personnel_number" value="<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>">
                 
-                <!-- Personal Information Section -->
                 <div class="form-section-title"><i class="fas fa-user-circle"></i> Personal Information</div>
                 <div class="modal-form-grid">
                     <div class="form-group"><label>Full Name (English)</label><input type="text" name="full_name_en" value="<?php echo htmlspecialchars($selectedPersonnel['full_name_en'] ?? ''); ?>"></div>
@@ -480,15 +594,14 @@ ob_start();
                     <div class="form-group"><label>Unit</label><input type="text" name="unit" value="<?php echo htmlspecialchars($selectedPersonnel['unit'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Date of Birth</label><input type="date" name="dob" value="<?php echo $selectedPersonnel['dob'] && $selectedPersonnel['dob'] != '0000-00-00' ? $selectedPersonnel['dob'] : ''; ?>"></div>
                     <div class="form-group"><label>Gender</label><select name="gender"><option value="">Select</option><option value="Male" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Male' ? 'selected' : ''; ?>>Male</option><option value="Female" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Female' ? 'selected' : ''; ?>>Female</option><option value="Other" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Other' ? 'selected' : ''; ?>>Other</option></select></div>
-                    <div class="form-group"><label>Blood Group</label><input type="text" name="blood_group" value="<?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? ''); ?>" placeholder="A+, B+, O+, etc."></div>
+                    <div class="form-group"><label>Blood Group</label><input type="text" name="blood_group" value="<?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Religion</label><input type="text" name="religion" value="<?php echo htmlspecialchars($selectedPersonnel['religion'] ?? 'Hindu'); ?>"></div>
                     <div class="form-group"><label>Email</label><input type="email" name="email" value="<?php echo htmlspecialchars($selectedPersonnel['email'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Contact/Mobile</label><input type="text" name="contact" value="<?php echo htmlspecialchars($selectedPersonnel['contact'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Phone (Landline)</label><input type="text" name="phone" value="<?php echo htmlspecialchars($selectedPersonnel['phone'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Phone</label><input type="text" name="phone" value="<?php echo htmlspecialchars($selectedPersonnel['phone'] ?? ''); ?>"></div>
                     <div class="form-group full-width"><label>Address</label><input type="text" name="address" value="<?php echo htmlspecialchars($selectedPersonnel['address'] ?? ''); ?>"></div>
                 </div>
                 
-                <!-- Official Details Section -->
                 <div class="form-section-title"><i class="fas fa-briefcase"></i> Official Details</div>
                 <div class="modal-form-grid">
                     <div class="form-group"><label>Military Status</label><select name="military_status"><option value="Single" <?php echo ($selectedPersonnel['military_status'] ?? '') == 'Single' ? 'selected' : ''; ?>>Single</option><option value="Married" <?php echo ($selectedPersonnel['military_status'] ?? '') == 'Married' ? 'selected' : ''; ?>>Married</option></select></div>
@@ -497,38 +610,29 @@ ob_start();
                     <div class="form-group"><label>Current Status</label><select name="current_status"><option value="Active" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Active' ? 'selected' : ''; ?>>Active</option><option value="Leave" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Leave' ? 'selected' : ''; ?>>Leave</option><option value="Retired" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Retired' ? 'selected' : ''; ?>>Retired</option><option value="Training" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Training' ? 'selected' : ''; ?>>Training</option></select></div>
                 </div>
                 
-                <!-- Family Information Section -->
                 <div class="form-section-title"><i class="fas fa-users"></i> Family Information</div>
                 <div class="modal-form-grid">
                     <div class="form-group"><label>Father's Name</label><input type="text" name="father_name" value="<?php echo htmlspecialchars($selectedPersonnel['father_name'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Mother's Name</label><input type="text" name="mother_name" value="<?php echo htmlspecialchars($selectedPersonnel['mother_name'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Spouse's Name</label><input type="text" name="spouse_name" value="<?php echo htmlspecialchars($selectedPersonnel['spouse_name'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Grandfather's Name</label><input type="text" name="grandfather_name" value="<?php echo htmlspecialchars($selectedPersonnel['grandfather_name'] ?? ''); ?>"></div>
-                    <div class="form-group full-width"><label>Children Names</label><input type="text" name="children_names" value="<?php echo htmlspecialchars($selectedPersonnel['children_names'] ?? ''); ?>" placeholder="Comma separated names"></div>
+                    <div class="form-group full-width"><label>Children Names</label><input type="text" name="children_names" value="<?php echo htmlspecialchars($selectedPersonnel['children_names'] ?? ''); ?>"></div>
                     <div class="form-group full-width"><label>Family Notes</label><textarea name="family_notes" rows="2"><?php echo htmlspecialchars($selectedPersonnel['family_notes'] ?? ''); ?></textarea></div>
                 </div>
                 
-                <!-- Education Section -->
                 <div class="form-section-title"><i class="fas fa-graduation-cap"></i> Education & Training</div>
                 <div class="modal-form-grid">
                     <div class="form-group full-width"><label>Academic Qualifications</label><textarea name="higher_education" rows="3"><?php echo htmlspecialchars($selectedPersonnel['higher_education'] ?? ''); ?></textarea></div>
                     <div class="form-group full-width"><label>Military Trainings</label><textarea name="military_trainings" rows="3"><?php echo htmlspecialchars($selectedPersonnel['military_trainings'] ?? ''); ?></textarea></div>
-                    
-                    <div class="form-group"><label>Professional Training 1</label><input type="text" name="training" value="<?php echo htmlspecialchars($selectedPersonnel['training'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 1 Location</label><input type="text" name="training_address" value="<?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? ''); ?>"></div>
-                    
-                    <div class="form-group"><label>Professional Training 2</label><input type="text" name="training1" value="<?php echo htmlspecialchars($selectedPersonnel['training1'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 2 Location</label><input type="text" name="training1_address" value="<?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? ''); ?>"></div>
-                    
-                    <div class="form-group"><label>Professional Training 3</label><input type="text" name="training2" value="<?php echo htmlspecialchars($selectedPersonnel['training2'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 3 Location</label><input type="text" name="training2_address" value="<?php echo htmlspecialchars($selectedPersonnel['training2_address'] ?? ''); ?>"></div>
-                    
-                    <div class="form-group"><label>Professional Training 4</label><input type="text" name="training3" value="<?php echo htmlspecialchars($selectedPersonnel['training3'] ?? ''); ?>"></div>
-                    
-                    <div class="form-group"><label>Professional Training 5</label><input type="text" name="training4" value="<?php echo htmlspecialchars($selectedPersonnel['training4'] ?? ''); ?>"></div>
-                    
-                    <div class="form-group"><label>Professional Training 6</label><input type="text" name="training5" value="<?php echo htmlspecialchars($selectedPersonnel['training5'] ?? ''); ?>"></div>
-                    
+                    <div class="form-group"><label>Training 1</label><input type="text" name="training" value="<?php echo htmlspecialchars($selectedPersonnel['training'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Location 1</label><input type="text" name="training_address" value="<?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Training 2</label><input type="text" name="training1" value="<?php echo htmlspecialchars($selectedPersonnel['training1'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Location 2</label><input type="text" name="training1_address" value="<?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Training 3</label><input type="text" name="training2" value="<?php echo htmlspecialchars($selectedPersonnel['training2'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Location 3</label><input type="text" name="training2_address" value="<?php echo htmlspecialchars($selectedPersonnel['training2_address'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Training 4</label><input type="text" name="training3" value="<?php echo htmlspecialchars($selectedPersonnel['training3'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Training 5</label><input type="text" name="training4" value="<?php echo htmlspecialchars($selectedPersonnel['training4'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Training 6</label><input type="text" name="training5" value="<?php echo htmlspecialchars($selectedPersonnel['training5'] ?? ''); ?>"></div>
                     <div class="form-group full-width"><label>Foreign Training</label><textarea name="foreign_training" rows="2"><?php echo htmlspecialchars($selectedPersonnel['foreign_training'] ?? ''); ?></textarea></div>
                 </div>
                 
@@ -569,178 +673,6 @@ ob_start();
 <?php endif; ?>
 
 <div id="toast" class="toast"></div>
-
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #f0f2f5; }
-    
-    .army-header {
-        background: linear-gradient(135deg, #0f2c24 0%, #1a5a4a 100%);
-        border-radius: 20px;
-        margin-bottom: 30px;
-        padding: 30px;
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .army-header::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -20%;
-        width: 60%;
-        height: 200%;
-        background: rgba(255, 215, 0, 0.05);
-        transform: rotate(35deg);
-        pointer-events: none;
-    }
-    
-    .army-header-content { display: flex; align-items: center; gap: 25px; position: relative; z-index: 1; }
-    .army-logo { width: 80px; height: 80px; background: rgba(255, 215, 0, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 42px; color: #ffd700; border: 2px solid rgba(255, 215, 0, 0.3); }
-    .army-title h1 { color: #ffd700; font-size: 28px; letter-spacing: 3px; margin-bottom: 5px; font-weight: 700; }
-    .army-title p { color: rgba(255, 255, 255, 0.85); font-size: 14px; letter-spacing: 1px; }
-    .army-title span { color: rgba(255, 215, 0, 0.8); font-size: 12px; font-weight: 500; }
-    
-    .personnel-list-section { background: white; border-radius: 20px; padding: 25px; margin-bottom: 30px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
-    .search-container { position: relative; max-width: 400px; margin-bottom: 25px; }
-    .search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 14px; }
-    .search-input { width: 100%; padding: 12px 20px 12px 45px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 14px; transition: all 0.3s; font-family: inherit; }
-    .search-input:focus { border-color: #1a5a4a; outline: none; box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1); }
-    .clear-search { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: #f1f5f9; border: none; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #64748b; font-size: 12px; }
-    
-    .personnel-table-container { overflow-x: auto; }
-    .personnel-table { width: 100%; border-collapse: collapse; }
-    .personnel-table th { text-align: left; padding: 15px; background: #f8fafc; color: #475569; font-weight: 600; font-size: 13px; border-bottom: 2px solid #e2e8f0; }
-    .personnel-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #334155; }
-    .personnel-row { cursor: pointer; transition: all 0.2s; }
-    .personnel-row:hover { background: #f8fafc; }
-    .personnel-row.active-row { background: linear-gradient(90deg, #e8f5e9, transparent); border-left: 3px solid #1a5a4a; }
-    .photo-cell { width: 55px; }
-    .table-profile-img { width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #1a5a4a; cursor: pointer; }
-    .table-avatar-placeholder { width: 42px; height: 42px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; cursor: pointer; border: 2px dashed #cbd5e1; color: #94a3b8; font-size: 18px; }
-    .status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-    .status-active { background: #d1fae5; color: #065f46; }
-    .status-leave { background: #fed7aa; color: #9a3412; }
-    .status-retired { background: #fee2e2; color: #991b1b; }
-    .view-profile-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #1a5a4a; color: white; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 500; transition: all 0.2s; }
-    .view-profile-btn:hover { background: #0f3d32; transform: translateY(-1px); }
-    
-    .premium-profile { background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
-    .profile-cover { background: linear-gradient(135deg, #1a5a4a, #0f3d32); height: 180px; position: relative; }
-    .cover-overlay { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,0.2), rgba(0,0,0,0.6)); }
-    .profile-avatar-wrapper { position: absolute; bottom: -50px; left: 40px; }
-    .profile-avatar { width: 130px; height: 130px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.2); cursor: pointer; background: white; }
-    .profile-avatar-placeholder { width: 130px; height: 130px; border-radius: 50%; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; border: 4px solid white; cursor: pointer; color: #ffd700; font-size: 55px; }
-    .avatar-edit-btn { position: absolute; bottom: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; background: #ffd700; border: 2px solid white; color: #1a5a4a; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-    .avatar-edit-btn:hover { transform: scale(1.1); }
-    .close-profile { position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.5); border: none; width: 40px; height: 40px; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
-    .close-profile:hover { background: rgba(220, 38, 38, 0.8); }
-    .profile-info-bar { padding: 20px 30px 20px 190px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; border-bottom: 1px solid #f1f5f9; }
-    .profile-name-section h2 { font-size: 24px; color: #1e293b; margin-bottom: 8px; font-weight: 700; }
-    .profile-badges { display: flex; gap: 12px; flex-wrap: wrap; }
-    .badge-rank, .badge-id, .badge-unit { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #f1f5f9; border-radius: 20px; font-size: 12px; color: #475569; }
-    .edit-main-btn { background: #1a5a4a; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .edit-main-btn:hover { background: #0f3d32; transform: translateY(-2px); }
-    
-    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 25px 30px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
-    .stat-card { display: flex; align-items: center; gap: 15px; background: white; padding: 15px 20px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-    .stat-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #e8f5e9, #c8e6d9); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #1a5a4a; }
-    .stat-info { flex: 1; }
-    .stat-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; display: block; }
-    .stat-value { font-size: 18px; font-weight: 700; color: #1e293b; display: block; margin-top: 4px; }
-    
-    .profile-tabs { display: flex; gap: 5px; padding: 0 30px; background: white; border-bottom: 1px solid #e2e8f0; }
-    .tab-btn { padding: 15px 25px; background: none; border: none; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; position: relative; }
-    .tab-btn:hover { color: #1a5a4a; }
-    .tab-btn.active { color: #1a5a4a; }
-    .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px; background: #1a5a4a; border-radius: 3px 3px 0 0; }
-    .tab-pane { display: none; padding: 30px; animation: fadeIn 0.3s ease; }
-    .tab-pane.active { display: block; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    
-    .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-    .info-item { background: #f8fafc; padding: 16px 20px; border-radius: 14px; transition: all 0.2s; }
-    .info-item:hover { background: #f1f5f9; transform: translateX(3px); }
-    .info-item.full-width { grid-column: span 2; }
-    .info-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-    .info-value { font-size: 15px; font-weight: 600; color: #1e293b; }
-    .blood-badge { display: inline-block; background: linear-gradient(135deg, #dc2626, #ef4444); color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; }
-    
-    .info-card { background: #f8fafc; border-radius: 16px; margin-bottom: 20px; overflow: hidden; }
-    .info-card-title { background: #f1f5f9; padding: 15px 20px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e2e8f0; }
-    .info-card-content { padding: 20px; line-height: 1.6; color: #475569; }
-    
-    .training-table-wrapper { overflow-x: auto; }
-    .training-table { width: 100%; border-collapse: collapse; }
-    .training-table th { padding: 12px 15px; text-align: left; background: #f1f5f9; font-weight: 600; font-size: 13px; color: #475569; }
-    .training-table td { padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #334155; }
-    
-    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
-    .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 900px; max-height: 85vh; overflow-y: auto; animation: modalSlide 0.3s ease; }
-    @keyframes modalSlide { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-    .modal-header { padding: 20px 25px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
-    .modal-header h3 { font-size: 20px; color: #1e293b; }
-    .modal-close, .modal-close-photo, .modal-close-view { font-size: 28px; cursor: pointer; color: #94a3b8; transition: all 0.2s; }
-    .modal-close:hover, .modal-close-photo:hover, .modal-close-view:hover { color: #dc2626; }
-    .modal-body { padding: 25px; }
-    
-    .form-section-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: #1a5a4a;
-        margin: 20px 0 15px 0;
-        padding-bottom: 8px;
-        border-bottom: 2px solid #e2e8f0;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .form-section-title:first-of-type { margin-top: 0; }
-    
-    .modal-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-group.full-width { grid-column: span 2; }
-    .form-group label { font-size: 12px; font-weight: 600; color: #475569; }
-    .form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-family: inherit; font-size: 14px; transition: all 0.2s; }
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #1a5a4a; outline: none; box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1); }
-    
-    .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
-    .btn-cancel { padding: 10px 20px; background: #f1f5f9; border: none; border-radius: 10px; cursor: pointer; font-weight: 500; }
-    .btn-submit { padding: 10px 24px; background: #1a5a4a; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; }
-    .btn-delete { padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-    
-    .photo-preview { text-align: center; margin-bottom: 20px; padding: 20px; background: #f8fafc; border-radius: 16px; }
-    .photo-preview img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #1a5a4a; }
-    .status-badge-lg { display: inline-flex; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
-    
-    .empty-state { text-align: center; padding: 60px; background: white; border-radius: 24px; }
-    .empty-state i { font-size: 64px; color: #cbd5e1; margin-bottom: 20px; }
-    .empty-state h3 { font-size: 20px; color: #475569; margin-bottom: 8px; }
-    
-    .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 24px; border-radius: 12px; font-size: 14px; z-index: 1100; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-    
-    .pagination-wrapper { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 15px; }
-    .pagination-info { font-size: 13px; color: #64748b; }
-    .pagination { display: flex; gap: 6px; flex-wrap: wrap; }
-    .page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; color: #475569; text-decoration: none; font-size: 13px; transition: all 0.2s; }
-    .page-btn:hover { border-color: #1a5a4a; color: #1a5a4a; }
-    .page-btn.active { background: #1a5a4a; border-color: #1a5a4a; color: white; }
-    
-    @media (max-width: 768px) {
-        .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        .info-grid { grid-template-columns: 1fr; }
-        .info-item.full-width { grid-column: span 1; }
-        .profile-info-bar { padding: 20px; }
-        .profile-avatar-wrapper { left: 20px; }
-        .profile-avatar, .profile-avatar-placeholder { width: 90px; height: 90px; }
-        .profile-info-bar { padding-left: 130px; }
-        .profile-tabs { overflow-x: auto; }
-        .modal-form-grid { grid-template-columns: 1fr; }
-        .form-group.full-width { grid-column: span 1; }
-    }
-</style>
 
 <script>
     const searchInput = document.getElementById('personnelSearch');
@@ -901,6 +833,9 @@ ob_start();
     window.editProfilePhoto = editProfilePhoto;
     window.viewProfilePhoto = viewProfilePhoto;
 </script>
+
+</body>
+</html>
 
 <?php
 $content = ob_get_clean();

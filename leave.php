@@ -891,21 +891,95 @@ ob_start();
         .btn-view-action { background: #17a2b8; color: white; }
         .btn-pass-action { background: #6f42c1; color: white; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-        .modal-content { background: white; margin: 5% auto; width: 90%; max-width: 600px; border-radius: 10px; }
-        .modal-header { padding: 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
-        .modal-body { padding: 20px; }
+        .modal-content { background: white; margin: 5% auto; width: 90%; max-width: 700px; border-radius: 10px; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
         .input-field { margin-bottom: 15px; }
         .input-field label { display: block; margin-bottom: 5px; font-weight: 600; }
-        .input-field input, .input-field select, .input-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
+        .input-field input, .input-field select, .input-field textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; }
         .required-star { color: red; }
         .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
         .btn-cancel { background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
         .btn-submit { background: #007bff; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
         .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius: 5px; display: none; z-index: 1100; }
-        .info-box { background: #e7f3ff; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 13px; }
-        .close, .close-action { cursor: pointer; font-size: 24px; }
+        .info-box { background: #e7f3ff; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; border-left: 4px solid #007bff; }
+        .close, .close-action { cursor: pointer; font-size: 24px; line-height: 1; }
+        
+        /* Improved Approval Steps Styling */
+        .approval-steps {
+            margin-bottom: 25px;
+        }
+        .step-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid;
+            transition: all 0.2s ease;
+        }
+        .step-card.step-1 { border-left-color: #ffc107; }
+        .step-card.step-2 { border-left-color: #17a2b8; }
+        .step-card.step-3 { border-left-color: #28a745; }
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+            color: white;
+        }
+        .step-1 .step-number { background: #ffc107; }
+        .step-2 .step-number { background: #17a2b8; }
+        .step-3 .step-number { background: #28a745; }
+        .step-title {
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .step-1 .step-title { color: #856404; }
+        .step-2 .step-title { color: #004085; }
+        .step-3 .step-title { color: #155724; }
+        .step-desc {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 12px;
+            padding-left: 38px;
+        }
+        .step-card select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: white;
+        }
+        .officer-hint {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 5px;
+            padding-left: 38px;
+        }
+        
+        .date-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .readonly-field {
+            background: #e9ecef;
+            cursor: not-allowed;
+        }
         @media (max-width: 768px) {
             .stats-grid, .officer-actions, .balance-cards { grid-template-columns: 1fr; }
+            .date-group { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -1022,7 +1096,7 @@ ob_start();
                 </tr>
             </thead>
             <tbody id="leaveTableBody">
-                <tr><td colspan="13" style="text-align:center">Loading...<\/td><\/tr>
+                <tr><td colspan="13" style="text-align:center">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -1030,111 +1104,147 @@ ob_start();
     <div id="paginationContainer" class="pagination-container" style="margin-top:20px"></div>
 </div>
 
-<!-- New Leave Request Modal -->
+<!-- New Leave Request Modal - Improved Layout -->
 <div id="leaveModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>New Leave Request</h3>
+            <h3><i class="fas fa-paper-plane"></i> New Leave Request</h3>
             <span class="close">&times;</span>
         </div>
         <div class="modal-body">
             <form id="leaveForm">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 
-                <div class="input-field">
-                    <label>Personnel <span class="required-star">*</span></label>
-                    <select id="personnelId" required>
-                        <option value="">Select Personnel</option>
-                        <?php
-                        $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
-                        while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            echo "<option value='{$row['id']}'>" . htmlspecialchars($row['rank'] . ' ' . $row['personnel_name']) . "</option>";
-                        }
-                        ?>
-                    </select>
+                <!-- Personnel and Leave Type Row -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                    <div class="input-field">
+                        <label><i class="fas fa-user"></i> Personnel <span class="required-star">*</span></label>
+                        <select id="personnelId" required>
+                            <option value="">Select Personnel</option>
+                            <?php
+                            $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
+                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                echo "<option value='{$row['id']}'>" . htmlspecialchars($row['rank'] . ' ' . $row['personnel_name']) . "</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    
+                    <div class="input-field">
+                        <label><i class="fas fa-tag"></i> Leave Type <span class="required-star">*</span></label>
+                        <select id="leaveType" required>
+                            <option value="">Select Type</option>
+                            <option value="gharpari_bida">🏠 Gharpari Bida (Home Leave)</option>
+                            <option value="parba_bida">🎉 Parba Bida (Festival Leave)</option>
+                            <option value="bhaeepari_bida">🤝 Bhaeepari Bida (Family/Friends Leave)</option>
+                        </select>
+                    </div>
                 </div>
                 
-                <div class="input-field">
-                    <label>Leave Type <span class="required-star">*</span></label>
-                    <select id="leaveType" required>
-                        <option value="">Select Type</option>
-                        <option value="gharpari_bida">🏠 Gharpari Bida</option>
-                        <option value="parba_bida">🎉 Parba Bida</option>
-                        <option value="bhaeepari_bida">🤝 Bhaeepari Bida</option>
-                    </select>
-                </div>
-                
+                <!-- Workflow Info Box -->
                 <div class="info-box">
-                    <strong>Three-Level Approval Workflow:</strong><br>
-                    1. Receiving Officer receives and verifies<br>
-                    2. Initiating Officer approves<br>
+                    <i class="fas fa-info-circle"></i> <strong>Three-Level Approval Workflow:</strong><br>
+                    1. Receiving Officer receives and verifies the request<br>
+                    2. Initiating Officer approves after verification<br>
                     3. Accepting Officer gives final approval
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
-                    <div class="input-field">
-                        <label>प्राप्त गर्ने (Receiving Officer) <span class="required-star">*</span></label>
+                <!-- Approval Steps - Clean and Spacious -->
+                <div class="approval-steps">
+                    <!-- Step 1: Receiving Officer -->
+                    <div class="step-card step-1">
+                        <div class="step-header">
+                            <span class="step-number">1</span>
+                            <span class="step-title">📬 Receiving Officer (प्राप्त गर्ने)</span>
+                        </div>
+                        <div class="step-desc">
+                            This person will receive and verify the request first
+                        </div>
                         <select id="receivingOfficer" required>
-                            <option value="">Select Receiving Officer</option>
+                            <option value="">-- Select Receiving Officer --</option>
                             <?php foreach ($officers as $officer): ?>
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Step 1: This person will receive and verify the request</small>
+                        <div class="officer-hint">
+                            <i class="fas fa-arrow-right"></i> Step 1: Initial verification
+                        </div>
                     </div>
                     
-                    <div class="input-field">
-                        <label>Initiating Officer <span class="required-star">*</span></label>
+                    <!-- Step 2: Initiating Officer -->
+                    <div class="step-card step-2">
+                        <div class="step-header">
+                            <span class="step-number">2</span>
+                            <span class="step-title">✍️ Initiating Officer</span>
+                        </div>
+                        <div class="step-desc">
+                            First level approval after receiving officer verification
+                        </div>
                         <select id="initiatingOfficer" required>
-                            <option value="">Select Initiating Officer</option>
+                            <option value="">-- Select Initiating Officer --</option>
                             <?php foreach ($officers as $officer): ?>
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Step 2: First level approval after receiving</small>
+                        <div class="officer-hint">
+                            <i class="fas fa-arrow-right"></i> Step 2: First level approval
+                        </div>
                     </div>
                     
-                    <div class="input-field">
-                        <label>Accepting Officer <span class="required-star">*</span></label>
+                    <!-- Step 3: Accepting Officer -->
+                    <div class="step-card step-3">
+                        <div class="step-header">
+                            <span class="step-number">3</span>
+                            <span class="step-title">✅ Accepting Officer</span>
+                        </div>
+                        <div class="step-desc">
+                            Final approval authority - grants the leave
+                        </div>
                         <select id="acceptingOfficer" required>
-                            <option value="">Select Accepting Officer</option>
+                            <option value="">-- Select Accepting Officer --</option>
                             <?php foreach ($officers as $officer): ?>
                                 <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <small>Step 3: Final approval</small>
+                        <div class="officer-hint">
+                            <i class="fas fa-arrow-right"></i> Step 3: Final approval
+                        </div>
                     </div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <!-- Date Selection -->
+                <div class="date-group">
                     <div class="input-field">
-                        <label>Start Date <span class="required-star">*</span></label>
+                        <label><i class="fas fa-calendar-alt"></i> Start Date <span class="required-star">*</span></label>
                         <input type="date" id="startDate" required>
                     </div>
                     <div class="input-field">
-                        <label>End Date <span class="required-star">*</span></label>
+                        <label><i class="fas fa-calendar-alt"></i> End Date <span class="required-star">*</span></label>
                         <input type="date" id="endDate" required>
                     </div>
                 </div>
                 
-                <div class="input-field">
-                    <label>Total Days</label>
-                    <input type="text" id="totalDays" readonly>
+                <!-- Leave Info Row -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div class="input-field">
+                        <label><i class="fas fa-clock"></i> Total Days</label>
+                        <input type="text" id="totalDays" class="readonly-field" readonly placeholder="Will be calculated automatically">
+                    </div>
+                    <div class="input-field">
+                        <label><i class="fas fa-chart-line"></i> Available Balance</label>
+                        <input type="text" id="availableBalance" class="readonly-field" readonly placeholder="Select leave type first">
+                    </div>
                 </div>
                 
+                <!-- Reason -->
                 <div class="input-field">
-                    <label>Available Balance</label>
-                    <input type="text" id="availableBalance" readonly>
-                </div>
-                
-                <div class="input-field">
-                    <label>Reason <span class="required-star">*</span></label>
-                    <textarea id="reason" rows="3" required></textarea>
+                    <label><i class="fas fa-comment"></i> Reason for Leave <span class="required-star">*</span></label>
+                    <textarea id="reason" rows="3" required placeholder="Please provide detailed reason for leave request..."></textarea>
                 </div>
                 
                 <div class="modal-buttons">
-                    <button type="button" class="btn-cancel" id="cancelBtn">Cancel</button>
-                    <button type="submit" class="btn-submit">Submit Request</button>
+                    <button type="button" class="btn-cancel" id="cancelBtn"><i class="fas fa-times"></i> Cancel</button>
+                    <button type="submit" class="btn-submit"><i class="fas fa-paper-plane"></i> Submit Request</button>
                 </div>
             </form>
         </div>
@@ -1156,7 +1266,7 @@ ob_start();
                 
                 <div class="input-field">
                     <label id="actionLabel">Remarks <span class="required-star">*</span></label>
-                    <textarea id="actionRemarks" rows="3"></textarea>
+                    <textarea id="actionRemarks" rows="3" placeholder="Enter your remarks here..."></textarea>
                 </div>
                 
                 <div class="modal-buttons">
@@ -1329,7 +1439,7 @@ ob_start();
     function renderTable(leaves) {
         const tbody = document.getElementById('leaveTableBody');
         if (!leaves || leaves.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center">No leave requests found<\/td><\/tr>';
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center">No leave requests found</td></tr>';
             return;
         }
         
@@ -1364,19 +1474,19 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${leave.id}</span></span>
-                <td>${escapeHtml(leave.personnel_name)}</span></span>
-                <td>${escapeHtml(leave.rank)}</span></span>
-                <td>${leave.leave_type}</span></span>
-                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</span></span>
-                <td>${leave.leave_days}</span></span>
-                <td>${escapeHtml((leave.reason || '').substring(0, 50))}</span></span>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></span></span>
-                <td>${leave.receiver_name || '-'}</span></span>
-                <td>${leave.verifying_officer_name || '-'}</span></span>
-                <td>${leave.initiating_officer_name || '-'}</span></span>
-                <td>${leave.accepting_officer_name || '-'}</span></span>
-                <td>${actions}</span></span>
+                <td>${leave.id}</td>
+                <td>${escapeHtml(leave.personnel_name)}</td>
+                <td>${escapeHtml(leave.rank)}</td>
+                <td>${leave.leave_type}</td>
+                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
+                <td>${leave.leave_days}</td>
+                <td>${escapeHtml((leave.reason || '').substring(0, 50))}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                <td>${leave.receiver_name || '-'}</td>
+                <td>${leave.verifying_officer_name || '-'}</td>
+                <td>${leave.initiating_officer_name || '-'}</td>
+                <td>${leave.accepting_officer_name || '-'}</td>
+                <td>${actions}</td>
             `;
         });
     }
@@ -1530,6 +1640,8 @@ ob_start();
 
     document.getElementById('startDate')?.addEventListener('change', calculateDays);
     document.getElementById('endDate')?.addEventListener('change', calculateDays);
+    document.getElementById('leaveType')?.addEventListener('change', calculateDays);
+    document.getElementById('personnelId')?.addEventListener('change', calculateDays);
 
     async function calculateDays() {
         const startDate = document.getElementById('startDate').value;
@@ -1538,7 +1650,7 @@ ob_start();
             const start = new Date(startDate);
             const end = new Date(endDate);
             const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-            document.getElementById('totalDays').value = days;
+            document.getElementById('totalDays').value = days + ' days';
             
             const personnelId = document.getElementById('personnelId').value;
             const leaveType = document.getElementById('leaveType').value;
