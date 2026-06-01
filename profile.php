@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-// Get total count for personnel
+// Get total count for personnel - FIXED to match your column names
 if (!empty($search_term)) {
     $searchTerm = "%$search_term%";
     $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM personnel WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ?");
@@ -220,6 +220,7 @@ ob_start();
     <title>Personnel Profile - Nepali Army</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Your existing CSS styles here - same as before */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -273,6 +274,7 @@ ob_start();
         .status-active { background: #d1fae5; color: #065f46; }
         .status-leave { background: #fed7aa; color: #9a3412; }
         .status-retired { background: #fee2e2; color: #991b1b; }
+        .status-training { background: #dbeafe; color: #1e40af; }
         .view-profile-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #1a5a4a; color: white; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 500; transition: all 0.2s; }
         .view-profile-btn:hover { background: #0f3d32; transform: translateY(-1px); }
         
@@ -427,7 +429,7 @@ ob_start();
                     data-personnel-number="<?php echo htmlspecialchars($person['personnel_number']); ?>">
                     <td class="sn-cell"><?php echo $offset + $index + 1; ?></td>
                     <td class="photo-cell">
-                        <?php if (!empty($person['profile_picture_path'])): ?>
+                        <?php if (!empty($person['profile_picture_path']) && file_exists($person['profile_picture_path'])): ?>
                             <img src="<?php echo htmlspecialchars($person['profile_picture_path']); ?>" 
                                  class="table-profile-img"
                                  onclick="event.stopPropagation(); viewProfilePhoto('<?php echo htmlspecialchars($person['profile_picture_path']); ?>', '<?php echo htmlspecialchars($person['full_name_en']); ?>')">
@@ -447,7 +449,7 @@ ob_start();
                 <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
-        </tr>
+        </table>
     </div>
     
     <div class="pagination-wrapper">
@@ -480,7 +482,7 @@ ob_start();
     <div class="profile-cover">
         <div class="cover-overlay"></div>
         <div class="profile-avatar-wrapper">
-            <?php if (!empty($selectedPersonnel['profile_picture_path'])): ?>
+            <?php if (!empty($selectedPersonnel['profile_picture_path']) && file_exists($selectedPersonnel['profile_picture_path'])): ?>
                 <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>" class="profile-avatar" onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
             <?php else: ?>
                 <div class="profile-avatar-placeholder" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
@@ -547,11 +549,11 @@ ob_start();
     </div>
     
     <div class="tab-pane" id="education-tab">
-        <div class="info-card"><div class="info-card-title"><i class="fas fa-graduation-cap"></i> Academic Qualifications</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['higher_education'] ?? 'B.E Computer Engineering')); ?></div></div>
+        <div class="info-card"><div class="info-card-title"><i class="fas fa-graduation-cap"></i> Academic Qualifications</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['higher_education'] ?? 'Not specified')); ?></div></div>
     </div>
     
     <div class="tab-pane" id="training-tab">
-        <div class="info-card"><div class="info-card-title"><i class="fas fa-shield-alt"></i> Military Trainings</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['military_trainings'] ?? 'Basic Cybersecurity Course')); ?></div></div>
+        <div class="info-card"><div class="info-card-title"><i class="fas fa-shield-alt"></i> Military Trainings</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['military_trainings'] ?? 'Not specified')); ?></div></div>
         <div class="info-card"><div class="info-card-title"><i class="fas fa-chalkboard-teacher"></i> Professional Trainings</div><div class="training-table-wrapper"><table class="training-table"><thead><tr><th>S.No</th><th>Training Name</th><th>Location</th></tr></thead><tbody>
             <tr><td>1</td><td><?php echo htmlspecialchars($selectedPersonnel['training'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? '-'); ?></td></tr>
             <tr><td>2</td><td><?php echo htmlspecialchars($selectedPersonnel['training1'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? '-'); ?></td></tr>
