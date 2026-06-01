@@ -16,6 +16,18 @@ try {
     die("Connection failed: " . $e->getMessage());
 }
 
+// Helper function to decode JSON trainings
+function decodeTrainings($jsonData) {
+    if (empty($jsonData) || $jsonData === 'null' || $jsonData === 'NULL') {
+        return [];
+    }
+    $decoded = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return [];
+    }
+    return is_array($decoded) ? $decoded : [];
+}
+
 // Pagination variables
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $limit = 10;
@@ -125,46 +137,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $family_notes = trim($_POST['family_notes'] ?? '');
         $higher_education = trim($_POST['higher_education'] ?? '');
         $military_trainings = trim($_POST['military_trainings'] ?? '');
-        $training = trim($_POST['training'] ?? '');
-        $training_address = trim($_POST['training_address'] ?? '');
-        $training1 = trim($_POST['training1'] ?? '');
-        $training1_address = trim($_POST['training1_address'] ?? '');
-        $training2 = trim($_POST['training2'] ?? '');
-        $training2_address = trim($_POST['training2_address'] ?? '');
-        $training3 = trim($_POST['training3'] ?? '');
-        $training4 = trim($_POST['training4'] ?? '');
-        $training5 = trim($_POST['training5'] ?? '');
-        $foreign_training = trim($_POST['foreign_training'] ?? '');
+        
+        // Handle dynamic professional trainings
+        $professional_trainings = [];
+        if (isset($_POST['professional_trainings']) && is_array($_POST['professional_trainings'])) {
+            $trainings = array_values($_POST['professional_trainings']);
+            foreach ($trainings as $training) {
+                if (isset($training['name']) && !empty(trim($training['name']))) {
+                    $professional_trainings[] = [
+                        'name' => trim($training['name']),
+                        'address' => isset($training['address']) ? trim($training['address']) : '',
+                        'year' => isset($training['year']) ? trim($training['year']) : '',
+                        'duration' => isset($training['duration']) ? trim($training['duration']) : '',
+                        'institution' => isset($training['institution']) ? trim($training['institution']) : ''
+                    ];
+                }
+            }
+        }
+        $professional_trainings_json = !empty($professional_trainings) ? json_encode($professional_trainings, JSON_UNESCAPED_UNICODE) : null;
+        
+        // Handle dynamic foreign trainings
+        $foreign_trainings = [];
+        if (isset($_POST['foreign_trainings']) && is_array($_POST['foreign_trainings'])) {
+            $foreign = array_values($_POST['foreign_trainings']);
+            foreach ($foreign as $training) {
+                if (isset($training['name']) && !empty(trim($training['name']))) {
+                    $foreign_trainings[] = [
+                        'name' => trim($training['name']),
+                        'country' => isset($training['country']) ? trim($training['country']) : '',
+                        'year' => isset($training['year']) ? trim($training['year']) : '',
+                        'duration' => isset($training['duration']) ? trim($training['duration']) : '',
+                        'institution' => isset($training['institution']) ? trim($training['institution']) : ''
+                    ];
+                }
+            }
+        }
+        $foreign_trainings_json = !empty($foreign_trainings) ? json_encode($foreign_trainings, JSON_UNESCAPED_UNICODE) : null;
+        
         $current_status = trim($_POST['current_status'] ?? 'Active');
         
-        $stmt = $pdo->prepare("
-            UPDATE personnel 
-            SET full_name_en = ?, full_name_ne = ?, dob = ?, gender = ?, blood_group = ?,
-                `rank` = ?, unit = ?, email = ?, contact = ?, phone = ?, address = ?,
-                religion = ?, military_status = ?, recruitment_date = ?, commission_date = ?,
-                father_name = ?, mother_name = ?, spouse_name = ?, grandfather_name = ?,
-                children_names = ?, family_notes = ?, higher_education = ?, military_trainings = ?,
-                training = ?, training_address = ?, training1 = ?, training1_address = ?, 
-                training2 = ?, training2_address = ?, training3 = ?, training4 = ?, 
-                training5 = ?, foreign_training = ?, current_status = ?, updated_at = NOW()
-            WHERE personnel_number = ?
-        ");
+        $sql = "UPDATE personnel 
+                SET full_name_en = ?, full_name_ne = ?, dob = ?, gender = ?, blood_group = ?,
+                    `rank` = ?, unit = ?, email = ?, contact = ?, phone = ?, address = ?,
+                    religion = ?, military_status = ?, recruitment_date = ?, commission_date = ?,
+                    father_name = ?, mother_name = ?, spouse_name = ?, grandfather_name = ?,
+                    children_names = ?, family_notes = ?, higher_education = ?, military_trainings = ?,
+                    professional_trainings = ?, foreign_trainings = ?, current_status = ?, updated_at = NOW()
+                WHERE personnel_number = ?";
         
+        $stmt = $pdo->prepare($sql);
         $result = $stmt->execute([
             $full_name_en, $full_name_ne, $dob, $gender, $blood_group,
             $rank, $unit, $email, $contact, $phone, $address,
             $religion, $military_status, $recruitment_date, $commission_date,
             $father_name, $mother_name, $spouse_name, $grandfather_name,
             $children_names, $family_notes, $higher_education, $military_trainings,
-            $training, $training_address, $training1, $training1_address,
-            $training2, $training2_address, $training3, $training4,
-            $training5, $foreign_training, $current_status, $personnel_number
+            $professional_trainings_json, $foreign_trainings_json, $current_status, $personnel_number
         ]);
         
         if ($result) {
             echo json_encode(['success' => true, 'message' => 'Profile updated successfully']);
         } else {
-            echo json_encode(['success' => false, 'error' => 'Failed to update profile']);
+            $error = $stmt->errorInfo();
+            echo json_encode(['success' => false, 'error' => 'Database error: ' . ($error[2] ?? 'Unknown error')]);
         }
         exit;
     }
@@ -173,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     exit;
 }
 
-// Get total count for personnel - FIXED to match your column names
+// Get total count for personnel
 if (!empty($search_term)) {
     $searchTerm = "%$search_term%";
     $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM personnel WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ?");
@@ -195,10 +230,18 @@ $totalPages = ceil($totalRecords / $limit);
 
 // Get selected personnel
 $selectedPersonnel = null;
+$professional_trainings_list = [];
+$foreign_trainings_list = [];
+
 if ($selected_personnel_number) {
     $stmt = $pdo->prepare("SELECT * FROM personnel WHERE personnel_number = ?");
     $stmt->execute([$selected_personnel_number]);
     $selectedPersonnel = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($selectedPersonnel) {
+        $professional_trainings_list = decodeTrainings($selectedPersonnel['professional_trainings'] ?? '');
+        $foreign_trainings_list = decodeTrainings($selectedPersonnel['foreign_trainings'] ?? '');
+    }
 }
 
 function calculateYearsOfService($join_date) {
@@ -220,7 +263,7 @@ ob_start();
     <title>Personnel Profile - Nepali Army</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Your existing CSS styles here - same as before */
+        /* All your existing styles remain the same */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -274,9 +317,28 @@ ob_start();
         .status-active { background: #d1fae5; color: #065f46; }
         .status-leave { background: #fed7aa; color: #9a3412; }
         .status-retired { background: #fee2e2; color: #991b1b; }
-        .status-training { background: #dbeafe; color: #1e40af; }
         .view-profile-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #1a5a4a; color: white; border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 500; transition: all 0.2s; }
         .view-profile-btn:hover { background: #0f3d32; transform: translateY(-1px); }
+        
+        .download-profile-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .download-profile-btn:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
         
         .premium-profile { background: white; border-radius: 24px; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
         .profile-cover { background: linear-gradient(135deg, #1a5a4a, #0f3d32); height: 180px; position: relative; }
@@ -292,10 +354,8 @@ ob_start();
         .profile-name-section h2 { font-size: 24px; color: #1e293b; margin-bottom: 8px; font-weight: 700; }
         .profile-badges { display: flex; gap: 12px; flex-wrap: wrap; }
         .badge-rank, .badge-id, .badge-unit { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #f1f5f9; border-radius: 20px; font-size: 12px; color: #475569; }
-        .edit-main-btn { background: #1a5a4a; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+        .edit-main-btn { background: #1a5a4a; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
         .edit-main-btn:hover { background: #0f3d32; transform: translateY(-2px); }
-        .print-profile-btn { background: #2563eb; color: white; border: none; padding: 10px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
-        .print-profile-btn:hover { background: #1d4ed8; transform: translateY(-2px); }
         
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; padding: 25px 30px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
         .stat-card { display: flex; align-items: center; gap: 15px; background: white; padding: 15px 20px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
@@ -331,7 +391,7 @@ ob_start();
         .training-table td { padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #334155; }
         
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
-        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 900px; max-height: 85vh; overflow-y: auto; animation: modalSlide 0.3s ease; }
+        .modal-content { background: white; border-radius: 24px; width: 90%; max-width: 1000px; max-height: 85vh; overflow-y: auto; animation: modalSlide 0.3s ease; }
         @keyframes modalSlide { from { transform: translateY(-30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .modal-header { padding: 20px 25px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 1; }
         .modal-header h3 { font-size: 20px; color: #1e293b; }
@@ -339,14 +399,78 @@ ob_start();
         .modal-close:hover, .modal-close-photo:hover, .modal-close-view:hover { color: #dc2626; }
         .modal-body { padding: 25px; }
         
-        .form-section-title { font-size: 16px; font-weight: 700; color: #1a5a4a; margin: 20px 0 15px 0; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 10px; }
+        .form-section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a5a4a;
+            margin: 20px 0 15px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
         .form-section-title:first-of-type { margin-top: 0; }
+        
         .modal-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-group.full-width { grid-column: span 2; }
         .form-group label { font-size: 12px; font-weight: 600; color: #475569; }
         .form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-family: inherit; font-size: 14px; transition: all 0.2s; }
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #1a5a4a; outline: none; box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1); }
+        
+        .dynamic-training-item {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+        .dynamic-training-item .remove-training {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .dynamic-training-item .remove-training:hover {
+            background: #dc2626;
+            color: white;
+        }
+        .add-training-btn {
+            background: #1a5a4a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+        .add-training-btn:hover {
+            background: #0f3d32;
+        }
+        .training-header {
+            font-weight: 600;
+            color: #1a5a4a;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
         .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
         .btn-cancel { padding: 10px 20px; background: #f1f5f9; border: none; border-radius: 10px; cursor: pointer; font-weight: 500; }
         .btn-submit { padding: 10px 24px; background: #1a5a4a; color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; }
@@ -355,16 +479,25 @@ ob_start();
         .photo-preview { text-align: center; margin-bottom: 20px; padding: 20px; background: #f8fafc; border-radius: 16px; }
         .photo-preview img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid #1a5a4a; }
         .status-badge-lg { display: inline-flex; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+        
         .empty-state { text-align: center; padding: 60px; background: white; border-radius: 24px; }
         .empty-state i { font-size: 64px; color: #cbd5e1; margin-bottom: 20px; }
         .empty-state h3 { font-size: 20px; color: #475569; margin-bottom: 8px; }
+        
         .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: white; padding: 12px 24px; border-radius: 12px; font-size: 14px; z-index: 1100; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        
         .pagination-wrapper { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; gap: 15px; }
         .pagination-info { font-size: 13px; color: #64748b; }
         .pagination { display: flex; gap: 6px; flex-wrap: wrap; }
         .page-btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; color: #475569; text-decoration: none; font-size: 13px; transition: all 0.2s; }
         .page-btn:hover { border-color: #1a5a4a; color: #1a5a4a; }
         .page-btn.active { background: #1a5a4a; border-color: #1a5a4a; color: white; }
+        
+        .action-buttons-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
         
         @media (max-width: 768px) {
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -377,6 +510,8 @@ ob_start();
             .profile-tabs { overflow-x: auto; }
             .modal-form-grid { grid-template-columns: 1fr; }
             .form-group.full-width { grid-column: span 1; }
+            .action-buttons-group { flex-direction: column; width: 100%; }
+            .edit-main-btn, .download-profile-btn { width: 100%; justify-content: center; }
         }
     </style>
 </head>
@@ -429,7 +564,7 @@ ob_start();
                     data-personnel-number="<?php echo htmlspecialchars($person['personnel_number']); ?>">
                     <td class="sn-cell"><?php echo $offset + $index + 1; ?></td>
                     <td class="photo-cell">
-                        <?php if (!empty($person['profile_picture_path']) && file_exists($person['profile_picture_path'])): ?>
+                        <?php if (!empty($person['profile_picture_path'])): ?>
                             <img src="<?php echo htmlspecialchars($person['profile_picture_path']); ?>" 
                                  class="table-profile-img"
                                  onclick="event.stopPropagation(); viewProfilePhoto('<?php echo htmlspecialchars($person['profile_picture_path']); ?>', '<?php echo htmlspecialchars($person['full_name_en']); ?>')">
@@ -449,7 +584,7 @@ ob_start();
                 <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
-        </table>
+         </table>
     </div>
     
     <div class="pagination-wrapper">
@@ -479,21 +614,27 @@ ob_start();
 
 <!-- Premium Profile Card -->
 <div class="premium-profile" id="profileContainer">
+    <!-- Cover Image Section -->
     <div class="profile-cover">
         <div class="cover-overlay"></div>
         <div class="profile-avatar-wrapper">
-            <?php if (!empty($selectedPersonnel['profile_picture_path']) && file_exists($selectedPersonnel['profile_picture_path'])): ?>
-                <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>" class="profile-avatar" onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+            <?php if (!empty($selectedPersonnel['profile_picture_path'])): ?>
+                <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>" 
+                     class="profile-avatar" id="mainProfilePhoto"
+                     onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
             <?php else: ?>
-                <div class="profile-avatar-placeholder" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+                <div class="profile-avatar-placeholder" id="mainProfilePhoto" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
                     <i class="fas fa-user"></i>
                 </div>
             <?php endif; ?>
-            <button class="avatar-edit-btn" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')"><i class="fas fa-camera"></i></button>
+            <button class="avatar-edit-btn" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+                <i class="fas fa-camera"></i>
+            </button>
         </div>
         <button class="close-profile" id="closeProfileBtn"><i class="fas fa-times"></i></button>
     </div>
     
+    <!-- Profile Info Bar -->
     <div class="profile-info-bar">
         <div class="profile-name-section">
             <h2><?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?></h2>
@@ -503,19 +644,47 @@ ob_start();
                 <span class="badge-unit"><i class="fas fa-building"></i> <?php echo htmlspecialchars($selectedPersonnel['unit'] ?? 'Corps of Engineers'); ?></span>
             </div>
         </div>
-        <div style="display: flex; gap: 12px;">
+        <div class="action-buttons-group">
             <button class="edit-main-btn" id="editProfileBtn"><i class="fas fa-edit"></i> Edit Profile</button>
-            <button class="print-profile-btn" id="printProfileBtn" onclick="window.open('print_profile.php?personnel_number=<?php echo urlencode($selectedPersonnel['personnel_number']); ?>', '_blank')"><i class="fas fa-print"></i> Print A4 Profile</button>
+            <a href="print_profile.php?personnel_number=<?php echo urlencode($selectedPersonnel['personnel_number']); ?>" class="download-profile-btn" target="_blank">
+                <i class="fas fa-download"></i> Download Profile
+            </a>
         </div>
     </div>
     
+    <!-- Stats Cards -->
     <div class="stats-grid">
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-calendar-alt"></i></div><div class="stat-info"><span class="stat-label">Years of Service</span><span class="stat-value"><?php echo calculateYearsOfService($selectedPersonnel['recruitment_date'] ?? null); ?></span></div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-tint"></i></div><div class="stat-info"><span class="stat-label">Blood Group</span><span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? 'AB+'); ?></span></div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-flag-checkered"></i></div><div class="stat-info"><span class="stat-label">Status</span><span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['current_status'] ?? 'Active'); ?></span></div></div>
-        <div class="stat-card"><div class="stat-icon"><i class="fas fa-envelope"></i></div><div class="stat-info"><span class="stat-label">Email</span><span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['email'] ?? 'Not provided'); ?></span></div></div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+            <div class="stat-info">
+                <span class="stat-label">Years of Service</span>
+                <span class="stat-value"><?php echo calculateYearsOfService($selectedPersonnel['recruitment_date'] ?? null); ?></span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-tint"></i></div>
+            <div class="stat-info">
+                <span class="stat-label">Blood Group</span>
+                <span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? 'AB+'); ?></span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-flag-checkered"></i></div>
+            <div class="stat-info">
+                <span class="stat-label">Status</span>
+                <span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['current_status'] ?? 'Active'); ?></span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-envelope"></i></div>
+            <div class="stat-info">
+                <span class="stat-label">Email</span>
+                <span class="stat-value"><?php echo htmlspecialchars($selectedPersonnel['email'] ?? 'Not provided'); ?></span>
+            </div>
+        </div>
     </div>
     
+    <!-- Tabs Navigation -->
     <div class="profile-tabs">
         <button class="tab-btn active" data-tab="personal"><i class="fas fa-user"></i> Personal</button>
         <button class="tab-btn" data-tab="official"><i class="fas fa-briefcase"></i> Official</button>
@@ -524,6 +693,7 @@ ob_start();
         <button class="tab-btn" data-tab="family"><i class="fas fa-users"></i> Family</button>
     </div>
     
+    <!-- Tab Content: Personal Details -->
     <div class="tab-pane active" id="personal-tab">
         <div class="info-grid">
             <div class="info-item"><div class="info-label"><i class="fas fa-building"></i> Unit</div><div class="info-value"><?php echo htmlspecialchars($selectedPersonnel['unit'] ?? 'Corps of Engineers'); ?></div></div>
@@ -539,6 +709,7 @@ ob_start();
         </div>
     </div>
     
+    <!-- Tab Content: Official Details -->
     <div class="tab-pane" id="official-tab">
         <div class="info-grid">
             <div class="info-item"><div class="info-label"><i class="fas fa-calendar-plus"></i> Enrollment Date</div><div class="info-value"><?php echo $selectedPersonnel['recruitment_date'] && $selectedPersonnel['recruitment_date'] != '0000-00-00' ? date('F j, Y', strtotime($selectedPersonnel['recruitment_date'])) : 'N/A'; ?></div></div>
@@ -548,23 +719,93 @@ ob_start();
         </div>
     </div>
     
+    <!-- Tab Content: Education -->
     <div class="tab-pane" id="education-tab">
-        <div class="info-card"><div class="info-card-title"><i class="fas fa-graduation-cap"></i> Academic Qualifications</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['higher_education'] ?? 'Not specified')); ?></div></div>
+        <div class="info-card">
+            <div class="info-card-title"><i class="fas fa-graduation-cap"></i> Academic Qualifications</div>
+            <div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['higher_education'] ?? 'B.E Computer Engineering')); ?></div>
+        </div>
     </div>
     
+    <!-- Tab Content: Training - With Professional & Foreign Trainings -->
     <div class="tab-pane" id="training-tab">
-        <div class="info-card"><div class="info-card-title"><i class="fas fa-shield-alt"></i> Military Trainings</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['military_trainings'] ?? 'Not specified')); ?></div></div>
-        <div class="info-card"><div class="info-card-title"><i class="fas fa-chalkboard-teacher"></i> Professional Trainings</div><div class="training-table-wrapper"><table class="training-table"><thead><tr><th>S.No</th><th>Training Name</th><th>Location</th></tr></thead><tbody>
-            <tr><td>1</td><td><?php echo htmlspecialchars($selectedPersonnel['training'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? '-'); ?></td></tr>
-            <tr><td>2</td><td><?php echo htmlspecialchars($selectedPersonnel['training1'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? '-'); ?></td></tr>
-            <tr><td>3</td><td><?php echo htmlspecialchars($selectedPersonnel['training2'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training2_address'] ?? '-'); ?></td></tr>
-            <tr><td>4</td><td><?php echo htmlspecialchars($selectedPersonnel['training3'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training3'] ?? '-'); ?></td></tr>
-            <tr><td>5</td><td><?php echo htmlspecialchars($selectedPersonnel['training4'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training4'] ?? '-'); ?></td></tr>
-            <tr><td>6</td><td><?php echo htmlspecialchars($selectedPersonnel['training5'] ?? '-'); ?></td><td><?php echo htmlspecialchars($selectedPersonnel['training5'] ?? '-'); ?></td></tr>
-        </tbody></table></div></div>
-        <div class="info-card"><div class="info-card-title"><i class="fas fa-globe"></i> Foreign Training</div><div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['foreign_training'] ?? 'Not specified')); ?></div></div>
+        <div class="info-card">
+            <div class="info-card-title"><i class="fas fa-shield-alt"></i> Military Trainings</div>
+            <div class="info-card-content"><?php echo nl2br(htmlspecialchars($selectedPersonnel['military_trainings'] ?? 'Basic Cybersecurity Course')); ?></div>
+        </div>
+        
+        <!-- Professional Trainings -->
+        <div class="info-card">
+            <div class="info-card-title"><i class="fas fa-chalkboard-teacher"></i> Professional Trainings</div>
+            <?php if (!empty($professional_trainings_list)): ?>
+            <div class="training-table-wrapper">
+                <table class="training-table">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Training Name</th>
+                            <th>Location/Address</th>
+                            <th>Year</th>
+                            <th>Duration</th>
+                            <th>Institution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($professional_trainings_list as $index => $training): ?>
+                        <tr>
+                            <td><?php echo $index + 1; ?></td>
+                            <td><?php echo htmlspecialchars($training['name'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['address'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['year'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['duration'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['institution'] ?? '-'); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php else: ?>
+            <div class="info-card-content">No professional trainings recorded.</div>
+            <?php endif; ?>
+        </div>
+        
+        <!-- Foreign Trainings -->
+        <div class="info-card">
+            <div class="info-card-title"><i class="fas fa-globe"></i> Foreign Trainings</div>
+            <?php if (!empty($foreign_trainings_list)): ?>
+            <div class="training-table-wrapper">
+                <table class="training-table">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Training Name</th>
+                            <th>Country</th>
+                            <th>Year</th>
+                            <th>Duration</th>
+                            <th>Institution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($foreign_trainings_list as $index => $training): ?>
+                        <tr>
+                            <td><?php echo $index + 1; ?></td>
+                            <td><?php echo htmlspecialchars($training['name'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['country'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['year'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['duration'] ?? '-'); ?></td>
+                            <td><?php echo htmlspecialchars($training['institution'] ?? '-'); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <?php else: ?>
+            <div class="info-card-content">No foreign trainings recorded.</div>
+            <?php endif; ?>
+        </div>
     </div>
     
+    <!-- Tab Content: Family -->
     <div class="tab-pane" id="family-tab">
         <div class="info-grid">
             <div class="info-item"><div class="info-label"><i class="fas fa-male"></i> Father's Name</div><div class="info-value"><?php echo htmlspecialchars($selectedPersonnel['father_name'] ?? 'Not specified'); ?></div></div>
@@ -588,6 +829,7 @@ ob_start();
             <form id="editProfileForm">
                 <input type="hidden" name="personnel_number" value="<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>">
                 
+                <!-- Personal Information Section -->
                 <div class="form-section-title"><i class="fas fa-user-circle"></i> Personal Information</div>
                 <div class="modal-form-grid">
                     <div class="form-group"><label>Full Name (English)</label><input type="text" name="full_name_en" value="<?php echo htmlspecialchars($selectedPersonnel['full_name_en'] ?? ''); ?>"></div>
@@ -596,14 +838,15 @@ ob_start();
                     <div class="form-group"><label>Unit</label><input type="text" name="unit" value="<?php echo htmlspecialchars($selectedPersonnel['unit'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Date of Birth</label><input type="date" name="dob" value="<?php echo $selectedPersonnel['dob'] && $selectedPersonnel['dob'] != '0000-00-00' ? $selectedPersonnel['dob'] : ''; ?>"></div>
                     <div class="form-group"><label>Gender</label><select name="gender"><option value="">Select</option><option value="Male" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Male' ? 'selected' : ''; ?>>Male</option><option value="Female" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Female' ? 'selected' : ''; ?>>Female</option><option value="Other" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Other' ? 'selected' : ''; ?>>Other</option></select></div>
-                    <div class="form-group"><label>Blood Group</label><input type="text" name="blood_group" value="<?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Blood Group</label><input type="text" name="blood_group" value="<?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? ''); ?>" placeholder="A+, B+, O+, etc."></div>
                     <div class="form-group"><label>Religion</label><input type="text" name="religion" value="<?php echo htmlspecialchars($selectedPersonnel['religion'] ?? 'Hindu'); ?>"></div>
                     <div class="form-group"><label>Email</label><input type="email" name="email" value="<?php echo htmlspecialchars($selectedPersonnel['email'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Contact/Mobile</label><input type="text" name="contact" value="<?php echo htmlspecialchars($selectedPersonnel['contact'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Phone</label><input type="text" name="phone" value="<?php echo htmlspecialchars($selectedPersonnel['phone'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Phone (Landline)</label><input type="text" name="phone" value="<?php echo htmlspecialchars($selectedPersonnel['phone'] ?? ''); ?>"></div>
                     <div class="form-group full-width"><label>Address</label><input type="text" name="address" value="<?php echo htmlspecialchars($selectedPersonnel['address'] ?? ''); ?>"></div>
                 </div>
                 
+                <!-- Official Details Section -->
                 <div class="form-section-title"><i class="fas fa-briefcase"></i> Official Details</div>
                 <div class="modal-form-grid">
                     <div class="form-group"><label>Military Status</label><select name="military_status"><option value="Single" <?php echo ($selectedPersonnel['military_status'] ?? '') == 'Single' ? 'selected' : ''; ?>>Single</option><option value="Married" <?php echo ($selectedPersonnel['military_status'] ?? '') == 'Married' ? 'selected' : ''; ?>>Married</option></select></div>
@@ -612,31 +855,95 @@ ob_start();
                     <div class="form-group"><label>Current Status</label><select name="current_status"><option value="Active" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Active' ? 'selected' : ''; ?>>Active</option><option value="Leave" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Leave' ? 'selected' : ''; ?>>Leave</option><option value="Retired" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Retired' ? 'selected' : ''; ?>>Retired</option><option value="Training" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Training' ? 'selected' : ''; ?>>Training</option></select></div>
                 </div>
                 
+                <!-- Family Information Section -->
                 <div class="form-section-title"><i class="fas fa-users"></i> Family Information</div>
                 <div class="modal-form-grid">
                     <div class="form-group"><label>Father's Name</label><input type="text" name="father_name" value="<?php echo htmlspecialchars($selectedPersonnel['father_name'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Mother's Name</label><input type="text" name="mother_name" value="<?php echo htmlspecialchars($selectedPersonnel['mother_name'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Spouse's Name</label><input type="text" name="spouse_name" value="<?php echo htmlspecialchars($selectedPersonnel['spouse_name'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Grandfather's Name</label><input type="text" name="grandfather_name" value="<?php echo htmlspecialchars($selectedPersonnel['grandfather_name'] ?? ''); ?>"></div>
-                    <div class="form-group full-width"><label>Children Names</label><input type="text" name="children_names" value="<?php echo htmlspecialchars($selectedPersonnel['children_names'] ?? ''); ?>"></div>
+                    <div class="form-group full-width"><label>Children Names</label><input type="text" name="children_names" value="<?php echo htmlspecialchars($selectedPersonnel['children_names'] ?? ''); ?>" placeholder="Comma separated names"></div>
                     <div class="form-group full-width"><label>Family Notes</label><textarea name="family_notes" rows="2"><?php echo htmlspecialchars($selectedPersonnel['family_notes'] ?? ''); ?></textarea></div>
                 </div>
                 
+                <!-- Education Section -->
                 <div class="form-section-title"><i class="fas fa-graduation-cap"></i> Education & Training</div>
                 <div class="modal-form-grid">
                     <div class="form-group full-width"><label>Academic Qualifications</label><textarea name="higher_education" rows="3"><?php echo htmlspecialchars($selectedPersonnel['higher_education'] ?? ''); ?></textarea></div>
                     <div class="form-group full-width"><label>Military Trainings</label><textarea name="military_trainings" rows="3"><?php echo htmlspecialchars($selectedPersonnel['military_trainings'] ?? ''); ?></textarea></div>
-                    <div class="form-group"><label>Training 1</label><input type="text" name="training" value="<?php echo htmlspecialchars($selectedPersonnel['training'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Location 1</label><input type="text" name="training_address" value="<?php echo htmlspecialchars($selectedPersonnel['training_address'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 2</label><input type="text" name="training1" value="<?php echo htmlspecialchars($selectedPersonnel['training1'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Location 2</label><input type="text" name="training1_address" value="<?php echo htmlspecialchars($selectedPersonnel['training1_address'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 3</label><input type="text" name="training2" value="<?php echo htmlspecialchars($selectedPersonnel['training2'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Location 3</label><input type="text" name="training2_address" value="<?php echo htmlspecialchars($selectedPersonnel['training2_address'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 4</label><input type="text" name="training3" value="<?php echo htmlspecialchars($selectedPersonnel['training3'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 5</label><input type="text" name="training4" value="<?php echo htmlspecialchars($selectedPersonnel['training4'] ?? ''); ?>"></div>
-                    <div class="form-group"><label>Training 6</label><input type="text" name="training5" value="<?php echo htmlspecialchars($selectedPersonnel['training5'] ?? ''); ?>"></div>
-                    <div class="form-group full-width"><label>Foreign Training</label><textarea name="foreign_training" rows="2"><?php echo htmlspecialchars($selectedPersonnel['foreign_training'] ?? ''); ?></textarea></div>
                 </div>
+                
+                <!-- Dynamic Professional Trainings Section -->
+                <div class="form-section-title"><i class="fas fa-chalkboard-teacher"></i> Professional Trainings</div>
+                <div id="professionalTrainingsContainer">
+                    <?php 
+                    if (!empty($professional_trainings_list)) {
+                        foreach ($professional_trainings_list as $index => $training): 
+                    ?>
+                    <div class="dynamic-training-item" data-index="<?php echo $index; ?>">
+                        <button type="button" class="remove-training" onclick="removeTrainingItem(this)"><i class="fas fa-trash"></i></button>
+                        <div class="training-header">Training #<?php echo $index + 1; ?></div>
+                        <div class="modal-form-grid">
+                            <div class="form-group full-width"><label>Training Name <span style="color: red;">*</span></label><input type="text" name="professional_trainings[<?php echo $index; ?>][name]" value="<?php echo htmlspecialchars($training['name'] ?? ''); ?>" placeholder="e.g., Project Management Professional"></div>
+                            <div class="form-group"><label>Location/Address</label><input type="text" name="professional_trainings[<?php echo $index; ?>][address]" value="<?php echo htmlspecialchars($training['address'] ?? ''); ?>" placeholder="Location"></div>
+                            <div class="form-group"><label>Year</label><input type="text" name="professional_trainings[<?php echo $index; ?>][year]" value="<?php echo htmlspecialchars($training['year'] ?? ''); ?>" placeholder="2023"></div>
+                            <div class="form-group"><label>Duration</label><input type="text" name="professional_trainings[<?php echo $index; ?>][duration]" value="<?php echo htmlspecialchars($training['duration'] ?? ''); ?>" placeholder="e.g., 3 months"></div>
+                            <div class="form-group"><label>Institution</label><input type="text" name="professional_trainings[<?php echo $index; ?>][institution]" value="<?php echo htmlspecialchars($training['institution'] ?? ''); ?>" placeholder="Institution name"></div>
+                        </div>
+                    </div>
+                    <?php 
+                        endforeach;
+                    } else { ?>
+                    <div class="dynamic-training-item" data-index="0">
+                        <button type="button" class="remove-training" onclick="removeTrainingItem(this)" style="display: none;"><i class="fas fa-trash"></i></button>
+                        <div class="training-header">Training #1</div>
+                        <div class="modal-form-grid">
+                            <div class="form-group full-width"><label>Training Name <span style="color: red;">*</span></label><input type="text" name="professional_trainings[0][name]" placeholder="e.g., Project Management Professional"></div>
+                            <div class="form-group"><label>Location/Address</label><input type="text" name="professional_trainings[0][address]" placeholder="Location"></div>
+                            <div class="form-group"><label>Year</label><input type="text" name="professional_trainings[0][year]" placeholder="2023"></div>
+                            <div class="form-group"><label>Duration</label><input type="text" name="professional_trainings[0][duration]" placeholder="e.g., 3 months"></div>
+                            <div class="form-group"><label>Institution</label><input type="text" name="professional_trainings[0][institution]" placeholder="Institution name"></div>
+                        </div>
+                    </div>
+                    <?php } ?>
+                </div>
+                <button type="button" class="add-training-btn" onclick="addProfessionalTraining()"><i class="fas fa-plus"></i> Add Professional Training</button>
+                
+                <!-- Dynamic Foreign Trainings Section -->
+                <div class="form-section-title"><i class="fas fa-globe"></i> Foreign Trainings</div>
+                <div id="foreignTrainingsContainer">
+                    <?php 
+                    if (!empty($foreign_trainings_list)) {
+                        foreach ($foreign_trainings_list as $index => $training): 
+                    ?>
+                    <div class="dynamic-training-item" data-index="<?php echo $index; ?>">
+                        <button type="button" class="remove-training" onclick="removeForeignTrainingItem(this)"><i class="fas fa-trash"></i></button>
+                        <div class="training-header">Foreign Training #<?php echo $index + 1; ?></div>
+                        <div class="modal-form-grid">
+                            <div class="form-group full-width"><label>Training Name <span style="color: red;">*</span></label><input type="text" name="foreign_trainings[<?php echo $index; ?>][name]" value="<?php echo htmlspecialchars($training['name'] ?? ''); ?>" placeholder="e.g., Advanced Cyber Security Course"></div>
+                            <div class="form-group"><label>Country</label><input type="text" name="foreign_trainings[<?php echo $index; ?>][country]" value="<?php echo htmlspecialchars($training['country'] ?? ''); ?>" placeholder="Country name"></div>
+                            <div class="form-group"><label>Year</label><input type="text" name="foreign_trainings[<?php echo $index; ?>][year]" value="<?php echo htmlspecialchars($training['year'] ?? ''); ?>" placeholder="2023"></div>
+                            <div class="form-group"><label>Duration</label><input type="text" name="foreign_trainings[<?php echo $index; ?>][duration]" value="<?php echo htmlspecialchars($training['duration'] ?? ''); ?>" placeholder="e.g., 2 weeks"></div>
+                            <div class="form-group"><label>Institution</label><input type="text" name="foreign_trainings[<?php echo $index; ?>][institution]" value="<?php echo htmlspecialchars($training['institution'] ?? ''); ?>" placeholder="Institution name"></div>
+                        </div>
+                    </div>
+                    <?php 
+                        endforeach;
+                    } else { ?>
+                    <div class="dynamic-training-item" data-index="0">
+                        <button type="button" class="remove-training" onclick="removeForeignTrainingItem(this)" style="display: none;"><i class="fas fa-trash"></i></button>
+                        <div class="training-header">Foreign Training #1</div>
+                        <div class="modal-form-grid">
+                            <div class="form-group full-width"><label>Training Name <span style="color: red;">*</span></label><input type="text" name="foreign_trainings[0][name]" placeholder="e.g., Advanced Cyber Security Course"></div>
+                            <div class="form-group"><label>Country</label><input type="text" name="foreign_trainings[0][country]" placeholder="Country name"></div>
+                            <div class="form-group"><label>Year</label><input type="text" name="foreign_trainings[0][year]" placeholder="2023"></div>
+                            <div class="form-group"><label>Duration</label><input type="text" name="foreign_trainings[0][duration]" placeholder="e.g., 2 weeks"></div>
+                            <div class="form-group"><label>Institution</label><input type="text" name="foreign_trainings[0][institution]" placeholder="Institution name"></div>
+                        </div>
+                    </div>
+                    <?php } ?>
+                </div>
+                <button type="button" class="add-training-btn" onclick="addForeignTraining()"><i class="fas fa-plus"></i> Add Foreign Training</button>
                 
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" id="cancelEditBtn">Cancel</button>
@@ -677,6 +984,10 @@ ob_start();
 <div id="toast" class="toast"></div>
 
 <script>
+    // Counters for dynamic training items
+    let professionalTrainingCounter = <?php echo !empty($professional_trainings_list) ? count($professional_trainings_list) : 1; ?>;
+    let foreignTrainingCounter = <?php echo !empty($foreign_trainings_list) ? count($foreign_trainings_list) : 1; ?>;
+    
     const searchInput = document.getElementById('personnelSearch');
     const clearSearchBtn = document.getElementById('clearSearch');
     const closeProfileBtn = document.getElementById('closeProfileBtn');
@@ -764,6 +1075,107 @@ ob_start();
         setTimeout(() => toast.style.display = 'none', 3000);
     }
     
+    // Professional Training Functions
+    function addProfessionalTraining() {
+        const container = document.getElementById('professionalTrainingsContainer');
+        const newIndex = professionalTrainingCounter++;
+        const trainingDiv = document.createElement('div');
+        trainingDiv.className = 'dynamic-training-item';
+        trainingDiv.setAttribute('data-index', newIndex);
+        trainingDiv.innerHTML = `
+            <button type="button" class="remove-training" onclick="removeTrainingItem(this)"><i class="fas fa-trash"></i></button>
+            <div class="training-header">Training #${newIndex + 1}</div>
+            <div class="modal-form-grid">
+                <div class="form-group full-width"><label>Training Name <span style="color: red;">*</span></label><input type="text" name="professional_trainings[${newIndex}][name]" placeholder="e.g., Project Management Professional"></div>
+                <div class="form-group"><label>Location/Address</label><input type="text" name="professional_trainings[${newIndex}][address]" placeholder="Location"></div>
+                <div class="form-group"><label>Year</label><input type="text" name="professional_trainings[${newIndex}][year]" placeholder="2023"></div>
+                <div class="form-group"><label>Duration</label><input type="text" name="professional_trainings[${newIndex}][duration]" placeholder="e.g., 3 months"></div>
+                <div class="form-group"><label>Institution</label><input type="text" name="professional_trainings[${newIndex}][institution]" placeholder="Institution name"></div>
+            </div>
+        `;
+        container.appendChild(trainingDiv);
+        updateProfessionalTrainingHeaders();
+    }
+    
+    function removeTrainingItem(button) {
+        const item = button.closest('.dynamic-training-item');
+        item.remove();
+        updateProfessionalTrainingHeaders();
+    }
+    
+    function updateProfessionalTrainingHeaders() {
+        const container = document.getElementById('professionalTrainingsContainer');
+        const items = container.querySelectorAll('.dynamic-training-item');
+        items.forEach((item, idx) => {
+            const header = item.querySelector('.training-header');
+            if (header) header.textContent = `Training #${idx + 1}`;
+            const inputs = item.querySelectorAll('input');
+            inputs.forEach(input => {
+                const oldName = input.getAttribute('name');
+                if (oldName && oldName.includes('professional_trainings')) {
+                    const match = oldName.match(/\[(\d+)\]\[(\w+)\]/);
+                    if (match) {
+                        const fieldName = match[2];
+                        input.setAttribute('name', `professional_trainings[${idx}][${fieldName}]`);
+                    }
+                }
+            });
+        });
+    }
+    
+    // Foreign Training Functions
+    function addForeignTraining() {
+        const container = document.getElementById('foreignTrainingsContainer');
+        const newIndex = foreignTrainingCounter++;
+        const trainingDiv = document.createElement('div');
+        trainingDiv.className = 'dynamic-training-item';
+        trainingDiv.setAttribute('data-index', newIndex);
+        trainingDiv.innerHTML = `
+            <button type="button" class="remove-training" onclick="removeForeignTrainingItem(this)"><i class="fas fa-trash"></i></button>
+            <div class="training-header">Foreign Training #${newIndex + 1}</div>
+            <div class="modal-form-grid">
+                <div class="form-group full-width"><label>Training Name <span style="color: red;">*</span></label><input type="text" name="foreign_trainings[${newIndex}][name]" placeholder="e.g., Advanced Cyber Security Course"></div>
+                <div class="form-group"><label>Country</label><input type="text" name="foreign_trainings[${newIndex}][country]" placeholder="Country name"></div>
+                <div class="form-group"><label>Year</label><input type="text" name="foreign_trainings[${newIndex}][year]" placeholder="2023"></div>
+                <div class="form-group"><label>Duration</label><input type="text" name="foreign_trainings[${newIndex}][duration]" placeholder="e.g., 2 weeks"></div>
+                <div class="form-group"><label>Institution</label><input type="text" name="foreign_trainings[${newIndex}][institution]" placeholder="Institution name"></div>
+            </div>
+        `;
+        container.appendChild(trainingDiv);
+        updateForeignTrainingHeaders();
+    }
+    
+    function removeForeignTrainingItem(button) {
+        const item = button.closest('.dynamic-training-item');
+        item.remove();
+        updateForeignTrainingHeaders();
+    }
+    
+    function updateForeignTrainingHeaders() {
+        const container = document.getElementById('foreignTrainingsContainer');
+        const items = container.querySelectorAll('.dynamic-training-item');
+        items.forEach((item, idx) => {
+            const header = item.querySelector('.training-header');
+            if (header) header.textContent = `Foreign Training #${idx + 1}`;
+            const inputs = item.querySelectorAll('input');
+            inputs.forEach(input => {
+                const oldName = input.getAttribute('name');
+                if (oldName && oldName.includes('foreign_trainings')) {
+                    const match = oldName.match(/\[(\d+)\]\[(\w+)\]/);
+                    if (match) {
+                        const fieldName = match[2];
+                        input.setAttribute('name', `foreign_trainings[${idx}][${fieldName}]`);
+                    }
+                }
+            });
+        });
+    }
+    
+    window.addProfessionalTraining = addProfessionalTraining;
+    window.addForeignTraining = addForeignTraining;
+    window.removeTrainingItem = removeTrainingItem;
+    window.removeForeignTrainingItem = removeForeignTrainingItem;
+    
     function editProfilePhoto(id, name) {
         document.getElementById('photoPersonnelId').value = id;
         document.getElementById('photoUploadModal').style.display = 'flex';
@@ -825,10 +1237,20 @@ ob_start();
             e.preventDefault();
             const fd = new FormData(editForm);
             fd.append('action', 'update_profile');
-            const res = await fetch(window.location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            
+            const res = await fetch(window.location.href, { 
+                method: 'POST', 
+                body: fd, 
+                headers: { 'X-Requested-With': 'XMLHttpRequest' } 
+            });
             const data = await res.json();
-            if (data.success) { showToast('Profile updated'); setTimeout(() => location.reload(), 1000); }
-            else showToast(data.error, 'error');
+            
+            if (data.success) { 
+                showToast('Profile updated successfully'); 
+                setTimeout(() => location.reload(), 1500); 
+            } else { 
+                showToast(data.error || 'Update failed', 'error'); 
+            }
         };
     }
     

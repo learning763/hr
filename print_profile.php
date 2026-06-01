@@ -25,6 +25,22 @@ if (!$personnel) {
     die("Personnel not found.");
 }
 
+// Helper function to decode JSON trainings
+function decodeTrainings($jsonData) {
+    if (empty($jsonData) || $jsonData === 'null' || $jsonData === 'NULL') {
+        return [];
+    }
+    $decoded = json_decode($jsonData, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return [];
+    }
+    return is_array($decoded) ? $decoded : [];
+}
+
+// Get professional and foreign trainings from JSON
+$professional_trainings_list = decodeTrainings($personnel['professional_trainings'] ?? '');
+$foreign_trainings_list = decodeTrainings($personnel['foreign_trainings'] ?? '');
+
 function calculateYearsOfService($join_date) {
     if (!$join_date || $join_date == '0000-00-00') return 'N/A';
     $join = new DateTime($join_date);
@@ -64,6 +80,10 @@ function calculateYearsOfService($join_date) {
             }
             .print-wrapper {
                 padding: 15px;
+            }
+            .print-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
             }
         }
         
@@ -124,9 +144,9 @@ function calculateYearsOfService($join_date) {
         
         /* Print Layout - A4 Optimized */
         .print-wrapper {
-            padding: 20px;
-            font-size: 11px;
-            line-height: 1.4;
+            padding: 30px;
+            font-size: 12px;
+            line-height: 1.5;
         }
         
         /* Header Section */
@@ -204,23 +224,23 @@ function calculateYearsOfService($join_date) {
         
         .print-basic-info p {
             margin: 5px 0;
-            font-size: 11px;
+            font-size: 12px;
             color: #475569;
         }
         
         /* Section Styles */
         .print-section {
             break-inside: avoid;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             page-break-inside: avoid;
         }
         
         .print-section h3 {
             color: #1a5a4a;
             border-bottom: 2px solid #1a5a4a;
-            padding-bottom: 5px;
-            margin-bottom: 10px;
-            font-size: 14px;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
+            font-size: 16px;
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -231,15 +251,16 @@ function calculateYearsOfService($join_date) {
         .print-table {
             width: 100%;
             border-collapse: collapse;
+            margin-bottom: 5px;
         }
         
         .print-table th,
         .print-table td {
             text-align: left;
-            padding: 6px 8px;
+            padding: 8px 10px;
             vertical-align: top;
-            font-size: 10.5px;
-            border-bottom: 0.5px solid #e2e8f0;
+            font-size: 12px;
+            border-bottom: 1px solid #e2e8f0;
         }
         
         .print-table th {
@@ -254,34 +275,89 @@ function calculateYearsOfService($join_date) {
             color: #334155;
         }
         
-        /* Training Table */
-        .print-training-table th,
-        .print-training-table td {
-            padding: 5px 6px;
-            font-size: 10px;
+        /* Training Tables */
+        .print-training-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
         }
         
-        .print-training-table thead th {
+        .print-training-table th,
+        .print-training-table td {
+            padding: 10px 12px;
+            text-align: left;
+            vertical-align: top;
+            border: 1px solid #cbd5e1;
+            font-size: 11px;
+        }
+        
+        .print-training-table th {
             background: #f1f5f9;
-            font-weight: 600;
+            font-weight: 700;
+            color: #1a5a4a;
+            border-bottom: 2px solid #1a5a4a;
+        }
+        
+        .print-training-table td {
+            color: #334155;
+        }
+        
+        /* Empty state styling */
+        .empty-training {
+            text-align: center;
+            padding: 30px;
+            color: #94a3b8;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+        
+        .empty-training i {
+            font-size: 40px;
+            margin-bottom: 10px;
+            opacity: 0.5;
         }
         
         /* Footer */
         .print-footer {
-            margin-top: 20px;
+            margin-top: 25px;
             text-align: center;
-            font-size: 9px;
+            font-size: 10px;
             color: #94a3b8;
             border-top: 1px solid #e2e8f0;
-            padding-top: 10px;
+            padding-top: 15px;
+        }
+        
+        .signature-section {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 20px;
+        }
+        
+        .signature-line {
+            text-align: center;
+            width: 45%;
+        }
+        
+        .signature-line p {
+            margin: 5px 0;
+            font-size: 10px;
+            color: #64748b;
+        }
+        
+        .signature-line .line {
+            border-top: 1px solid #000;
+            margin-top: 30px;
+            padding-top: 5px;
         }
         
         /* Status Badge */
         .status-print {
             display: inline-block;
-            padding: 2px 10px;
-            border-radius: 12px;
+            padding: 3px 12px;
+            border-radius: 20px;
             font-weight: 600;
+            font-size: 11px;
         }
         
         .status-active {
@@ -299,23 +375,34 @@ function calculateYearsOfService($join_date) {
             color: #991b1b;
         }
         
+        .status-training {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
         /* Blood Badge */
         .blood-print {
             display: inline-block;
             background: #dc2626;
             color: white;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 10px;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 11px;
             font-weight: 600;
         }
         
-        /* Responsive */
         @media (max-width: 768px) {
             .print-photo-section {
                 flex-direction: column;
                 align-items: center;
                 text-align: center;
+            }
+            .print-training-table {
+                font-size: 9px;
+            }
+            .print-training-table th,
+            .print-training-table td {
+                padding: 6px 8px;
             }
         }
     </style>
@@ -483,69 +570,81 @@ function calculateYearsOfService($join_date) {
         </table>
     </div>
     
-    <!-- PROFESSIONAL TRAININGS - ALL 6 -->
+    <!-- PROFESSIONAL TRAININGS - From JSON -->
     <div class="print-section">
         <h3><i class="fas fa-chalkboard-teacher"></i> PROFESSIONAL TRAININGS</h3>
-        <table class="print-table print-training-table">
-            <thead>
-                <tr style="background: #f1f5f9;">
-                    <th style="width: 10%;">S.No</th>
-                    <th style="width: 55%;">Training Name</th>
-                    <th style="width: 35%;">Location</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>1</td>
-                    <td><?php echo htmlspecialchars($personnel['training'] ?? '-'); ?></td>
-                    <td><?php echo htmlspecialchars($personnel['training_address'] ?? '-'); ?></td>
-                </tr>
-                <tr>
-                    <td>2</td>
-                    <td><?php echo htmlspecialchars($personnel['training1'] ?? '-'); ?></td>
-                    <td><?php echo htmlspecialchars($personnel['training1_address'] ?? '-'); ?></td>
-                </tr>
-                <tr>
-                    <td>3</td>
-                    <td><?php echo htmlspecialchars($personnel['training2'] ?? '-'); ?></td>
-                    <td><?php echo htmlspecialchars($personnel['training2_address'] ?? '-'); ?></td>
-                </tr>
-                <tr>
-                    <td>4</td>
-                    <td><?php echo htmlspecialchars($personnel['training3'] ?? '-'); ?></td>
-                    <td><?php echo htmlspecialchars($personnel['training3'] ?? '-'); ?></td>
-                </tr>
-                <tr>
-                    <td>5</td>
-                    <td><?php echo htmlspecialchars($personnel['training4'] ?? '-'); ?></td>
-                    <td><?php echo htmlspecialchars($personnel['training4'] ?? '-'); ?></td>
-                </tr>
-                <tr>
-                    <td>6</td>
-                    <td><?php echo htmlspecialchars($personnel['training5'] ?? '-'); ?></td>
-                    <td><?php echo htmlspecialchars($personnel['training5'] ?? '-'); ?></td>
-                </tr>
-            </tbody>
-        </table>
+        <?php if (!empty($professional_trainings_list)): ?>
+            <table class="print-training-table">
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">S.No</th>
+                        <th style="width: 37%;">Training Name</th>
+                        <th style="width: 20%;">Location</th>
+                        <th style="width: 10%;">Year</th>
+                        <th style="width: 10%;">Duration</th>
+                        <th style="width: 15%;">Institution</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($professional_trainings_list as $index => $training): ?>
+                    <tr>
+                        <td><?php echo $index + 1; ?></td>
+                        <td><?php echo htmlspecialchars($training['name'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['address'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['year'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['duration'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['institution'] ?? '-'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php else: ?>
+            <div class="empty-training">
+                <i class="fas fa-info-circle"></i>
+                <p>No professional trainings recorded</p>
+            </div>
+        <?php endif; ?>
     </div>
     
-    <!-- FOREIGN TRAINING -->
+    <!-- FOREIGN TRAININGS - From JSON -->
     <div class="print-section">
-        <h3><i class="fas fa-globe"></i> FOREIGN TRAINING</h3>
-        <table class="print-table">
-            <tr>
-                <th>Foreign Training Details:</th>
-                <td><?php echo nl2br(htmlspecialchars($personnel['foreign_training'] ?? 'Not specified')); ?></td>
-            </tr>
-        </table>
+        <h3><i class="fas fa-globe"></i> FOREIGN TRAININGS</h3>
+        <?php if (!empty($foreign_trainings_list)): ?>
+            <table class="print-training-table">
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">S.No</th>
+                        <th style="width: 37%;">Training Name</th>
+                        <th style="width: 15%;">Country</th>
+                        <th style="width: 10%;">Year</th>
+                        <th style="width: 10%;">Duration</th>
+                        <th style="width: 20%;">Institution</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($foreign_trainings_list as $index => $training): ?>
+                    <tr>
+                        <td><?php echo $index + 1; ?></td>
+                        <td><?php echo htmlspecialchars($training['name'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['country'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['year'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['duration'] ?? '-'); ?></td>
+                        <td><?php echo htmlspecialchars($training['institution'] ?? '-'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php else: ?>
+            <div class="empty-training">
+                <i class="fas fa-info-circle"></i>
+                <p>No foreign trainings recorded</p>
+            </div>
+        <?php endif; ?>
     </div>
     
-    <!-- Footer -->
-    <div class="print-footer">
-        <p>Generated on: <?php echo date('F j, Y, g:i a'); ?> | Nepali Army - Directorate of Cyber Security | This is a system generated official document</p>
-        <p>Signature: _________________________ | Stamp: _________________________</p>
-    </div>
+    
 </div>
 
 </body>
 </html>
+
