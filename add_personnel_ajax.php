@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM personnel WHERE personnel_number = ?");
         $stmt->execute([$serviceNo]);
         if ($stmt->fetchColumn() > 0) {
-            echo json_encode(['success' => false, 'message' => 'Personnel number already exists! Please use a different number.']);
+            echo json_encode(['success' => false, 'message' => 'Personnel number already exists!']);
             exit;
         }
         
@@ -58,10 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM personnel WHERE email = ?");
             $stmt->execute([$email]);
             if ($stmt->fetchColumn() > 0) {
-                echo json_encode(['success' => false, 'message' => 'Email already exists! Please use a different email address.']);
+                echo json_encode(['success' => false, 'message' => 'Email already exists!']);
                 exit;
             }
         }
+        
+        // Start transaction
+        $pdo->beginTransaction();
         
         // Insert new personnel
         $sql = "INSERT INTO personnel (personnel_number, full_name_en, full_name_ne, email, phone, rank, unit, recruitment_date, province, district, municipality, village_tole, current_status, role, created_at) 
@@ -69,28 +72,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $stmt = $pdo->prepare($sql);
         $result = $stmt->execute([
-            $serviceNo, $fullName, $fullNameNe, $email ?: null, $phone ?: null, $rank, $branch ?: null, 
-            $recruitmentDate ?: null, $province ?: null, $district ?: null, $municipality ?: null, $villageTole ?: null, 
-            $status, $role
+            $serviceNo, $fullName, $fullNameNe ?: null, $email ?: null, $phone ?: null, 
+            $rank, $branch ?: null, $recruitmentDate ?: null, $province ?: null, 
+            $district ?: null, $municipality ?: null, $villageTole ?: null, $status, $role
         ]);
         
         if ($result) {
-            // Also create leave balance record for the new personnel
-            try {
-                $stmt2 = $pdo->prepare("INSERT INTO leave_balance (personnel_id, gharpari_bida_days, parba_bida_days, bhaeepari_bida_days) 
-                                        VALUES (?, 0, 0, 0)");
-                $stmt2->execute([$serviceNo]);
-            } catch (PDOException $e) {
-                // Leave balance table might not exist, that's okay
-                error_log("Leave balance insert error: " . $e->getMessage());
-            }
+            // Create leave balance record for the new personnel
+            // personnel_id = serviceNo (which is the personnel_number from personnel table)
+            // Default: Gharpari Bida = 15 days, Parba Bida = 12 days, Bhaeepari Bida = 10 days
+            $leaveSql = "INSERT INTO leave_balance (personnel_id, gharpari_bida_days, parba_bida_days, bhaeepari_bida_days, last_updated) 
+                         VALUES (?, 15.0, 12.0, 10.0, NOW())";
             
-            echo json_encode(['success' => true, 'message' => 'Personnel added successfully!']);
+            $leaveStmt = $pdo->prepare($leaveSql);
+            $leaveStmt->execute([$serviceNo]);  // $serviceNo is the personnel_number
+            
+            // Commit transaction
+            $pdo->commit();
+            
+            echo json_encode(['success' => true, 'message' => 'Personnel added successfully with default leave balance!']);
         } else {
-            echo json_encode(['success' => false, 'message' => 'Failed to add personnel. Please try again.']);
+            $pdo->rollBack();
+            echo json_encode(['success' => false, 'message' => 'Failed to add personnel']);
         }
         
     } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         error_log("Add personnel error: " . $e->getMessage());
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
     }

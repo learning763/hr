@@ -839,10 +839,10 @@ ob_start();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leave Management System</title>
     <!-- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"> -->
-    <link href="css/bootstrap.css" rel="stylesheet">
+         <link href="/css/fontawesome.css" rel="stylesheet">
 
     <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> -->
-    <link href="css/fontawesome.css" rel="stylesheet">
+    <link href="/css/fontawesome.css" rel="stylesheet">
 
     <style>
         .status-pending { background-color: #fff3cd; color: #856404; }
@@ -1123,15 +1123,18 @@ ob_start();
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="input-field">
                         <label><i class="fas fa-user"></i> Personnel <span class="required-star">*</span></label>
-                        <select id="personnelId" required>
-                            <option value="">Select Personnel</option>
-                            <?php
-                            $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
-                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                echo "<option value='{$row['id']}'>" . htmlspecialchars($row['rank'] . ' ' . $row['personnel_name']) . "</option>";
-                            }
-                            ?>
-                        </select>
+                        <select id="personnelId" name="personnel_id" required>
+    <option value="">Select Personnel</option>
+    <?php
+    // Get personnel directly from personnel table only
+    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
+             . "</option>";
+    }
+    ?>
+</select>
                     </div>
                     
                     <div class="input-field">
@@ -1165,10 +1168,16 @@ ob_start();
                             This person will receive and verify the request first
                         </div>
                         <select id="receivingOfficer" required>
-                            <option value="">-- Select Receiving Officer --</option>
-                            <?php foreach ($officers as $officer): ?>
-                                <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
-                            <?php endforeach; ?>
+                            <option value="">Select Personnel</option>
+    <?php
+    // Get personnel directly from personnel table only
+    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
+             . "</option>";
+    }
+    ?>
                         </select>
                         <div class="officer-hint">
                             <i class="fas fa-arrow-right"></i> Step 1: Initial verification
@@ -1185,10 +1194,16 @@ ob_start();
                             First level approval after receiving officer verification
                         </div>
                         <select id="initiatingOfficer" required>
-                            <option value="">-- Select Initiating Officer --</option>
-                            <?php foreach ($officers as $officer): ?>
-                                <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
-                            <?php endforeach; ?>
+                            <option value="">Select Personnel</option>
+    <?php
+    // Get personnel directly from personnel table only
+    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
+             . "</option>";
+    }
+    ?>
                         </select>
                         <div class="officer-hint">
                             <i class="fas fa-arrow-right"></i> Step 2: First level approval
@@ -1205,10 +1220,16 @@ ob_start();
                             Final approval authority - grants the leave
                         </div>
                         <select id="acceptingOfficer" required>
-                            <option value="">-- Select Accepting Officer --</option>
-                            <?php foreach ($officers as $officer): ?>
-                                <option value="<?php echo $officer['id']; ?>"><?php echo htmlspecialchars($officer['rank'] . ' ' . $officer['personnel_name']); ?></option>
-                            <?php endforeach; ?>
+                            <option value="">Select Personnel</option>
+    <?php
+    // Get personnel directly from personnel table only
+    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
+             . "</option>";
+    }
+    ?>
                         </select>
                         <div class="officer-hint">
                             <i class="fas fa-arrow-right"></i> Step 3: Final approval

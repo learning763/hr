@@ -72,6 +72,9 @@ try {
         exit;
     }
     
+    // Start transaction
+    $pdo->beginTransaction();
+    
     // Hash password
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
     
@@ -92,19 +95,28 @@ try {
     ]);
     
     if ($result) {
-        // Also add to military_personnel_status table
-        $stmt2 = $pdo->prepare("
-            INSERT INTO military_personnel_status (personnel_name, rank, status, record_date, remarks) 
-            VALUES (?, ?, 'present', CURDATE(), 'New registration')
-        ");
-        $stmt2->execute([$full_name, $rank]);
+        // Insert default leave balance for the new personnel
+        // Default values: Gharpari Bida = 15 days, Parba Bida = 12 days, Bhaeepari Bida = 10 days
+        $leaveSql = "INSERT INTO leave_balance (personnel_id, gharpari_bida_days, parba_bida_days, bhaeepari_bida_days, last_updated) 
+                     VALUES (?, 15.0, 12.0, 10.0, NOW())";
+        
+        $leaveStmt = $pdo->prepare($leaveSql);
+        $leaveStmt->execute([$personnel_number]);
+        
+        // Commit transaction
+        $pdo->commit();
         
         echo json_encode(['success' => true, 'message' => 'Registration successful! Please login.']);
     } else {
+        $pdo->rollBack();
         echo json_encode(['success' => false, 'error' => 'Registration failed. Please try again.']);
     }
     
 } catch(PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log("Registration error: " . $e->getMessage());
     echo json_encode(['success' => false, 'error' => 'Database error: ' . $e->getMessage()]);
 }
 ?>

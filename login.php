@@ -22,12 +22,9 @@ if (empty($password)) {
 }
 
 try {
-    // Get user from personnel table
+    // Get user from personnel table only (no military_personnel_status join)
     $stmt = $pdo->prepare("
-        SELECT p.*, mps.id as military_personnel_id
-        FROM personnel p
-        LEFT JOIN military_personnel_status mps ON p.personnel_number = mps.personnel_number
-        WHERE p.email = ?
+        SELECT * FROM personnel WHERE email = ?
     ");
     $stmt->execute([$email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -40,17 +37,6 @@ try {
     if (!password_verify($password, $user['password'])) {
         echo json_encode(['success' => false, 'error' => 'Invalid email or password']);
         exit;
-    }
-    
-    // If no military_personnel_status record exists, create one
-    $personnel_id = $user['military_personnel_id'];
-    if (!$personnel_id) {
-        $stmt2 = $pdo->prepare("
-            INSERT INTO military_personnel_status (personnel_name, rank, status, record_date, personnel_number, remarks) 
-            VALUES (?, ?, 'present', CURDATE(), ?, 'Auto-created from login')
-        ");
-        $stmt2->execute([$user['full_name_en'], $user['rank'], $user['personnel_number']]);
-        $personnel_id = $pdo->lastInsertId();
     }
     
     // Store role as INTEGER (0=User, 1=Admin, 2=Super Admin)
@@ -67,7 +53,6 @@ try {
     $_SESSION['user_unit'] = $user['unit'];
     $_SESSION['user_role'] = $user_role_int;  // INTEGER: 0, 1, or 2
     $_SESSION['user_role_string'] = $user_role_int == 2 ? 'supervisor' : ($user_role_int == 1 ? 'admin' : 'user');
-    $_SESSION['user_personnel_id'] = $personnel_id;
     $_SESSION['logged_in'] = true;
     $_SESSION['login_time'] = time();
     
@@ -89,7 +74,7 @@ try {
             'rank' => $user['rank'],
             'role' => $user_role_int,
             'role_text' => $user_role_int == 2 ? 'Super Admin' : ($user_role_int == 1 ? 'Admin' : 'User'),
-            'personnel_id' => $personnel_id
+            'personnel_number' => $user['personnel_number']
         ]
     ]);
     

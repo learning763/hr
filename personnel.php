@@ -11,8 +11,8 @@ $pageSubtitle = "Complete list of commissioned officers and jawans.";
 $activePage = "personnel";
 
 // Check permissions
-$isAdmin = ($current_user_role >= 1); // Admin (1) or Super Admin (2)
-$isSuperAdmin = ($current_user_role === 2); // Super Admin only
+$isAdmin = ($current_user_role >= 1);
+$isSuperAdmin = ($current_user_role === 2);
 
 // Pagination configuration
 $records_per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 10;
@@ -32,17 +32,14 @@ if (!empty($search_term)) {
     $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
 }
 
-// Get statistics directly from database
+// Get statistics
 try {
-    // Total Personnel
     $stmt = $pdo->query("SELECT COUNT(*) FROM personnel");
     $total_records = $stmt->fetchColumn();
     
-    // Active Personnel count
     $stmt = $pdo->query("SELECT COUNT(*) FROM personnel WHERE current_status = 'Active'");
     $active_count = $stmt->fetchColumn();
     
-    // Commissioned Officers count
     $stmt = $pdo->query("SELECT COUNT(*) FROM personnel WHERE rank IN ('Captain', 'Major', 'Lieutenant Colonel', 'Colonel', 'Brigadier General', 'Major General', 'Lieutenant General', 'General', 'Lieutenant', 'Second Lieutenant', 'Subedar', 'Lieutenant Subedar')");
     $officer_count = $stmt->fetchColumn();
     if ($officer_count == 0) {
@@ -50,7 +47,6 @@ try {
         $officer_count = $stmt->fetchColumn();
     }
     
-    // Unique Units/Branches count
     $stmt = $pdo->query("SELECT COUNT(DISTINCT unit) FROM personnel WHERE unit IS NOT NULL AND unit != ''");
     $unit_count = $stmt->fetchColumn();
     
@@ -62,7 +58,7 @@ try {
     $unit_count = 0;
 }
 
-// Get total records for pagination
+// Get personnel list
 try {
     if (!empty($search_condition)) {
         $count_stmt = $pdo->prepare("SELECT COUNT(*) FROM personnel $search_condition");
@@ -94,11 +90,132 @@ try {
     $total_pages = 0;
 }
 
-// Prepare the content
 ob_start();
 ?>
 
 <style>
+    /* Modal Styles */
+    .current-photo-modal {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #2c5f4e;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .photo-placeholder-modal {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #e8f5f0 0%, #d1e8e0 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+        border: 3px solid #2c5f4e;
+    }
+    
+    .photo-placeholder-modal i {
+        font-size: 60px;
+        color: #2c5f4e;
+    }
+    
+    .preview-image-modal {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 3px solid #0891b2;
+        margin-top: 10px;
+    }
+    
+    .current-signature-modal {
+        max-width: 250px;
+        max-height: 80px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10px;
+        background: white;
+    }
+    
+    .signature-placeholder-modal {
+        padding: 20px;
+        background: #f8fafc;
+        border: 2px dashed #cbd5e1;
+        border-radius: 10px;
+        color: #9aa9bc;
+        text-align: center;
+    }
+    
+    .signature-placeholder-modal i {
+        font-size: 40px;
+        margin-bottom: 10px;
+    }
+    
+    .preview-signature-modal {
+        max-width: 200px;
+        max-height: 60px;
+        border: 1px solid #0891b2;
+        border-radius: 4px;
+        padding: 5px;
+        margin-top: 10px;
+    }
+    
+    .btn-danger {
+        background: #dc2626;
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-danger:hover {
+        background: #b91c1c;
+        transform: translateY(-1px);
+    }
+    
+    .file-input-wrapper {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    
+    .file-input-wrapper input[type="file"] {
+        position: absolute;
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        cursor: pointer;
+    }
+    
+    .file-input-label {
+        display: block;
+        padding: 12px 20px;
+        background: white;
+        border: 2px dashed #cbd5e1;
+        border-radius: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        color: #6c7a8e;
+    }
+    
+    .file-input-label:hover {
+        border-color: #2c5f4e;
+        background: #f1f5f9;
+    }
+    
+    .file-input-label i {
+        margin-right: 10px;
+    }
+    
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -317,7 +434,7 @@ ob_start();
         margin: 50px auto;
         border-radius: 16px;
         width: 90%;
-        max-width: 900px;
+        max-width: 550px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         animation: slideDown 0.3s;
     }
@@ -371,7 +488,6 @@ ob_start();
         overflow-y: auto;
     }
     
-    /* Form Styles for Edit Modal */
     .form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -405,11 +521,6 @@ ob_start();
     .form-group select:focus {
         border-color: #2c5f4e;
         box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.1);
-    }
-    
-    .form-group input[readonly] {
-        background: #f1f3f5;
-        cursor: not-allowed;
     }
     
     .modal-buttons {
@@ -454,80 +565,40 @@ ob_start();
         background: #e2e8f0;
     }
     
-    .leave-balance-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    
-    .leave-balance-table th,
-    .leave-balance-table td {
-        padding: 12px;
-        text-align: left;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    
-    .leave-balance-table th {
+    .personnel-info {
         background: #f8fafc;
-        font-weight: 600;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .personnel-info p {
+        margin: 5px 0;
+        color: #334155;
+    }
+    
+    .personnel-info strong {
         color: #1a2c3e;
-        font-size: 13px;
-        text-transform: uppercase;
-        position: sticky;
-        top: 0;
     }
     
-    .leave-balance-table tr:hover {
-        background: #fafcff;
-    }
-    
-    .balance-input {
-        width: 100px;
-        padding: 8px 12px;
-        border: 1.5px solid #e2e8f0;
+    .alert {
+        padding: 12px;
         border-radius: 8px;
-        font-size: 14px;
+        margin-bottom: 20px;
+        display: none;
     }
     
-    .balance-input:focus {
-        outline: none;
-        border-color: #0891b2;
-        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+    .alert-success {
+        background: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
     }
     
-    .edit-balance-btn, .save-balance-btn, .cancel-balance-btn {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 6px 10px;
-        border-radius: 8px;
-        transition: all 0.2s;
-    }
-    
-    .edit-balance-btn {
-        color: #0891b2;
-    }
-    
-    .edit-balance-btn:hover {
-        background: #cffafe;
-        transform: scale(1.05);
-    }
-    
-    .save-balance-btn {
-        color: #2c5f4e;
-    }
-    
-    .save-balance-btn:hover {
-        background: #e8f5f0;
-        transform: scale(1.05);
-    }
-    
-    .cancel-balance-btn {
-        color: #c2410c;
-    }
-    
-    .cancel-balance-btn:hover {
-        background: #fff0ed;
-        transform: scale(1.05);
+    .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
     }
     
     .data-table {
@@ -754,6 +825,99 @@ ob_start();
         font-weight: 500;
         transition: all 0.2s;
     }
+
+    /* Leave Balance Table Styles */
+    .leave-balance-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .leave-balance-table th {
+        background: #f8fafc;
+        padding: 14px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #1a2c3e;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    .leave-balance-table td {
+        padding: 12px;
+        border-bottom: 1px solid #eef2f6;
+        font-size: 13px;
+        color: #334155;
+        vertical-align: middle;
+    }
+
+    .leave-balance-table tr:hover {
+        background: #fafcff;
+    }
+
+    .leave-balance-table .balance-input {
+        width: 90px;
+        padding: 6px 10px;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+
+    .leave-balance-table .balance-input:focus {
+        outline: none;
+        border-color: #0891b2;
+        box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+    }
+
+    .edit-balance-btn, .save-balance-btn, .cancel-balance-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 6px 12px;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-size: 12px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .edit-balance-btn {
+        color: #0891b2;
+        background: #f0f9ff;
+    }
+
+    .edit-balance-btn:hover {
+        background: #cffafe;
+        transform: scale(1.02);
+    }
+
+    .save-balance-btn {
+        color: #2c5f4e;
+        background: #e8f5f0;
+    }
+
+    .save-balance-btn:hover {
+        background: #d1e8e0;
+        transform: scale(1.02);
+    }
+
+    .cancel-balance-btn {
+        color: #c2410c;
+        background: #fff0ed;
+    }
+
+    .cancel-balance-btn:hover {
+        background: #ffe4e0;
+        transform: scale(1.02);
+    }
     
     .pagination-link:hover {
         background: #f8fafc;
@@ -854,36 +1018,6 @@ ob_start();
         }
     }
     
-    .required-star {
-        color: #dc2626;
-        margin-left: 3px;
-    }
-    
-    .form-hint {
-        font-size: 11px;
-        color: #6c7a8e;
-        margin-top: 4px;
-    }
-    
-    .alert {
-        padding: 12px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        display: none;
-    }
-    
-    .alert-success {
-        background: #d1fae5;
-        color: #065f46;
-        border: 1px solid #a7f3d0;
-    }
-    
-    .alert-error {
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fecaca;
-    }
-    
     @media (max-width: 768px) {
         .stats-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -951,15 +1085,14 @@ ob_start();
             grid-template-columns: 1fr;
             gap: 15px;
         }
-    }
-    
-    @media (max-width: 480px) {
-        .stats-grid {
-            grid-template-columns: 1fr;
+        
+        .modal-buttons {
+            flex-direction: column;
         }
         
-        .stat-card {
-            margin-bottom: 10px;
+        .modal-buttons button {
+            width: 100%;
+            justify-content: center;
         }
     }
 </style>
@@ -1044,13 +1177,13 @@ ob_start();
                 <?php if ($isSuperAdmin): ?>
                     <th style="width: 200px;">Actions</th>
                 <?php endif; ?>
-            </tr>
+             </tr>
         </thead>
         <tbody>
             <?php if (!empty($personnel_list)): ?>
                 <?php $counter = $offset + 1; ?>
                 <?php foreach ($personnel_list as $personnel): ?>
-                    <tr>
+                    <tr data-personnel-number="<?php echo htmlspecialchars($personnel['personnel_number']); ?>">
                         <td><?php echo $counter++; ?></td>
                         <td class="photo-cell">
                             <?php if (!empty($personnel['profile_picture_path']) && file_exists($personnel['profile_picture_path'])): ?>
@@ -1059,7 +1192,7 @@ ob_start();
                                      class="profile-preview"
                                      onclick="viewProfilePhoto('<?php echo htmlspecialchars($personnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
                             <?php else: ?>
-                                <div class="avatar-placeholder" onclick="editProfilePhoto('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')">
+                                <div class="avatar-placeholder" onclick="openPhotoModal('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', null)">
                                     <i class="fas fa-user"></i>
                                 </div>
                             <?php endif; ?>
@@ -1134,10 +1267,10 @@ ob_start();
                                     <button class="btn-icon btn-edit" onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button class="btn-icon btn-photo" onclick="editProfilePhoto('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')" title="Upload/Edit Photo">
+                                    <button class="btn-icon btn-photo" onclick="openPhotoModal('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['profile_picture_path'] ?? ''); ?>')" title="Upload/Edit Photo">
                                         <i class="fas fa-camera"></i>
                                     </button>
-                                    <button class="btn-icon btn-signature" onclick="editSignature('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['signature'] ?? ''); ?>')" title="Upload/Edit Signature">
+                                    <button class="btn-icon btn-signature" onclick="openSignatureModal('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['signature'] ?? ''); ?>')" title="Upload/Edit Signature">
                                         <i class="fas fa-signature"></i>
                                     </button>
                                     <button class="btn-icon btn-reset" onclick="resetPassword('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')" title="Reset Password">
@@ -1166,11 +1299,11 @@ ob_start();
                         <?php if (!empty($search_term)): ?>
                             <p style="color: #9aa9bc; font-size: 12px; margin-top: 10px;">Try adjusting your search criteria.</p>
                         <?php endif; ?>
-                     </td>
-                 </tr>
+                    </td>
+                </tr>
             <?php endif; ?>
         </tbody>
-     </table>
+    </table>
 </div>
 
 <!-- Pagination -->
@@ -1230,43 +1363,79 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<!-- Manage Leave Balance Modal -->
-<div id="manageBalanceModal" class="modal">
-    <div class="modal-content large">
+<!-- Photo Upload Modal -->
+<div id="photoUploadModal" class="modal">
+    <div class="modal-content">
         <div class="modal-header">
-            <h3><i class="fas fa-chart-line"></i> Manage Leave Balance</h3>
-            <span class="close" onclick="closeManageBalanceModal()">&times;</span>
+            <h3 id="photoModalTitle"><i class="fas fa-camera"></i> Update Profile Photo</h3>
+            <span class="close" onclick="closePhotoModal()">&times;</span>
         </div>
         <div class="modal-body">
-            <div class="search-container" style="margin-bottom: 20px;">
-                <i class="fas fa-search search-icon"></i>
-                <input type="text" id="balanceSearchInput" class="search-input" 
-                       placeholder="🔍 Search personnel by name, service no., or rank..." 
-                       style="padding-left: 42px;">
+            <div id="photoAlert" class="alert" style="display: none;"></div>
+            
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div id="modalCurrentPhoto"></div>
             </div>
             
-            <div style="overflow-x: auto;">
-                <table class="leave-balance-table" id="leaveBalanceTable">
-                    <thead>
-                        <tr>
-                            <th>S.No</th>
-                            <th>Service No.</th>
-                            <th>Name</th>
-                            <th>Rank</th>
-                            <th>Gharpari Bida</th>
-                            <th>Parba Bida</th>
-                            <th>Bhaeepari Bida</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="leaveBalanceTableBody">
-                        <tr>
-                            <td colspan="8" style="text-align: center; padding: 40px;">
-                                <div class="loading-spinner"></div> Loading...
-                              </>
-                          </table>
-                    </tbody>
-                </table>
+            <div class="personnel-info" id="modalPersonnelInfo"></div>
+            
+            <div class="file-input-wrapper">
+                <input type="file" id="modalProfilePhoto" accept="image/jpeg,image/png,image/gif,image/webp">
+                <label for="modalProfilePhoto" class="file-input-label">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    Choose Photo (JPG, PNG, GIF, WEBP - Max 5MB)
+                </label>
+            </div>
+            
+            <div id="modalPreviewContainer" style="text-align: center; margin-top: 15px;"></div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="btn-cancel-modal" onclick="closePhotoModal()">Cancel</button>
+                <button type="button" class="btn-save" id="modalUploadBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Upload Photo
+                </button>
+                <button type="button" class="btn-danger" id="modalDeleteBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Remove Photo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Signature Upload Modal -->
+<div id="signatureUploadModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="signatureModalTitle"><i class="fas fa-signature"></i> Update Signature</h3>
+            <span class="close" onclick="closeSignatureModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div id="signatureAlert" class="alert" style="display: none;"></div>
+            
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div id="modalCurrentSignature"></div>
+            </div>
+            
+            <div class="personnel-info" id="modalSignaturePersonnelInfo"></div>
+            
+            <div class="file-input-wrapper">
+                <input type="file" id="modalSignature" accept="image/jpeg,image/png,image/gif,image/webp">
+                <label for="modalSignature" class="file-input-label">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    Choose Signature (JPG, PNG, GIF, WEBP - Max 2MB)
+                </label>
+            </div>
+            
+            <div id="modalSignaturePreviewContainer" style="text-align: center; margin-top: 15px;"></div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="btn-cancel-modal" onclick="closeSignatureModal()">Cancel</button>
+                <button type="button" class="btn-save" id="modalSignatureUploadBtn" style="display: none;">
+                    <i class="fas fa-upload"></i> Upload Signature
+                </button>
+                <button type="button" class="btn-danger" id="modalSignatureDeleteBtn" style="display: none;">
+                    <i class="fas fa-trash"></i> Remove Signature
+                </button>
             </div>
         </div>
     </div>
@@ -1286,7 +1455,7 @@ ob_start();
                 <div class="form-row">
                     <div class="form-group">
                         <label>Personnel Number *</label>
-                        <input type="text" id="edit_personnel_number_display" name="personnel_number_display" readonly style="background: #f1f3f5;">
+                        <input type="text" id="edit_personnel_number_display" readonly style="background: #f1f3f5;">
                     </div>
                     <div class="form-group">
                         <label>Full Name (English) *</label>
@@ -1415,11 +1584,9 @@ ob_start();
                 <div class="form-row">
                     <div class="form-group">
                         <label>Personnel Number <span class="required-star">*</span></label>
-                        <input type="text" id="addServiceNo" name="serviceNo" required 
-                               placeholder="Enter personnel number (e.g., NA-12345)">
+                        <input type="text" id="addServiceNo" name="serviceNo" required placeholder="Enter personnel number (e.g., NA-12345)">
                         <div class="form-hint">Unique personnel number/ID (must be unique)</div>
                     </div>
-                    
                     <div class="form-group">
                         <label>Full Name (English) <span class="required-star">*</span></label>
                         <input type="text" id="addFullName" name="fullName" required placeholder="e.g., John Doe">
@@ -1431,10 +1598,9 @@ ob_start();
                         <label>Full Name (Nepali)</label>
                         <input type="text" id="addFullNameNe" name="fullNameNe" placeholder="e.g., जन डो">
                     </div>
-                    
                     <div class="form-group">
                         <label>Email</label>
-                        <input type="email" id="addEmail" name="email" placeholder="personnel@nepalarmy.mil.np">
+                        <input type="email" id="addEmail" name="email" placeholder="personnel@example.com">
                     </div>
                 </div>
                 
@@ -1443,7 +1609,6 @@ ob_start();
                         <label>Phone Number</label>
                         <input type="text" id="addPhone" name="phone" placeholder="98XXXXXXXX">
                     </div>
-                    
                     <div class="form-group">
                         <label>Rank <span class="required-star">*</span></label>
                         <select id="addRank" name="rank" required>
@@ -1470,7 +1635,6 @@ ob_start();
                         <label>Unit/Branch</label>
                         <input type="text" id="addBranch" name="branch" placeholder="e.g., Infantry, Signals">
                     </div>
-                    
                     <div class="form-group">
                         <label>Recruitment Date</label>
                         <input type="date" id="addRecruitmentDate" name="recruitmentDate">
@@ -1491,7 +1655,6 @@ ob_start();
                             <option value="Sudurpashchim Province">Sudurpashchim Province</option>
                         </select>
                     </div>
-                    
                     <div class="form-group">
                         <label>District</label>
                         <input type="text" id="addDistrict" name="district" placeholder="e.g., Kathmandu">
@@ -1503,7 +1666,6 @@ ob_start();
                         <label>Municipality</label>
                         <input type="text" id="addMunicipality" name="municipality" placeholder="e.g., Kathmandu Metropolitan City">
                     </div>
-                    
                     <div class="form-group">
                         <label>Village/Tole</label>
                         <input type="text" id="addVillageTole" name="villageTole" placeholder="e.g., Baneshwor">
@@ -1520,7 +1682,6 @@ ob_start();
                             <option value="Retired">Retired</option>
                         </select>
                     </div>
-                    
                     <div class="form-group">
                         <label>User Role</label>
                         <select id="addRole" name="role">
@@ -1540,72 +1701,50 @@ ob_start();
     </div>
 </div>
 
-<!-- Toast Notification -->
-<div id="toast" class="toast">
-    <span id="toastMessage"></span>
+<!-- Manage Leave Balance Modal -->
+<div id="manageBalanceModal" class="modal">
+    <div class="modal-content large" style="max-width: 1200px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-chart-line"></i> Manage Leave Balance</h3>
+            <span class="close" onclick="closeManageBalanceModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="search-container" style="margin-bottom: 20px;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="balanceSearchInput" class="search-input" 
+                       placeholder="🔍 Search personnel by personnel number..." 
+                       style="padding-left: 42px;">
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="leave-balance-table" id="leaveBalanceTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">S.No</th>
+                            <th>Personnel Number</th>
+                            <th style="width: 130px;">Gharpari Bida</th>
+                            <th style="width: 130px;">Parba Bida</th>
+                            <th style="width: 130px;">Bhaeepari Bida</th>
+                            <th style="width: 160px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaveBalanceTableBody">
+                        <tr>
+                            <td colspan="8" style="text-align:center;padding:40px;">
+                                <div class="loading-spinner"></div> Loading leave balances...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
+<!-- Toast Notification -->
+<div id="toast" class="toast"><span id="toastMessage"></span></div>
+
 <script>
-    // DOM Elements
-    const searchInput = document.getElementById('searchInput');
-    const clearSearchBtn = document.getElementById('clearSearch');
-    const recordsPerPageSelect = document.getElementById('recordsPerPage');
-    const isSuperAdmin = <?php echo $isSuperAdmin ? 'true' : 'false'; ?>;
-    const isAdmin = <?php echo $isAdmin ? 'true' : 'false'; ?>;
-
-    // Toast notification
-    function showToast(message, type = 'success') {
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toastMessage');
-        if (!toast || !toastMessage) return;
-        
-        toastMessage.textContent = message;
-        toast.className = 'toast ' + (type === 'error' ? 'error' : '');
-        toast.style.display = 'block';
-        
-        setTimeout(() => {
-            toast.style.display = 'none';
-        }, 3000);
-    }
-
-    // Handle records per page change
-    if (recordsPerPageSelect) {
-        recordsPerPageSelect.addEventListener('change', function() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('per_page', this.value);
-            url.searchParams.set('page', 1);
-            window.location.href = url.toString();
-        });
-    }
-
-    // Clear search
-    if (clearSearchBtn) {
-        clearSearchBtn.addEventListener('click', function() {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('search');
-            url.searchParams.set('page', 1);
-            window.location.href = url.toString();
-        });
-    }
-
-    // Handle search form submission
-    const searchForm = document.getElementById('searchForm');
-    if (searchForm) {
-        searchForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const searchValue = searchInput.value.trim();
-            const url = new URL(window.location.href);
-            if (searchValue) {
-                url.searchParams.set('search', searchValue);
-            } else {
-                url.searchParams.delete('search');
-            }
-            url.searchParams.set('page', 1);
-            window.location.href = url.toString();
-        });
-    }
-
-    // Helper function to escape HTML
+    // Helper function
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -1613,146 +1752,495 @@ ob_start();
         return div.innerHTML;
     }
 
-    // Check if personnel number exists (real-time validation)
-    let checkTimeout;
-    const serviceNoInput = document.getElementById('addServiceNo');
-    if (serviceNoInput) {
-        serviceNoInput.addEventListener('input', function() {
-            clearTimeout(checkTimeout);
-            const serviceNo = this.value.trim();
-            
-            // Remove any existing validation styling
-            this.style.borderColor = '';
-            
-            if (serviceNo.length > 0) {
-                checkTimeout = setTimeout(() => {
-                    fetch(`check_personnel_exists.php?personnel_no=${encodeURIComponent(serviceNo)}`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.exists) {
-                                serviceNoInput.style.borderColor = '#dc2626';
-                                showToast('Personnel number already exists! Please use a different number.', 'error');
-                            } else {
-                                serviceNoInput.style.borderColor = '#10b981';
-                            }
-                        })
-                        .catch(error => console.error('Error checking personnel:', error));
-                }, 500);
-            }
-        });
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toastMessage');
+        if (!toast || !toastMessage) return;
+        toastMessage.textContent = message;
+        toast.className = 'toast ' + (type === 'error' ? 'error' : '');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
     }
 
-    // ==================== ADD PERSONNEL MODAL ====================
-    
-    function openAddPersonnelModal() {
-        const modal = document.getElementById('addPersonnelModal');
-        if (modal) {
-            // Reset the form
-            const form = document.getElementById('addPersonnelFormModal');
-            if (form) {
-                form.reset();
-            }
-            
-            // Clear any existing alerts
-            const alertDiv = document.getElementById('addPersonnelAlert');
-            if (alertDiv) {
-                alertDiv.innerHTML = '';
-                alertDiv.style.display = 'none';
-                alertDiv.className = 'alert';
-            }
-            
-            // Reset service number input styling
-            const serviceNoInput = document.getElementById('addServiceNo');
-            if (serviceNoInput) {
-                serviceNoInput.style.borderColor = '';
-            }
-            
-            modal.style.display = 'block';
+    // ==================== PHOTO MODAL ====================
+    let currentPersonnelId = null, currentPersonnelName = null, currentPersonnelPhoto = null, selectedPhotoFile = null;
+
+    function openPhotoModal(serviceNo, name, currentPhoto) {
+        currentPersonnelId = serviceNo;
+        currentPersonnelName = name;
+        currentPersonnelPhoto = currentPhoto;
+        selectedPhotoFile = null;
+        
+        document.getElementById('photoModalTitle').innerHTML = `<i class="fas fa-camera"></i> Update Photo - ${escapeHtml(name)}`;
+        document.getElementById('modalPersonnelInfo').innerHTML = `<p><strong>Personnel Number:</strong> ${escapeHtml(serviceNo)}</p><p><strong>Name:</strong> ${escapeHtml(name)}</p>`;
+        
+        const currentPhotoContainer = document.getElementById('modalCurrentPhoto');
+        if (currentPhoto && currentPhoto !== '') {
+            const img = new Image();
+            img.onload = () => {
+                currentPhotoContainer.innerHTML = `<img src="${currentPhoto}?t=${Date.now()}" class="current-photo-modal">`;
+                document.getElementById('modalDeleteBtn').style.display = 'inline-flex';
+            };
+            img.onerror = () => {
+                currentPhotoContainer.innerHTML = `<div class="photo-placeholder-modal"><i class="fas fa-user-circle"></i></div>`;
+                document.getElementById('modalDeleteBtn').style.display = 'none';
+            };
+            img.src = currentPhoto;
+        } else {
+            currentPhotoContainer.innerHTML = `<div class="photo-placeholder-modal"><i class="fas fa-user-circle"></i></div>`;
+            document.getElementById('modalDeleteBtn').style.display = 'none';
         }
+        
+        document.getElementById('modalPreviewContainer').innerHTML = '';
+        document.getElementById('modalProfilePhoto').value = '';
+        document.getElementById('modalUploadBtn').style.display = 'none';
+        document.getElementById('photoAlert').style.display = 'none';
+        document.getElementById('photoUploadModal').style.display = 'block';
     }
-    
-    function closeAddPersonnelModal() {
-        const modal = document.getElementById('addPersonnelModal');
-        if (modal) {
-            modal.style.display = 'none';
+
+    function closePhotoModal() {
+        document.getElementById('photoUploadModal').style.display = 'none';
+        currentPersonnelId = null;
+    }
+
+    function showPhotoAlert(message, type) {
+        const alertDiv = document.getElementById('photoAlert');
+        alertDiv.innerHTML = `<div style="background:${type === 'success' ? '#d1fae5' : '#fee2e2'};color:${type === 'success' ? '#065f46' : '#991b1b'};padding:12px;border-radius:8px;"><i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> ${message}</div>`;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 3000);
+    }
+
+    document.getElementById('modalProfilePhoto').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            selectedPhotoFile = file;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                document.getElementById('modalPreviewContainer').innerHTML = `<img src="${event.target.result}" class="preview-image-modal">`;
+                document.getElementById('modalUploadBtn').style.display = 'inline-flex';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            document.getElementById('modalPreviewContainer').innerHTML = '';
+            document.getElementById('modalUploadBtn').style.display = 'none';
+            selectedPhotoFile = null;
         }
-    }
-    
-    // Handle Add Personnel Form Submission
-    const addPersonnelForm = document.getElementById('addPersonnelFormModal');
-    if (addPersonnelForm) {
-        addPersonnelForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const submitBtn = this.querySelector('.btn-save');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; display: inline-block; margin-right: 8px;"></div> Adding...';
-            submitBtn.disabled = true;
-            
-            // Validate required fields
-            const serviceNo = document.getElementById('addServiceNo').value.trim();
-            const fullName = document.getElementById('addFullName').value.trim();
-            const rank = document.getElementById('addRank').value;
-            
-            if (!serviceNo || !fullName || !rank) {
-                showToast('Please fill all required fields', 'error');
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                return;
-            }
-            
-            const formData = new FormData(this);
-            
-            try {
-                const response = await fetch('add_personnel_ajax.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    showToast(result.message || 'Personnel added successfully!', 'success');
-                    closeAddPersonnelModal();
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showToast(result.message || 'Error adding personnel', 'error');
-                    // Display errors in the alert div
-                    const alertDiv = document.getElementById('addPersonnelAlert');
-                    if (alertDiv && result.message) {
-                        alertDiv.innerHTML = result.message;
-                        alertDiv.className = 'alert alert-error';
-                        alertDiv.style.display = 'block';
-                    }
+    });
+
+    document.getElementById('modalUploadBtn').addEventListener('click', async function() {
+        if (!selectedPhotoFile) { showPhotoAlert('Please select a photo first', 'error'); return; }
+        
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Uploading...';
+        btn.disabled = true;
+        
+        const formData = new FormData();
+        formData.append('action', 'upload_profile_photo');
+        formData.append('personnel_id', currentPersonnelId);
+        formData.append('profile_photo', selectedPhotoFile);
+        
+        try {
+            const response = await fetch('upload_profile_photo.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.success) {
+                showPhotoAlert(result.message, 'success');
+                document.getElementById('modalCurrentPhoto').innerHTML = `<img src="${result.path}?t=${Date.now()}" class="current-photo-modal">`;
+                document.getElementById('modalDeleteBtn').style.display = 'inline-flex';
+                const row = document.querySelector(`tr[data-personnel-number="${currentPersonnelId}"]`);
+                if (row) {
+                    const photoCell = row.querySelector('.photo-cell');
+                    photoCell.innerHTML = `<img src="${result.path}?t=${Date.now()}" class="profile-preview" onclick="viewProfilePhoto('${result.path}', '${escapeHtml(currentPersonnelName)}')">`;
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('Error adding personnel: ' + error.message, 'error');
-            } finally {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
+                document.getElementById('modalProfilePhoto').value = '';
+                document.getElementById('modalPreviewContainer').innerHTML = '';
+                btn.style.display = 'none';
+                selectedPhotoFile = null;
+                setTimeout(() => closePhotoModal(), 1500);
+            } else {
+                showPhotoAlert(result.message, 'error');
             }
-        });
+        } catch (error) {
+            showPhotoAlert('Error uploading photo', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('modalDeleteBtn').addEventListener('click', async function() {
+        if (!confirm('Remove this photo?')) return;
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Removing...';
+        btn.disabled = true;
+        
+        const formData = new FormData();
+        formData.append('action', 'delete_profile_photo');
+        formData.append('personnel_id', currentPersonnelId);
+        
+        try {
+            const response = await fetch('upload_profile_photo.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.success) {
+                showPhotoAlert(result.message, 'success');
+                document.getElementById('modalCurrentPhoto').innerHTML = `<div class="photo-placeholder-modal"><i class="fas fa-user-circle"></i></div>`;
+                btn.style.display = 'none';
+                const row = document.querySelector(`tr[data-personnel-number="${currentPersonnelId}"]`);
+                if (row) {
+                    const photoCell = row.querySelector('.photo-cell');
+                    photoCell.innerHTML = `<div class="avatar-placeholder" onclick="openPhotoModal('${currentPersonnelId}', '${escapeHtml(currentPersonnelName)}', null)"><i class="fas fa-user"></i></div>`;
+                }
+                setTimeout(() => closePhotoModal(), 1500);
+            } else {
+                showPhotoAlert(result.message, 'error');
+            }
+        } catch (error) {
+            showPhotoAlert('Error removing photo', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    // ==================== SIGNATURE MODAL ====================
+    let currentSignaturePersonnelId = null, currentSignaturePersonnelName = null, currentSignaturePath = null, selectedSignatureFile = null;
+
+    function openSignatureModal(serviceNo, name, currentSignature) {
+        currentSignaturePersonnelId = serviceNo;
+        currentSignaturePersonnelName = name;
+        currentSignaturePath = currentSignature;
+        selectedSignatureFile = null;
+        
+        document.getElementById('signatureModalTitle').innerHTML = `<i class="fas fa-signature"></i> Update Signature - ${escapeHtml(name)}`;
+        document.getElementById('modalSignaturePersonnelInfo').innerHTML = `<p><strong>Personnel Number:</strong> ${escapeHtml(serviceNo)}</p><p><strong>Name:</strong> ${escapeHtml(name)}</p>`;
+        
+        const currentSigContainer = document.getElementById('modalCurrentSignature');
+        if (currentSignature && currentSignature !== '') {
+            const img = new Image();
+            img.onload = () => {
+                currentSigContainer.innerHTML = `<img src="${currentSignature}?t=${Date.now()}" class="current-signature-modal">`;
+                document.getElementById('modalSignatureDeleteBtn').style.display = 'inline-flex';
+            };
+            img.onerror = () => {
+                currentSigContainer.innerHTML = `<div class="signature-placeholder-modal"><i class="fas fa-signature"></i><p>No signature uploaded</p></div>`;
+                document.getElementById('modalSignatureDeleteBtn').style.display = 'none';
+            };
+            img.src = currentSignature;
+        } else {
+            currentSigContainer.innerHTML = `<div class="signature-placeholder-modal"><i class="fas fa-signature"></i><p>No signature uploaded</p></div>`;
+            document.getElementById('modalSignatureDeleteBtn').style.display = 'none';
+        }
+        
+        document.getElementById('modalSignaturePreviewContainer').innerHTML = '';
+        document.getElementById('modalSignature').value = '';
+        document.getElementById('modalSignatureUploadBtn').style.display = 'none';
+        document.getElementById('signatureAlert').style.display = 'none';
+        document.getElementById('signatureUploadModal').style.display = 'block';
     }
+
+    function closeSignatureModal() {
+        document.getElementById('signatureUploadModal').style.display = 'none';
+        currentSignaturePersonnelId = null;
+    }
+
+    function showSignatureAlert(message, type) {
+        const alertDiv = document.getElementById('signatureAlert');
+        alertDiv.innerHTML = `<div style="background:${type === 'success' ? '#d1fae5' : '#fee2e2'};color:${type === 'success' ? '#065f46' : '#991b1b'};padding:12px;border-radius:8px;"><i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'}"></i> ${message}</div>`;
+        alertDiv.style.display = 'block';
+        setTimeout(() => alertDiv.style.display = 'none', 3000);
+    }
+
+    document.getElementById('modalSignature').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            selectedSignatureFile = file;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                document.getElementById('modalSignaturePreviewContainer').innerHTML = `<img src="${event.target.result}" class="preview-signature-modal">`;
+                document.getElementById('modalSignatureUploadBtn').style.display = 'inline-flex';
+            };
+            reader.readAsDataURL(file);
+        } else {
+            document.getElementById('modalSignaturePreviewContainer').innerHTML = '';
+            document.getElementById('modalSignatureUploadBtn').style.display = 'none';
+            selectedSignatureFile = null;
+        }
+    });
+
+    document.getElementById('modalSignatureUploadBtn').addEventListener('click', async function() {
+        if (!selectedSignatureFile) { showSignatureAlert('Please select a signature image first', 'error'); return; }
+        
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Uploading...';
+        btn.disabled = true;
+        
+        const formData = new FormData();
+        formData.append('action', 'upload_signature');
+        formData.append('personnel_id', currentSignaturePersonnelId);
+        formData.append('signature', selectedSignatureFile);
+        
+        try {
+            const response = await fetch('upload_signature.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.success) {
+                showSignatureAlert(result.message, 'success');
+                document.getElementById('modalCurrentSignature').innerHTML = `<img src="${result.path}?t=${Date.now()}" class="current-signature-modal">`;
+                document.getElementById('modalSignatureDeleteBtn').style.display = 'inline-flex';
+                const row = document.querySelector(`tr[data-personnel-number="${currentSignaturePersonnelId}"]`);
+                if (row) {
+                    const sigCell = row.querySelector('.signature-cell');
+                    sigCell.innerHTML = `<img src="${result.path}?t=${Date.now()}" class="signature-preview" onclick="viewSignature('${result.path}', '${escapeHtml(currentSignaturePersonnelName)}')">`;
+                }
+                document.getElementById('modalSignature').value = '';
+                document.getElementById('modalSignaturePreviewContainer').innerHTML = '';
+                btn.style.display = 'none';
+                selectedSignatureFile = null;
+                setTimeout(() => closeSignatureModal(), 1500);
+            } else {
+                showSignatureAlert(result.message, 'error');
+            }
+        } catch (error) {
+            showSignatureAlert('Error uploading signature', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('modalSignatureDeleteBtn').addEventListener('click', async function() {
+        if (!confirm('Remove this signature?')) return;
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Removing...';
+        btn.disabled = true;
+        
+        const formData = new FormData();
+        formData.append('action', 'delete_signature');
+        formData.append('personnel_id', currentSignaturePersonnelId);
+        
+        try {
+            const response = await fetch('upload_signature.php', { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.success) {
+                showSignatureAlert(result.message, 'success');
+                document.getElementById('modalCurrentSignature').innerHTML = `<div class="signature-placeholder-modal"><i class="fas fa-signature"></i><p>No signature uploaded</p></div>`;
+                btn.style.display = 'none';
+                const row = document.querySelector(`tr[data-personnel-number="${currentSignaturePersonnelId}"]`);
+                if (row) {
+                    const sigCell = row.querySelector('.signature-cell');
+                    sigCell.innerHTML = `<span class="no-signature">—</span>`;
+                }
+                setTimeout(() => closeSignatureModal(), 1500);
+            } else {
+                showSignatureAlert(result.message, 'error');
+            }
+        } catch (error) {
+            showSignatureAlert('Error removing signature', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    // ==================== OTHER FUNCTIONS ====================
+    function viewProfilePhoto(photoPath, name) {
+        let modal = document.getElementById('photoViewModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'photoViewModal';
+            modal.className = 'modal';
+            modal.innerHTML = `<div class="modal-content" style="max-width:450px;text-align:center;"><div class="modal-header"><h3><i class="fas fa-user-circle"></i> Profile Photo</h3><span class="close" style="cursor:pointer;font-size:28px;">&times;</span></div><div class="modal-body"><img src="${photoPath}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;"><p style="margin-top:15px;">${escapeHtml(name)}</p></div></div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('.close').onclick = () => modal.style.display = 'none';
+        }
+        modal.style.display = 'block';
+    }
+
+    function viewSignature(signaturePath, name) {
+        let modal = document.getElementById('signatureViewModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'signatureViewModal';
+            modal.className = 'modal';
+            modal.innerHTML = `<div class="modal-content" style="max-width:400px;text-align:center;"><div class="modal-header"><h3><i class="fas fa-signature"></i> Signature</h3><span class="close" style="cursor:pointer;font-size:28px;">&times;</span></div><div class="modal-body"><img src="${signaturePath}" style="max-width:100%;max-height:150px;"><p style="margin-top:15px;">${escapeHtml(name)}</p></div></div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('.close').onclick = () => modal.style.display = 'none';
+        }
+        modal.style.display = 'block';
+    }
+
+    // Close modals on outside click
+    window.onclick = function(event) {
+        if (event.target === document.getElementById('photoUploadModal')) closePhotoModal();
+        if (event.target === document.getElementById('signatureUploadModal')) closeSignatureModal();
+        if (event.target === document.getElementById('editPersonnelModal')) closeEditModal();
+        if (event.target === document.getElementById('manageBalanceModal')) closeManageBalanceModal();
+        if (event.target === document.getElementById('addPersonnelModal')) closeAddPersonnelModal();
+    }
+
+    // Add Personnel Modal Functions
+    function openAddPersonnelModal() { 
+        document.getElementById('addPersonnelModal').style.display = 'block'; 
+    }
+    
+    function closeAddPersonnelModal() { 
+        document.getElementById('addPersonnelModal').style.display = 'none'; 
+    }
+    
+    // Edit Personnel Modal Functions
+    function closeEditModal() { 
+        document.getElementById('editPersonnelModal').style.display = 'none'; 
+    }
+    
+    // Manage Balance Modal Functions
+    function closeManageBalanceModal() { 
+        document.getElementById('manageBalanceModal').style.display = 'none'; 
+    }
+    
+    function editPersonnel(personnelNumber) {
+        const btn = event.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div>';
+        btn.disabled = true;
+        
+        fetch(`get_personnel.php?id=${encodeURIComponent(personnelNumber)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    const p = data.data;
+                    document.getElementById('edit_personnel_number').value = p.personnel_number || '';
+                    document.getElementById('edit_personnel_number_display').value = p.personnel_number || '';
+                    document.getElementById('edit_full_name_en').value = p.full_name_en || '';
+                    document.getElementById('edit_full_name_ne').value = p.full_name_ne || '';
+                    document.getElementById('edit_email').value = p.email || '';
+                    document.getElementById('edit_phone').value = p.phone || '';
+                    document.getElementById('edit_rank').value = p.rank || '';
+                    document.getElementById('edit_unit').value = p.unit || '';
+                    document.getElementById('edit_recruitment_date').value = p.recruitment_date || '';
+                    document.getElementById('edit_province').value = p.province || '';
+                    document.getElementById('edit_district').value = p.district || '';
+                    document.getElementById('edit_municipality').value = p.municipality || '';
+                    document.getElementById('edit_village_tole').value = p.village_tole || '';
+                    document.getElementById('edit_current_status').value = p.current_status || 'Active';
+                    document.getElementById('edit_role').value = p.role || 0;
+                    document.getElementById('editPersonnelModal').style.display = 'block';
+                } else {
+                    showToast(data.message || 'Error loading data', 'error');
+                }
+            })
+            .catch(error => { showToast('Error loading data', 'error'); })
+            .finally(() => { btn.innerHTML = originalHtml; btn.disabled = false; });
+    }
+
+    document.getElementById('editPersonnelForm')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const btn = this.querySelector('.btn-save');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Saving...';
+        btn.disabled = true;
+        try {
+            const res = await fetch('update_personnel.php', { method: 'POST', body: new FormData(this) });
+            const result = await res.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                closeEditModal();
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(result.message || 'Error updating', 'error');
+            }
+        } catch (error) {
+            showToast('Error updating personnel', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
+
+    // Add Personnel Form Submit
+    document.getElementById('addPersonnelFormModal')?.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const submitBtn = this.querySelector('.btn-save');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<div class="loading-spinner"></div> Adding...';
+        submitBtn.disabled = true;
+        
+        const serviceNo = document.getElementById('addServiceNo').value.trim();
+        const fullName = document.getElementById('addFullName').value.trim();
+        const rank = document.getElementById('addRank').value;
+        
+        if (!serviceNo || !fullName || !rank) {
+            showToast('Please fill all required fields', 'error');
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            return;
+        }
+        
+        try {
+            const response = await fetch('add_personnel_ajax.php', {
+                method: 'POST',
+                body: new FormData(this)
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                showToast(result.message || 'Personnel added successfully!', 'success');
+                closeAddPersonnelModal();
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(result.message || 'Error adding personnel', 'error');
+            }
+        } catch (error) {
+            showToast('Error adding personnel', 'error');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+    });
+
+    <?php if ($isSuperAdmin): ?>
+    document.getElementById('manageBalanceBtn')?.addEventListener('click', function() {
+        document.getElementById('manageBalanceModal').style.display = 'block';
+        loadAllLeaveBalances();
+    });
+    document.getElementById('addPersonnelBtn')?.addEventListener('click', openAddPersonnelModal);
+    
+    function resetPassword(serviceNo, name) {
+        if(confirm(`Reset password for ${name} to "reset@123"?`)) {
+            fetch('reset_password.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `personnel_no=${encodeURIComponent(serviceNo)}&password=reset@123`
+            }).then(res => res.json()).then(data => {
+                if(data.success) showToast(`Password reset to: reset@123`, 'success');
+                else showToast(data.message || 'Error', 'error');
+            }).catch(() => showToast('Error resetting password', 'error'));
+        }
+    }
+    
+    function deletePersonnel(serviceNo, name) {
+        if(confirm(`Delete ${name}? This cannot be undone.`)) {
+            fetch('delete_personnel.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `id=${encodeURIComponent(serviceNo)}`
+            }).then(res => res.json()).then(data => {
+                if(data.success) { showToast('Personnel deleted', 'success'); setTimeout(() => location.reload(), 1000); }
+                else showToast(data.message || 'Error', 'error');
+            }).catch(() => showToast('Error deleting', 'error'));
+        }
+    }
+    <?php endif; ?>
 
     // ==================== MANAGE LEAVE BALANCE ====================
-    
     let allPersonnelData = [];
-    
-    function openManageBalanceModal() {
-        const modal = document.getElementById('manageBalanceModal');
-        if (modal) modal.style.display = 'block';
-        loadAllLeaveBalances();
-    }
-    
-    function closeManageBalanceModal() {
-        const modal = document.getElementById('manageBalanceModal');
-        if (modal) modal.style.display = 'none';
-    }
-    
+
     function loadAllLeaveBalances() {
         const tbody = document.getElementById('leaveBalanceTableBody');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px;"><div class="loading-spinner"></div> Loading leave balances...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;"><div class="loading-spinner"></div> Loading leave balances...</td></tr>';
         
         fetch('get_all_leave_balances.php')
             .then(response => response.json())
@@ -1761,74 +2249,62 @@ ob_start();
                     allPersonnelData = data.data;
                     renderLeaveBalanceTable(allPersonnelData);
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #c2410c;">Failed to load leave balances</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#c2410c;">Failed to load leave balances</td></tr>';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #c2410c;">Error loading leave balances</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#c2410c;">Error loading leave balances</td></tr>';
             });
     }
-    
-    function removeDuplicates(data) {
-        const uniqueMap = new Map();
-        for (const item of data) {
-            const key = item.personnel_number;
-            if (!uniqueMap.has(key) || 
-                (item.gharpari_bida_days > uniqueMap.get(key).gharpari_bida_days) ||
-                (item.parba_bida_days > uniqueMap.get(key).parba_bida_days) ||
-                (item.bhaeepari_bida_days > uniqueMap.get(key).bhaeepari_bida_days)) {
-                uniqueMap.set(key, item);
-            }
-        }
-        return Array.from(uniqueMap.values());
-    }
-    
+
     function renderLeaveBalanceTable(data) {
         const tbody = document.getElementById('leaveBalanceTableBody');
         if (!tbody) return;
         
         if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px;">No personnel found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;">No leave balance records found</td></tr>';
             return;
         }
         
-        const uniqueData = removeDuplicates(data);
-        
         let html = '';
-        uniqueData.forEach((person, index) => {
+        data.forEach((person, idx) => {
+            const pid = person.personnel_id;
+            // Format numbers
+            const gharpari = person.gharpari_bida_days % 1 === 0 ? person.gharpari_bida_days : person.gharpari_bida_days.toFixed(1);
+            const parba = person.parba_bida_days % 1 === 0 ? person.parba_bida_days : person.parba_bida_days.toFixed(1);
+            const bhaeepari = person.bhaeepari_bida_days % 1 === 0 ? person.bhaeepari_bida_days : person.bhaeepari_bida_days.toFixed(1);
+            
             html += `
-                <tr id="balance-row-${person.personnel_id}">
-                    <td>${index + 1}</td>
-                    <td><strong>${escapeHtml(person.personnel_number)}</strong></td>
-                    <td>${escapeHtml(person.personnel_name)}</td>
-                    <td>${escapeHtml(person.rank)}</td>
-                    <td>
-                        <span id="gharpari-display-${person.personnel_id}">${person.gharpari_bida_days}</span>
-                        <input type="number" id="gharpari-input-${person.personnel_id}" 
+                <tr id="balance-row-${pid}">
+                    <td style="width: 50px; text-align: center;">${idx + 1}</td>
+                    <td><strong>${escapeHtml(person.service_no || person.personnel_id)}</strong></td>
+                    <td style="width: 130px;">
+                        <span class="gharpari-display" data-id="${pid}">${gharpari}</span>
+                        <input type="number" class="gharpari-input" data-id="${pid}" 
                                value="${person.gharpari_bida_days}" step="0.5" min="0"
                                style="display: none; width: 80px; padding: 5px;" class="balance-input">
                     </td>
-                    <td>
-                        <span id="parba-display-${person.personnel_id}">${person.parba_bida_days}</span>
-                        <input type="number" id="parba-input-${person.personnel_id}" 
+                    <td style="width: 130px;">
+                        <span class="parba-display" data-id="${pid}">${parba}</span>
+                        <input type="number" class="parba-input" data-id="${pid}" 
                                value="${person.parba_bida_days}" step="0.5" min="0"
                                style="display: none; width: 80px; padding: 5px;" class="balance-input">
                     </td>
-                    <td>
-                        <span id="bhaeepari-display-${person.personnel_id}">${person.bhaeepari_bida_days}</span>
-                        <input type="number" id="bhaeepari-input-${person.personnel_id}" 
+                    <td style="width: 130px;">
+                        <span class="bhaeepari-display" data-id="${pid}">${bhaeepari}</span>
+                        <input type="number" class="bhaeepari-input" data-id="${pid}" 
                                value="${person.bhaeepari_bida_days}" step="0.5" min="0"
                                style="display: none; width: 80px; padding: 5px;" class="balance-input">
                     </td>
-                    <td>
-                        <button class="edit-balance-btn" onclick="editBalanceRow(${person.personnel_id})" id="edit-btn-${person.personnel_id}">
+                    <td style="width: 180px;">
+                        <button class="edit-balance-btn" onclick="editBalanceRow('${pid}')">
                             <i class="fas fa-edit"></i> Edit
                         </button>
-                        <button class="save-balance-btn" onclick="saveBalanceRow(${person.personnel_id})" id="save-btn-${person.personnel_id}" style="display: none;">
+                        <button class="save-balance-btn" onclick="saveBalanceRow('${pid}')" style="display: none;">
                             <i class="fas fa-save"></i> Save
                         </button>
-                        <button class="cancel-balance-btn" onclick="cancelEditBalanceRow(${person.personnel_id})" id="cancel-btn-${person.personnel_id}" style="display: none;">
+                        <button class="cancel-balance-btn" onclick="cancelEditBalanceRow('${pid}')" style="display: none;">
                             <i class="fas fa-times"></i> Cancel
                         </button>
                     </td>
@@ -1837,383 +2313,181 @@ ob_start();
         });
         tbody.innerHTML = html;
     }
-    
+
     function editBalanceRow(personnelId) {
-        document.getElementById(`gharpari-display-${personnelId}`).style.display = 'none';
-        document.getElementById(`gharpari-input-${personnelId}`).style.display = 'inline-block';
-        document.getElementById(`parba-display-${personnelId}`).style.display = 'none';
-        document.getElementById(`parba-input-${personnelId}`).style.display = 'inline-block';
-        document.getElementById(`bhaeepari-display-${personnelId}`).style.display = 'none';
-        document.getElementById(`bhaeepari-input-${personnelId}`).style.display = 'inline-block';
+        const gharpariDisplay = document.querySelector(`.gharpari-display[data-id="${personnelId}"]`);
+        const gharpariInput = document.querySelector(`.gharpari-input[data-id="${personnelId}"]`);
+        const parbaDisplay = document.querySelector(`.parba-display[data-id="${personnelId}"]`);
+        const parbaInput = document.querySelector(`.parba-input[data-id="${personnelId}"]`);
+        const bhaeepariDisplay = document.querySelector(`.bhaeepari-display[data-id="${personnelId}"]`);
+        const bhaeepariInput = document.querySelector(`.bhaeepari-input[data-id="${personnelId}"]`);
         
-        document.getElementById(`edit-btn-${personnelId}`).style.display = 'none';
-        document.getElementById(`save-btn-${personnelId}`).style.display = 'inline-block';
-        document.getElementById(`cancel-btn-${personnelId}`).style.display = 'inline-block';
+        const editBtn = document.querySelector(`.edit-balance-btn[onclick*="${personnelId}"]`);
+        const row = editBtn?.closest('tr');
+        const saveBtn = row?.querySelector('.save-balance-btn');
+        const cancelBtn = row?.querySelector('.cancel-balance-btn');
+        
+        if (gharpariDisplay) gharpariDisplay.style.display = 'none';
+        if (gharpariInput) gharpariInput.style.display = 'inline-block';
+        if (parbaDisplay) parbaDisplay.style.display = 'none';
+        if (parbaInput) parbaInput.style.display = 'inline-block';
+        if (bhaeepariDisplay) bhaeepariDisplay.style.display = 'none';
+        if (bhaeepariInput) bhaeepariInput.style.display = 'inline-block';
+        
+        if (editBtn) editBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'inline-flex';
+        if (cancelBtn) cancelBtn.style.display = 'inline-flex';
     }
-    
+
     function cancelEditBalanceRow(personnelId) {
-        const person = allPersonnelData.find(p => p.personnel_id == personnelId);
-        if (person) {
-            document.getElementById(`gharpari-input-${personnelId}`).value = person.gharpari_bida_days;
-            document.getElementById(`parba-input-${personnelId}`).value = person.parba_bida_days;
-            document.getElementById(`bhaeepari-input-${personnelId}`).value = person.bhaeepari_bida_days;
+        const record = allPersonnelData.find(r => r.personnel_id == personnelId);
+        
+        const gharpariDisplay = document.querySelector(`.gharpari-display[data-id="${personnelId}"]`);
+        const gharpariInput = document.querySelector(`.gharpari-input[data-id="${personnelId}"]`);
+        const parbaDisplay = document.querySelector(`.parba-display[data-id="${personnelId}"]`);
+        const parbaInput = document.querySelector(`.parba-input[data-id="${personnelId}"]`);
+        const bhaeepariDisplay = document.querySelector(`.bhaeepari-display[data-id="${personnelId}"]`);
+        const bhaeepariInput = document.querySelector(`.bhaeepari-input[data-id="${personnelId}"]`);
+        
+        if (record) {
+            if (gharpariInput) gharpariInput.value = record.gharpari_bida_days;
+            if (parbaInput) parbaInput.value = record.parba_bida_days;
+            if (bhaeepariInput) bhaeepariInput.value = record.bhaeepari_bida_days;
         }
         
-        document.getElementById(`gharpari-display-${personnelId}`).style.display = 'inline';
-        document.getElementById(`gharpari-input-${personnelId}`).style.display = 'none';
-        document.getElementById(`parba-display-${personnelId}`).style.display = 'inline';
-        document.getElementById(`parba-input-${personnelId}`).style.display = 'none';
-        document.getElementById(`bhaeepari-display-${personnelId}`).style.display = 'inline';
-        document.getElementById(`bhaeepari-input-${personnelId}`).style.display = 'none';
+        if (gharpariDisplay) gharpariDisplay.style.display = 'inline';
+        if (gharpariInput) gharpariInput.style.display = 'none';
+        if (parbaDisplay) parbaDisplay.style.display = 'inline';
+        if (parbaInput) parbaInput.style.display = 'none';
+        if (bhaeepariDisplay) bhaeepariDisplay.style.display = 'inline';
+        if (bhaeepariInput) bhaeepariInput.style.display = 'none';
         
-        document.getElementById(`edit-btn-${personnelId}`).style.display = 'inline-block';
-        document.getElementById(`save-btn-${personnelId}`).style.display = 'none';
-        document.getElementById(`cancel-btn-${personnelId}`).style.display = 'none';
+        const editBtn = document.querySelector(`.edit-balance-btn[onclick*="${personnelId}"]`);
+        const row = editBtn?.closest('tr');
+        const saveBtn = row?.querySelector('.save-balance-btn');
+        const cancelBtn = row?.querySelector('.cancel-balance-btn');
+        
+        if (editBtn) editBtn.style.display = 'inline-flex';
+        if (saveBtn) saveBtn.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
     }
-    
+
     function saveBalanceRow(personnelId) {
-        const gharpari = parseFloat(document.getElementById(`gharpari-input-${personnelId}`).value) || 0;
-        const parba = parseFloat(document.getElementById(`parba-input-${personnelId}`).value) || 0;
-        const bhaeepari = parseFloat(document.getElementById(`bhaeepari-input-${personnelId}`).value) || 0;
+        const gharpariInput = document.querySelector(`.gharpari-input[data-id="${personnelId}"]`);
+        const parbaInput = document.querySelector(`.parba-input[data-id="${personnelId}"]`);
+        const bhaeepariInput = document.querySelector(`.bhaeepari-input[data-id="${personnelId}"]`);
+        
+        const gharpari = parseFloat(gharpariInput?.value) || 0;
+        const parba = parseFloat(parbaInput?.value) || 0;
+        const bhaeepari = parseFloat(bhaeepariInput?.value) || 0;
         
         if (gharpari < 0 || parba < 0 || bhaeepari < 0) {
             showToast('Leave days cannot be negative', 'error');
             return;
         }
         
-        const saveBtn = document.getElementById(`save-btn-${personnelId}`);
-        const originalText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px;"></div>';
-        saveBtn.disabled = true;
+        const editBtn = document.querySelector(`.edit-balance-btn[onclick*="${personnelId}"]`);
+        const row = editBtn?.closest('tr');
+        const saveBtn = row?.querySelector('.save-balance-btn');
         
-        fetch('update_leave_balance.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                personnel_id: personnelId,
-                gharpari_bida: gharpari,
-                parba_bida: parba,
-                bhaeepari_bida: bhaeepari
+        if (saveBtn) {
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<div class="loading-spinner" style="width: 14px; height: 14px;"></div>';
+            saveBtn.disabled = true;
+            
+            fetch('update_leave_balance.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    personnel_id: personnelId, 
+                    gharpari_bida: gharpari, 
+                    parba_bida: parba, 
+                    bhaeepari_bida: bhaeepari 
+                })
             })
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                document.getElementById(`gharpari-display-${personnelId}`).textContent = gharpari;
-                document.getElementById(`parba-display-${personnelId}`).textContent = parba;
-                document.getElementById(`bhaeepari-display-${personnelId}`).textContent = bhaeepari;
-                
-                const person = allPersonnelData.find(p => p.personnel_id == personnelId);
-                if (person) {
-                    person.gharpari_bida_days = gharpari;
-                    person.parba_bida_days = parba;
-                    person.bhaeepari_bida_days = bhaeepari;
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    const gharpariDisplay = document.querySelector(`.gharpari-display[data-id="${personnelId}"]`);
+                    const parbaDisplay = document.querySelector(`.parba-display[data-id="${personnelId}"]`);
+                    const bhaeepariDisplay = document.querySelector(`.bhaeepari-display[data-id="${personnelId}"]`);
+                    
+                    const formattedGharpari = gharpari % 1 === 0 ? gharpari : gharpari.toFixed(1);
+                    const formattedParba = parba % 1 === 0 ? parba : parba.toFixed(1);
+                    const formattedBhaeepari = bhaeepari % 1 === 0 ? bhaeepari : bhaeepari.toFixed(1);
+                    
+                    if (gharpariDisplay) gharpariDisplay.textContent = formattedGharpari;
+                    if (parbaDisplay) parbaDisplay.textContent = formattedParba;
+                    if (bhaeepariDisplay) bhaeepariDisplay.textContent = formattedBhaeepari;
+                    
+                    const record = allPersonnelData.find(r => r.personnel_id == personnelId);
+                    if (record) {
+                        record.gharpari_bida_days = gharpari;
+                        record.parba_bida_days = parba;
+                        record.bhaeepari_bida_days = bhaeepari;
+                    }
+                    
+                    cancelEditBalanceRow(personnelId);
+                    showToast('Leave balance updated successfully!', 'success');
+                } else {
+                    showToast(result.message || 'Error updating leave balance', 'error');
+                    cancelEditBalanceRow(personnelId);
                 }
-                
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error updating leave balance', 'error');
                 cancelEditBalanceRow(personnelId);
-                showToast('Leave balance updated successfully!', 'success');
-            } else {
-                showToast(result.message || 'Error updating leave balance', 'error');
-                cancelEditBalanceRow(personnelId);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Error updating leave balance: ' + error.message, 'error');
-            cancelEditBalanceRow(personnelId);
-        })
-        .finally(() => {
-            saveBtn.innerHTML = originalText;
-            saveBtn.disabled = false;
-        });
+            })
+            .finally(() => {
+                saveBtn.innerHTML = originalText;
+                saveBtn.disabled = false;
+            });
+        }
     }
-    
+
     // Search functionality for balance modal
     const balanceSearchInput = document.getElementById('balanceSearchInput');
     if (balanceSearchInput) {
         balanceSearchInput.addEventListener('keyup', function() {
-            const searchTerm = this.value.toLowerCase();
+            const searchTerm = this.value.toLowerCase().trim();
             if (!searchTerm) {
                 renderLeaveBalanceTable(allPersonnelData);
                 return;
             }
             
             const filtered = allPersonnelData.filter(person => 
-                person.personnel_name.toLowerCase().includes(searchTerm) ||
-                person.personnel_number.toLowerCase().includes(searchTerm) ||
-                person.rank.toLowerCase().includes(searchTerm)
+                (person.personnel_name && person.personnel_name.toLowerCase().includes(searchTerm)) ||
+                (person.service_no && person.service_no.toLowerCase().includes(searchTerm)) ||
+                (person.rank && person.rank.toLowerCase().includes(searchTerm)) ||
+                (person.personnel_id && String(person.personnel_id).toLowerCase().includes(searchTerm))
             );
             renderLeaveBalanceTable(filtered);
         });
     }
-    
-    // ==================== EDIT PERSONNEL ====================
-    
-    function editPersonnel(personnelNumber) {
-        // Show loading state on the button that was clicked
-        const editBtn = event.currentTarget;
-        const originalHtml = editBtn.innerHTML;
-        editBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; margin: 0 auto;"></div>';
-        editBtn.disabled = true;
-        
-        fetch(`get_personnel.php?id=${encodeURIComponent(personnelNumber)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data) {
-                    const personnel = data.data;
-                    
-                    // Populate form fields
-                    document.getElementById('edit_personnel_number').value = personnel.personnel_number || '';
-                    document.getElementById('edit_personnel_number_display').value = personnel.personnel_number || '';
-                    document.getElementById('edit_full_name_en').value = personnel.full_name_en || '';
-                    document.getElementById('edit_full_name_ne').value = personnel.full_name_ne || '';
-                    document.getElementById('edit_email').value = personnel.email || '';
-                    document.getElementById('edit_phone').value = personnel.phone || '';
-                    document.getElementById('edit_rank').value = personnel.rank || '';
-                    document.getElementById('edit_unit').value = personnel.unit || '';
-                    document.getElementById('edit_recruitment_date').value = personnel.recruitment_date || '';
-                    document.getElementById('edit_province').value = personnel.province || '';
-                    document.getElementById('edit_district').value = personnel.district || '';
-                    document.getElementById('edit_municipality').value = personnel.municipality || '';
-                    document.getElementById('edit_village_tole').value = personnel.village_tole || '';
-                    document.getElementById('edit_current_status').value = personnel.current_status || 'Active';
-                    document.getElementById('edit_role').value = personnel.role || 0;
-                    
-                    // Update modal title
-                    const modalTitle = document.getElementById('editModalTitle');
-                    if (modalTitle) {
-                        modalTitle.innerHTML = `<i class="fas fa-edit"></i> Edit Personnel - ${escapeHtml(personnel.full_name_en || personnel.personnel_number)}`;
-                    }
-                    
-                    // Show the modal
-                    const modal = document.getElementById('editPersonnelModal');
-                    if (modal) {
-                        modal.style.display = 'block';
-                    }
-                } else {
-                    showToast(data.message || 'Error loading personnel data', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Error loading personnel data: ' + error.message, 'error');
-            })
-            .finally(() => {
-                editBtn.innerHTML = originalHtml;
-                editBtn.disabled = false;
-            });
-    }
-    
-    function closeEditModal() {
-        const modal = document.getElementById('editPersonnelModal');
-        if (modal) {
-            modal.style.display = 'none';
-        }
-        const form = document.getElementById('editPersonnelForm');
-        if (form) {
-            form.reset();
-        }
-    }
-    
-    // Edit Form Submit
-    const editForm = document.getElementById('editPersonnelForm');
-    if (editForm) {
-        editForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const submitBtn = this.querySelector('.btn-save');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; display: inline-block; margin-right: 8px;"></div> Saving...';
-            submitBtn.disabled = true;
-            
-            const formData = new FormData(this);
-            
-            try {
-                const response = await fetch('update_personnel.php', {
-                    method: 'POST',
-                    body: formData
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    showToast(result.message || 'Personnel updated successfully!', 'success');
-                    closeEditModal();
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showToast(result.message || 'Error updating personnel', 'error');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                showToast('Error updating personnel: ' + error.message, 'error');
-            } finally {
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            }
-        });
-    }
-    
-    // Close modals when clicking outside
-    window.onclick = function(event) {
-        const editModal = document.getElementById('editPersonnelModal');
-        if (editModal && event.target === editModal) {
-            closeEditModal();
-        }
-        const balanceModal = document.getElementById('manageBalanceModal');
-        if (balanceModal && event.target === balanceModal) {
-            closeManageBalanceModal();
-        }
-        const addModal = document.getElementById('addPersonnelModal');
-        if (addModal && event.target === addModal) {
-            closeAddPersonnelModal();
-        }
-    }
 
-    // ==================== OTHER FUNCTIONS ====================
-    
-    function viewSignature(signaturePath, name) {
-        let viewModal = document.getElementById('signatureViewModal');
-        if (!viewModal) {
-            viewModal = document.createElement('div');
-            viewModal.id = 'signatureViewModal';
-            viewModal.className = 'modal';
-            viewModal.innerHTML = `
-                <div class="modal-content" style="max-width: 400px;">
-                    <div class="modal-header">
-                        <h3 id="signatureViewTitle"><i class="fas fa-signature"></i> Signature</h3>
-                        <span class="close-signature-view" style="cursor: pointer; font-size: 28px;">&times;</span>
-                    </div>
-                    <div class="modal-body" style="text-align: center;">
-                        <div id="signatureViewImage"></div>
-                        <p id="signatureViewName" style="margin-top: 15px; color: #6c7a8e;"></p>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(viewModal);
-            
-            const closeBtn = viewModal.querySelector('.close-signature-view');
-            closeBtn.onclick = () => viewModal.style.display = 'none';
-        }
-        
-        const viewImage = document.getElementById('signatureViewImage');
-        const viewName = document.getElementById('signatureViewName');
-        const viewTitle = document.getElementById('signatureViewTitle');
-        
-        if (viewImage) {
-            viewImage.innerHTML = `<img src="${signaturePath}" alt="Signature of ${name}" style="max-width: 280px; max-height: 100px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: white;">`;
-        }
-        if (viewName) viewName.textContent = name;
-        if (viewTitle) viewTitle.innerHTML = `<i class="fas fa-signature"></i> Signature - ${name}`;
-        
-        viewModal.style.display = 'block';
-    }
-
-    function viewProfilePhoto(photoPath, name) {
-        let viewModal = document.getElementById('photoViewModal');
-        if (!viewModal) {
-            viewModal = document.createElement('div');
-            viewModal.id = 'photoViewModal';
-            viewModal.className = 'modal';
-            viewModal.innerHTML = `
-                <div class="modal-content" style="max-width: 450px; text-align: center;">
-                    <div class="modal-header">
-                        <h3 id="photoViewTitle"><i class="fas fa-user-circle"></i> Profile Photo</h3>
-                        <span class="close-photo-view" style="cursor: pointer; font-size: 28px;">&times;</span>
-                    </div>
-                    <div class="modal-body">
-                        <div id="photoViewImage"></div>
-                        <p id="photoViewName" style="margin-top: 15px;"></p>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(viewModal);
-            
-            const closeBtn = viewModal.querySelector('.close-photo-view');
-            closeBtn.onclick = () => viewModal.style.display = 'none';
-        }
-        
-        const viewImage = document.getElementById('photoViewImage');
-        const viewName = document.getElementById('photoViewName');
-        const viewTitle = document.getElementById('photoViewTitle');
-        
-        if (viewImage) {
-            viewImage.innerHTML = `<img src="${photoPath}" alt="Profile Photo of ${name}" style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; border: 3px solid #e2e8f0; padding: 5px; background: white;">`;
-        }
-        if (viewName) viewName.textContent = name;
-        if (viewTitle) viewTitle.innerHTML = `<i class="fas fa-user-circle"></i> Profile Photo - ${name}`;
-        
-        viewModal.style.display = 'block';
-    }
-
-    <?php if ($isSuperAdmin): ?>
-    const manageBalanceBtn = document.getElementById('manageBalanceBtn');
-    if (manageBalanceBtn) {
-        manageBalanceBtn.onclick = openManageBalanceModal;
-    }
-    
-    const addBtn = document.getElementById('addPersonnelBtn');
-    if (addBtn) {
-        addBtn.onclick = openAddPersonnelModal;
-    }
-    
-    function editProfilePhoto(serviceNo, name) {
-        window.location.href = `edit_profile_photo.php?id=${encodeURIComponent(serviceNo)}`;
-    }
-
-    function editSignature(serviceNo, name, currentSignature) {
-        window.location.href = `edit_signature.php?id=${encodeURIComponent(serviceNo)}`;
-    }
-
-    function resetPassword(serviceNo, name) {
-        if(confirm(`Are you sure you want to reset password for ${name} (${serviceNo})?\n\nPassword will be set to: reset@123`)) {
-            fetch('reset_password.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `personnel_no=${encodeURIComponent(serviceNo)}&password=reset@123`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`Password for ${name} has been reset to: reset@123`, 'success');
-                } else {
-                    showToast(data.message || 'Error resetting password', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Error resetting password', 'error');
-            });
-        }
-    }
-
-    function deletePersonnel(serviceNo, name) {
-        if(confirm(`Are you sure you want to delete ${name} (${serviceNo})? This action cannot be undone.`)) {
-            fetch('delete_personnel.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `id=${encodeURIComponent(serviceNo)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast(`Personnel ${name} deleted successfully`, 'success');
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showToast(data.message || 'Error deleting personnel', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Error deleting personnel', 'error');
-            });
-        }
-    }
-    <?php endif; ?>
+    // Search and pagination
+    document.getElementById('searchForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const url = new URL(window.location.href);
+        const val = document.getElementById('searchInput').value.trim();
+        if(val) url.searchParams.set('search', val);
+        else url.searchParams.delete('search');
+        url.searchParams.set('page', 1);
+        window.location.href = url.toString();
+    });
+    document.getElementById('clearSearch')?.addEventListener('click', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('search');
+        url.searchParams.set('page', 1);
+        window.location.href = url.toString();
+    });
+    document.getElementById('recordsPerPage')?.addEventListener('change', function() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('per_page', this.value);
+        url.searchParams.set('page', 1);
+        window.location.href = url.toString();
+    });
 </script>
 
 <?php
