@@ -317,7 +317,7 @@ ob_start();
         margin: 50px auto;
         border-radius: 16px;
         width: 90%;
-        max-width: 1200px;
+        max-width: 900px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         animation: slideDown 0.3s;
     }
@@ -369,6 +369,89 @@ ob_start();
         padding: 24px;
         max-height: 70vh;
         overflow-y: auto;
+    }
+    
+    /* Form Styles for Edit Modal */
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .form-group label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+    }
+    
+    .form-group input,
+    .form-group select {
+        padding: 10px 12px;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 14px;
+        transition: all 0.2s;
+        outline: none;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+        border-color: #2c5f4e;
+        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.1);
+    }
+    
+    .form-group input[readonly] {
+        background: #f1f3f5;
+        cursor: not-allowed;
+    }
+    
+    .modal-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 15px;
+        margin-top: 25px;
+        padding-top: 20px;
+        border-top: 1px solid #e2e8f0;
+    }
+    
+    .btn-save {
+        background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+    
+    .btn-save:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(44, 95, 78, 0.3);
+    }
+    
+    .btn-cancel-modal {
+        background: #f1f3f5;
+        color: #6c7a8e;
+        border: 1px solid #e2e8f0;
+        padding: 10px 24px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
+    
+    .btn-cancel-modal:hover {
+        background: #e2e8f0;
     }
     
     .leave-balance-table {
@@ -771,6 +854,36 @@ ob_start();
         }
     }
     
+    .required-star {
+        color: #dc2626;
+        margin-left: 3px;
+    }
+    
+    .form-hint {
+        font-size: 11px;
+        color: #6c7a8e;
+        margin-top: 4px;
+    }
+    
+    .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+    }
+    
+    .alert-success {
+        background: #d1fae5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+    }
+    
+    .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+    
     @media (max-width: 768px) {
         .stats-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -832,6 +945,11 @@ ob_start();
         .btn-add {
             width: 100%;
             justify-content: center;
+        }
+        
+        .form-row {
+            grid-template-columns: 1fr;
+            gap: 15px;
         }
     }
     
@@ -1048,11 +1166,11 @@ ob_start();
                         <?php if (!empty($search_term)): ?>
                             <p style="color: #9aa9bc; font-size: 12px; margin-top: 10px;">Try adjusting your search criteria.</p>
                         <?php endif; ?>
-                    </td>
-                </tr>
+                     </td>
+                 </tr>
             <?php endif; ?>
         </tbody>
-    </table>
+     </table>
 </div>
 
 <!-- Pagination -->
@@ -1145,8 +1263,8 @@ ob_start();
                         <tr>
                             <td colspan="8" style="text-align: center; padding: 40px;">
                                 <div class="loading-spinner"></div> Loading...
-                            </tr>
-                        </tr>
+                              </>
+                          </table>
                     </tbody>
                 </table>
             </div>
@@ -1284,6 +1402,144 @@ ob_start();
     </div>
 </div>
 
+<!-- Add Personnel Modal -->
+<div id="addPersonnelModal" class="modal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-plus"></i> Add New Personnel</h3>
+            <span class="close" onclick="closeAddPersonnelModal()">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div id="addPersonnelAlert" class="alert" style="display: none;"></div>
+            <form id="addPersonnelFormModal">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Personnel Number <span class="required-star">*</span></label>
+                        <input type="text" id="addServiceNo" name="serviceNo" required 
+                               placeholder="Enter personnel number (e.g., NA-12345)">
+                        <div class="form-hint">Unique personnel number/ID (must be unique)</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Full Name (English) <span class="required-star">*</span></label>
+                        <input type="text" id="addFullName" name="fullName" required placeholder="e.g., John Doe">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Full Name (Nepali)</label>
+                        <input type="text" id="addFullNameNe" name="fullNameNe" placeholder="e.g., जन डो">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="addEmail" name="email" placeholder="personnel@nepalarmy.mil.np">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="text" id="addPhone" name="phone" placeholder="98XXXXXXXX">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Rank <span class="required-star">*</span></label>
+                        <select id="addRank" name="rank" required>
+                            <option value="">Select Rank</option>
+                            <option value="General">General</option>
+                            <option value="Lieutenant General">Lieutenant General</option>
+                            <option value="Major General">Major General</option>
+                            <option value="Brigadier General">Brigadier General</option>
+                            <option value="Colonel">Colonel</option>
+                            <option value="Lieutenant Colonel">Lieutenant Colonel</option>
+                            <option value="Major">Major</option>
+                            <option value="Captain">Captain</option>
+                            <option value="Lieutenant">Lieutenant</option>
+                            <option value="Second Lieutenant">Second Lieutenant</option>
+                            <option value="Subedar">Subedar</option>
+                            <option value="Lieutenant Subedar">Lieutenant Subedar</option>
+                            <option value="Jawan">Jawan</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Unit/Branch</label>
+                        <input type="text" id="addBranch" name="branch" placeholder="e.g., Infantry, Signals">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Recruitment Date</label>
+                        <input type="date" id="addRecruitmentDate" name="recruitmentDate">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Province</label>
+                        <select id="addProvince" name="province">
+                            <option value="">Select Province</option>
+                            <option value="Province 1">Province 1</option>
+                            <option value="Madhesh Province">Madhesh Province</option>
+                            <option value="Bagmati Province">Bagmati Province</option>
+                            <option value="Gandaki Province">Gandaki Province</option>
+                            <option value="Lumbini Province">Lumbini Province</option>
+                            <option value="Karnali Province">Karnali Province</option>
+                            <option value="Sudurpashchim Province">Sudurpashchim Province</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>District</label>
+                        <input type="text" id="addDistrict" name="district" placeholder="e.g., Kathmandu">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Municipality</label>
+                        <input type="text" id="addMunicipality" name="municipality" placeholder="e.g., Kathmandu Metropolitan City">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Village/Tole</label>
+                        <input type="text" id="addVillageTole" name="villageTole" placeholder="e.g., Baneshwor">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Current Status</label>
+                        <select id="addStatus" name="status">
+                            <option value="Active">Active</option>
+                            <option value="Leave">Leave</option>
+                            <option value="Training">Training</option>
+                            <option value="Retired">Retired</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>User Role</label>
+                        <select id="addRole" name="role">
+                            <option value="0">User</option>
+                            <option value="1">Admin</option>
+                            <option value="2">Super Admin</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel-modal" onclick="closeAddPersonnelModal()">Cancel</button>
+                    <button type="submit" class="btn-save">Add Personnel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Toast Notification -->
 <div id="toast" class="toast">
     <span id="toastMessage"></span>
@@ -1349,21 +1605,153 @@ ob_start();
         });
     }
 
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Check if personnel number exists (real-time validation)
+    let checkTimeout;
+    const serviceNoInput = document.getElementById('addServiceNo');
+    if (serviceNoInput) {
+        serviceNoInput.addEventListener('input', function() {
+            clearTimeout(checkTimeout);
+            const serviceNo = this.value.trim();
+            
+            // Remove any existing validation styling
+            this.style.borderColor = '';
+            
+            if (serviceNo.length > 0) {
+                checkTimeout = setTimeout(() => {
+                    fetch(`check_personnel_exists.php?personnel_no=${encodeURIComponent(serviceNo)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.exists) {
+                                serviceNoInput.style.borderColor = '#dc2626';
+                                showToast('Personnel number already exists! Please use a different number.', 'error');
+                            } else {
+                                serviceNoInput.style.borderColor = '#10b981';
+                            }
+                        })
+                        .catch(error => console.error('Error checking personnel:', error));
+                }, 500);
+            }
+        });
+    }
+
+    // ==================== ADD PERSONNEL MODAL ====================
+    
+    function openAddPersonnelModal() {
+        const modal = document.getElementById('addPersonnelModal');
+        if (modal) {
+            // Reset the form
+            const form = document.getElementById('addPersonnelFormModal');
+            if (form) {
+                form.reset();
+            }
+            
+            // Clear any existing alerts
+            const alertDiv = document.getElementById('addPersonnelAlert');
+            if (alertDiv) {
+                alertDiv.innerHTML = '';
+                alertDiv.style.display = 'none';
+                alertDiv.className = 'alert';
+            }
+            
+            // Reset service number input styling
+            const serviceNoInput = document.getElementById('addServiceNo');
+            if (serviceNoInput) {
+                serviceNoInput.style.borderColor = '';
+            }
+            
+            modal.style.display = 'block';
+        }
+    }
+    
+    function closeAddPersonnelModal() {
+        const modal = document.getElementById('addPersonnelModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    // Handle Add Personnel Form Submission
+    const addPersonnelForm = document.getElementById('addPersonnelFormModal');
+    if (addPersonnelForm) {
+        addPersonnelForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = this.querySelector('.btn-save');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; display: inline-block; margin-right: 8px;"></div> Adding...';
+            submitBtn.disabled = true;
+            
+            // Validate required fields
+            const serviceNo = document.getElementById('addServiceNo').value.trim();
+            const fullName = document.getElementById('addFullName').value.trim();
+            const rank = document.getElementById('addRank').value;
+            
+            if (!serviceNo || !fullName || !rank) {
+                showToast('Please fill all required fields', 'error');
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                return;
+            }
+            
+            const formData = new FormData(this);
+            
+            try {
+                const response = await fetch('add_personnel_ajax.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message || 'Personnel added successfully!', 'success');
+                    closeAddPersonnelModal();
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(result.message || 'Error adding personnel', 'error');
+                    // Display errors in the alert div
+                    const alertDiv = document.getElementById('addPersonnelAlert');
+                    if (alertDiv && result.message) {
+                        alertDiv.innerHTML = result.message;
+                        alertDiv.className = 'alert alert-error';
+                        alertDiv.style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error adding personnel: ' + error.message, 'error');
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+    }
+
     // ==================== MANAGE LEAVE BALANCE ====================
     
     let allPersonnelData = [];
     
     function openManageBalanceModal() {
-        document.getElementById('manageBalanceModal').style.display = 'block';
+        const modal = document.getElementById('manageBalanceModal');
+        if (modal) modal.style.display = 'block';
         loadAllLeaveBalances();
     }
     
     function closeManageBalanceModal() {
-        document.getElementById('manageBalanceModal').style.display = 'none';
+        const modal = document.getElementById('manageBalanceModal');
+        if (modal) modal.style.display = 'none';
     }
     
     function loadAllLeaveBalances() {
         const tbody = document.getElementById('leaveBalanceTableBody');
+        if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px;"><div class="loading-spinner"></div> Loading leave balances...</td></tr>';
         
         fetch('get_all_leave_balances.php')
@@ -1398,6 +1786,7 @@ ob_start();
     
     function renderLeaveBalanceTable(data) {
         const tbody = document.getElementById('leaveBalanceTableBody');
+        if (!tbody) return;
         
         if (!data || data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px;">No personnel found</td></tr>';
@@ -1560,28 +1949,24 @@ ob_start();
         });
     }
     
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    // ==================== EDIT PERSONNEL ====================
     
-    // Edit Personnel Function
     function editPersonnel(personnelNumber) {
+        // Show loading state on the button that was clicked
         const editBtn = event.currentTarget;
         const originalHtml = editBtn.innerHTML;
-        editBtn.innerHTML = '<div class="loading-spinner"></div>';
+        editBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; margin: 0 auto;"></div>';
         editBtn.disabled = true;
         
-        fetch(`get_personnel.php?id=${personnelNumber}`)
+        fetch(`get_personnel.php?id=${encodeURIComponent(personnelNumber)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.data) {
                     const personnel = data.data;
                     
-                    document.getElementById('edit_personnel_number').value = personnel.personnel_number;
-                    document.getElementById('edit_personnel_number_display').value = personnel.personnel_number;
+                    // Populate form fields
+                    document.getElementById('edit_personnel_number').value = personnel.personnel_number || '';
+                    document.getElementById('edit_personnel_number_display').value = personnel.personnel_number || '';
                     document.getElementById('edit_full_name_en').value = personnel.full_name_en || '';
                     document.getElementById('edit_full_name_ne').value = personnel.full_name_ne || '';
                     document.getElementById('edit_email').value = personnel.email || '';
@@ -1596,15 +1981,24 @@ ob_start();
                     document.getElementById('edit_current_status').value = personnel.current_status || 'Active';
                     document.getElementById('edit_role').value = personnel.role || 0;
                     
-                    document.getElementById('editModalTitle').innerHTML = `<i class="fas fa-edit"></i> Edit Personnel - ${personnel.full_name_en}`;
-                    document.getElementById('editPersonnelModal').style.display = 'block';
+                    // Update modal title
+                    const modalTitle = document.getElementById('editModalTitle');
+                    if (modalTitle) {
+                        modalTitle.innerHTML = `<i class="fas fa-edit"></i> Edit Personnel - ${escapeHtml(personnel.full_name_en || personnel.personnel_number)}`;
+                    }
+                    
+                    // Show the modal
+                    const modal = document.getElementById('editPersonnelModal');
+                    if (modal) {
+                        modal.style.display = 'block';
+                    }
                 } else {
-                    showToast('Error loading personnel data', 'error');
+                    showToast(data.message || 'Error loading personnel data', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                showToast('Error loading personnel data', 'error');
+                showToast('Error loading personnel data: ' + error.message, 'error');
             })
             .finally(() => {
                 editBtn.innerHTML = originalHtml;
@@ -1613,54 +2007,71 @@ ob_start();
     }
     
     function closeEditModal() {
-        document.getElementById('editPersonnelModal').style.display = 'none';
-        document.getElementById('editPersonnelForm').reset();
+        const modal = document.getElementById('editPersonnelModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        const form = document.getElementById('editPersonnelForm');
+        if (form) {
+            form.reset();
+        }
     }
     
-    document.getElementById('editPersonnelForm')?.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const submitBtn = this.querySelector('button[type="submit"]');
-        const originalText = submitBtn.innerHTML;
-        submitBtn.innerHTML = '<div class="loading-spinner"></div> Saving...';
-        submitBtn.disabled = true;
-        
-        const formData = new FormData(this);
-        
-        try {
-            const response = await fetch('update_personnel.php', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
+    // Edit Form Submit
+    const editForm = document.getElementById('editPersonnelForm');
+    if (editForm) {
+        editForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            if (result.success) {
-                showToast('Personnel updated successfully!', 'success');
-                closeEditModal();
-                setTimeout(() => location.reload(), 1000);
-            } else {
-                showToast(result.message || 'Error updating personnel', 'error');
+            const submitBtn = this.querySelector('.btn-save');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<div class="loading-spinner" style="width: 16px; height: 16px; display: inline-block; margin-right: 8px;"></div> Saving...';
+            submitBtn.disabled = true;
+            
+            const formData = new FormData(this);
+            
+            try {
+                const response = await fetch('update_personnel.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message || 'Personnel updated successfully!', 'success');
+                    closeEditModal();
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(result.message || 'Error updating personnel', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error updating personnel: ' + error.message, 'error');
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
             }
-        } catch (error) {
-            console.error('Error:', error);
-            showToast('Error updating personnel', 'error');
-        } finally {
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
-        }
-    });
+        });
+    }
     
+    // Close modals when clicking outside
     window.onclick = function(event) {
         const editModal = document.getElementById('editPersonnelModal');
-        if (event.target === editModal) {
+        if (editModal && event.target === editModal) {
             closeEditModal();
         }
         const balanceModal = document.getElementById('manageBalanceModal');
-        if (event.target === balanceModal) {
+        if (balanceModal && event.target === balanceModal) {
             closeManageBalanceModal();
+        }
+        const addModal = document.getElementById('addPersonnelModal');
+        if (addModal && event.target === addModal) {
+            closeAddPersonnelModal();
         }
     }
 
+    // ==================== OTHER FUNCTIONS ====================
+    
     function viewSignature(signaturePath, name) {
         let viewModal = document.getElementById('signatureViewModal');
         if (!viewModal) {
@@ -1741,13 +2152,17 @@ ob_start();
         manageBalanceBtn.onclick = openManageBalanceModal;
     }
     
+    const addBtn = document.getElementById('addPersonnelBtn');
+    if (addBtn) {
+        addBtn.onclick = openAddPersonnelModal;
+    }
+    
     function editProfilePhoto(serviceNo, name) {
-        // Similar implementation as before
-        window.location.href = `edit_profile_photo.php?id=${serviceNo}`;
+        window.location.href = `edit_profile_photo.php?id=${encodeURIComponent(serviceNo)}`;
     }
 
     function editSignature(serviceNo, name, currentSignature) {
-        window.location.href = `edit_signature.php?id=${serviceNo}`;
+        window.location.href = `edit_signature.php?id=${encodeURIComponent(serviceNo)}`;
     }
 
     function resetPassword(serviceNo, name) {
@@ -1796,13 +2211,6 @@ ob_start();
                 console.error('Error:', error);
                 showToast('Error deleting personnel', 'error');
             });
-        }
-    }
-
-    const addBtn = document.getElementById('addPersonnelBtn');
-    if (addBtn) {
-        addBtn.onclick = function() {
-            window.location.href = 'add_personnel.php';
         }
     }
     <?php endif; ?>
