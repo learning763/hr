@@ -98,33 +98,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         $action = $_POST['action'] ?? '';
         
-        // Get all leave requests
+        // Get all leave requests with advanced filters
         if ($action === 'get_all') {
             $filter = $_POST['filter'] ?? 'all';
+            $search = trim($_POST['search'] ?? '');
+            $personnel_filter = trim($_POST['personnel_filter'] ?? '');
+            $date_from = $_POST['date_from'] ?? '';
+            $date_to = $_POST['date_to'] ?? '';
             $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
             $per_page = isset($_POST['per_page']) ? (int)$_POST['per_page'] : 10;
             $offset = ($page - 1) * $per_page;
             
-            // First, check what columns exist in personnel table
-            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
-            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            
-            // Determine the correct name column
-            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
-            
-            // Using personnel table with leave_requests where personnel_id stores personnel_number
+            // Build the main query - using CONCAT for name display
             $sql = "SELECT lr.*, 
-                           p.{$nameColumn} as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
+                           p.full_name_en,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io_p.{$nameColumn} as initiating_officer_name,
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
                            io_p.rank as initiating_officer_rank,
-                           ao_p.{$nameColumn} as accepting_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
                            ao_p.rank as accepting_officer_rank,
-                           vo_p.{$nameColumn} as verifying_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name,
                            vo_p.rank as verifying_officer_rank,
-                           receiver_p.{$nameColumn} as receiver_name,
+                           CONCAT(COALESCE(receiver_p.rank, ''), ' ', COALESCE(receiver_p.full_name_en, receiver_p.personnel_number)) as receiver_name,
                            receiver_p.rank as receiver_rank
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
@@ -138,10 +136,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr WHERE 1=1";
             $params = [];
             
+            // Status filter
             if ($filter !== 'all') {
                 $sql .= " AND lr.status = ?";
                 $count_sql .= " AND lr.status = ?";
                 $params[] = $filter;
+            }
+            
+            // Search by personnel name or number
+            if (!empty($search)) {
+                $sql .= " AND (p.full_name_en LIKE ? OR p.personnel_number LIKE ? OR p.rank LIKE ?)";
+                $count_sql .= " AND (p.full_name_en LIKE ? OR p.personnel_number LIKE ? OR p.rank LIKE ?)";
+                $searchParam = "%$search%";
+                $params[] = $searchParam;
+                $params[] = $searchParam;
+                $params[] = $searchParam;
+            }
+            
+            // Filter by specific personnel
+            if (!empty($personnel_filter)) {
+                $sql .= " AND lr.personnel_id = ?";
+                $count_sql .= " AND lr.personnel_id = ?";
+                $params[] = $personnel_filter;
+            }
+            
+            // Date range filter
+            if (!empty($date_from)) {
+                $sql .= " AND lr.start_date >= ?";
+                $count_sql .= " AND lr.start_date >= ?";
+                $params[] = $date_from;
+            }
+            
+            if (!empty($date_to)) {
+                $sql .= " AND lr.end_date <= ?";
+                $count_sql .= " AND lr.end_date <= ?";
+                $params[] = $date_to;
             }
             
             $count_stmt = $pdo->prepare($count_sql);
@@ -181,19 +210,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            // Get the correct name column
-            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
-            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
-            
             $sql = "SELECT lr.*, 
-                           p.{$nameColumn} as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io_p.{$nameColumn} as initiating_officer_name,
-                           ao_p.{$nameColumn} as accepting_officer_name,
-                           vo_p.{$nameColumn} as verifying_officer_name
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -224,18 +248,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
-            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
-            
             $sql = "SELECT lr.*, 
-                           p.{$nameColumn} as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io_p.{$nameColumn} as initiating_officer_name,
-                           ao_p.{$nameColumn} as accepting_officer_name,
-                           vo_p.{$nameColumn} as verifying_officer_name
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -267,18 +287,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
-            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
-            
             $sql = "SELECT lr.*, 
-                           p.{$nameColumn} as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io_p.{$nameColumn} as initiating_officer_name,
-                           ao_p.{$nameColumn} as accepting_officer_name,
-                           vo_p.{$nameColumn} as verifying_officer_name
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -776,6 +792,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             exit;
         }
         
+        // Get all personnel for dropdown
+        if ($action === 'get_all_personnel') {
+            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+            $personnel = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode(['success' => true, 'data' => $personnel]);
+            exit;
+        }
+        
         // Get my balance
         if ($action === 'get_my_balance') {
             $balance = getLeaveBalance($pdo, $current_personnel_number);
@@ -919,9 +943,59 @@ ob_start();
         .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; flex-wrap: wrap; }
         .page-btn { padding: 5px 10px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; }
         .page-btn.active { background: #007bff; color: white; border-color: #007bff; }
+        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
         .empty-state { text-align: center; padding: 30px; color: #6c757d; }
         .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        
+        /* Search and filter bar styles */
+        .search-bar {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        .search-group {
+            flex: 1;
+            min-width: 150px;
+        }
+        .search-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #666;
+        }
+        .search-group input, .search-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .search-group button {
+            padding: 8px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .search-group button:hover {
+            background: #0056b3;
+        }
+        .clear-search {
+            background: #6c757d !important;
+        }
+        .clear-search:hover {
+            background: #5a6268 !important;
+        }
         
         @media (max-width: 768px) {
             .stats-grid, .officer-actions, .balance-cards { grid-template-columns: 1fr; }
@@ -930,6 +1004,8 @@ ob_start();
             .btn-add { width: 100%; }
             .filter-section { overflow-x: auto; flex-wrap: nowrap; }
             .filter-btn { white-space: nowrap; }
+            .search-bar { flex-direction: column; }
+            .search-group { width: 100%; }
         }
     </style>
 </head>
@@ -1003,6 +1079,36 @@ ob_start();
         </div>
     </div>
 
+    <!-- Search and Filter Bar -->
+    <div class="search-bar">
+        <div class="search-group" style="flex: 2;">
+            <label>🔍 Search by Name or Personnel Number</label>
+            <input type="text" id="searchInput" placeholder="Type name, rank or personnel number..." autocomplete="off">
+        </div>
+        <div class="search-group">
+            <label>👤 Filter by Personnel</label>
+            <select id="personnelFilterSelect">
+                <option value="">All Personnel</option>
+            </select>
+        </div>
+        <div class="search-group">
+            <label>📅 From Date</label>
+            <input type="date" id="dateFromFilter">
+        </div>
+        <div class="search-group">
+            <label>📅 To Date</label>
+            <input type="date" id="dateToFilter">
+        </div>
+        <div class="search-group">
+            <label>&nbsp;</label>
+            <button id="applyFiltersBtn">Apply Filters</button>
+        </div>
+        <div class="search-group">
+            <label>&nbsp;</label>
+            <button id="clearFiltersBtn" class="clear-search">Clear All</button>
+        </div>
+    </div>
+
     <div class="header-section">
         <div class="filter-section">
             <button class="filter-btn active" data-filter="all">All</button>
@@ -1061,14 +1167,9 @@ ob_start();
                         <select id="personnelId" name="personnel_id" required>
                             <option value="">Select Personnel</option>
                             <?php
-                            // Get the correct name column
-                            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
-                            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-                            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
-                            
-                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
                             while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
                                 echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
                                      . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
                                      . "</option>";
@@ -1105,9 +1206,9 @@ ob_start();
                         <select id="receivingOfficer" required>
                             <option value="">Select Personnel</option>
                             <?php
-                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
                             while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
                                 echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
                                      . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
                                      . "</option>";
@@ -1126,9 +1227,9 @@ ob_start();
                         <select id="initiatingOfficer" required>
                             <option value="">Select Personnel</option>
                             <?php
-                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
                             while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
                                 echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
                                      . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
                                      . "</option>";
@@ -1147,9 +1248,9 @@ ob_start();
                         <select id="acceptingOfficer" required>
                             <option value="">Select Personnel</option>
                             <?php
-                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
                             while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
                                 echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
                                      . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
                                      . "</option>";
@@ -1230,6 +1331,10 @@ ob_start();
     let currentPage = 1;
     let currentPerPage = 10;
     let currentUserPersonnel = '<?php echo htmlspecialchars($current_personnel_number); ?>';
+    let currentSearch = '';
+    let currentPersonnelFilter = '';
+    let currentDateFrom = '';
+    let currentDateTo = '';
 
     async function loadVerifyingPending() {
         try {
@@ -1251,7 +1356,7 @@ ob_start();
                     const isSame = leave.verifying_officer == leave.initiating_officer;
                     html += `
                         <div class="pending-item">
-                            <strong>📋 From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
+                            <strong>📋 From: ${escapeHtml(leave.personnel_name)}</strong><br>
                             <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
                             <small>Will forward to: ${escapeHtml(leave.initiating_officer_name || leave.initiating_officer)}</small><br>
                             ${isSame ? '<small style="color:orange">⚠️ Same as Initiating Officer - Will auto-forward to Accepting Officer</small><br>' : ''}
@@ -1289,7 +1394,7 @@ ob_start();
                 result.data.forEach(leave => {
                     html += `
                         <div class="pending-item">
-                            <strong>📌 From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
+                            <strong>📌 From: ${escapeHtml(leave.personnel_name)}</strong><br>
                             <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
                             <small>Received by: ${escapeHtml(leave.verifying_officer_name || leave.verifying_officer)}</small><br>
                             <small>Will forward to: ${escapeHtml(leave.accepting_officer_name || leave.accepting_officer)}</small><br>
@@ -1327,7 +1432,7 @@ ob_start();
                 result.data.forEach(leave => {
                     html += `
                         <div class="pending-item">
-                            <strong>✅ From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
+                            <strong>✅ From: ${escapeHtml(leave.personnel_name)}</strong><br>
                             <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
                             <small>Verified by: ${escapeHtml(leave.verifying_officer_name || leave.verifying_officer)}</small><br>
                             <small>Initiated by: ${escapeHtml(leave.initiating_officer_name || leave.initiating_officer)}</small><br>
@@ -1346,11 +1451,44 @@ ob_start();
         }
     }
 
+    async function loadPersonnelDropdown() {
+        try {
+            const formData = new FormData();
+            formData.append('action', 'get_all_personnel');
+            formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
+            
+            const response = await fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const result = await response.json();
+            
+            if (result.success) {
+                const select = document.getElementById('personnelFilterSelect');
+                select.innerHTML = '<option value="">All Personnel</option>';
+                result.data.forEach(person => {
+                    const option = document.createElement('option');
+                    option.value = person.personnel_number;
+                    const displayName = person.full_name_en || person.personnel_number;
+                    option.textContent = `${person.rank} ${displayName} (${person.personnel_number})`;
+                    select.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
     async function loadLeaveRequests() {
         try {
             const formData = new FormData();
             formData.append('action', 'get_all');
             formData.append('filter', currentFilter);
+            formData.append('search', currentSearch);
+            formData.append('personnel_filter', currentPersonnelFilter);
+            formData.append('date_from', currentDateFrom);
+            formData.append('date_to', currentDateTo);
             formData.append('page', currentPage);
             formData.append('per_page', currentPerPage);
             formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
@@ -1438,19 +1576,32 @@ ob_start();
         }
         
         let html = '<div class="pagination">';
+        html += `<button class="page-btn" onclick="loadLeaveRequestsPage(1)" ${pagination.current_page === 1 ? 'disabled' : ''}>« First</button>`;
         if (pagination.current_page > 1) {
-            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.current_page - 1})">« Prev</button>`;
+            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.current_page - 1})">‹ Prev</button>`;
         }
-        for (let i = 1; i <= pagination.total_pages; i++) {
-            if (i === 1 || i === pagination.total_pages || (i >= pagination.current_page - 2 && i <= pagination.current_page + 2)) {
-                html += `<button class="page-btn ${i === pagination.current_page ? 'active' : ''}" onclick="loadLeaveRequestsPage(${i})">${i}</button>`;
-            } else if (i === pagination.current_page - 3 || i === pagination.current_page + 3) {
-                html += `<span class="page-dots">...</span>`;
-            }
+        
+        let startPage = Math.max(1, pagination.current_page - 2);
+        let endPage = Math.min(pagination.total_pages, pagination.current_page + 2);
+        
+        if (startPage > 1) {
+            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(1)">1</button>`;
+            if (startPage > 2) html += `<span class="page-dots">...</span>`;
         }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<button class="page-btn ${i === pagination.current_page ? 'active' : ''}" onclick="loadLeaveRequestsPage(${i})">${i}</button>`;
+        }
+        
+        if (endPage < pagination.total_pages) {
+            if (endPage < pagination.total_pages - 1) html += `<span class="page-dots">...</span>`;
+            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.total_pages})">${pagination.total_pages}</button>`;
+        }
+        
         if (pagination.current_page < pagination.total_pages) {
-            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.current_page + 1})">Next »</button>`;
+            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.current_page + 1})">Next ›</button>`;
         }
+        html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.total_pages})" ${pagination.current_page === pagination.total_pages ? 'disabled' : ''}>Last »</button>`;
         html += '</div>';
         container.innerHTML = html;
     }
@@ -1535,6 +1686,28 @@ ob_start();
         } catch (e) { console.error(e); }
     }
 
+    function applyFilters() {
+        currentSearch = document.getElementById('searchInput').value.trim();
+        currentPersonnelFilter = document.getElementById('personnelFilterSelect').value;
+        currentDateFrom = document.getElementById('dateFromFilter').value;
+        currentDateTo = document.getElementById('dateToFilter').value;
+        currentPage = 1;
+        loadLeaveRequests();
+    }
+
+    function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('personnelFilterSelect').value = '';
+        document.getElementById('dateFromFilter').value = '';
+        document.getElementById('dateToFilter').value = '';
+        currentSearch = '';
+        currentPersonnelFilter = '';
+        currentDateFrom = '';
+        currentDateTo = '';
+        currentPage = 1;
+        loadLeaveRequests();
+    }
+
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -1595,6 +1768,14 @@ ob_start();
             event.target.style.display = 'none';
         }
     };
+
+    document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFilters);
+    document.getElementById('clearFiltersBtn')?.addEventListener('click', clearFilters);
+    
+    // Add enter key support for search
+    document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') applyFilters();
+    });
 
     document.getElementById('startDate')?.addEventListener('change', calculateDays);
     document.getElementById('endDate')?.addEventListener('change', calculateDays);
@@ -1759,9 +1940,13 @@ ob_start();
         loadVerifyingPending();
         loadInitiatingPending();
         loadAcceptingPending();
+        if (currentFilter !== 'all' || currentSearch || currentPersonnelFilter || currentDateFrom || currentDateTo) {
+            loadLeaveRequests();
+        }
     }, 30000);
 
     // Initial load
+    loadPersonnelDropdown();
     loadLeaveRequests();
     loadStatistics();
     loadBalance();
