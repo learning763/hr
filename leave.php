@@ -24,10 +24,8 @@ if ($user_role_int === 2) {
     $user_role_string = 'user';
 }
 
-// Get current user's personnel ID from session (using personnel_number from personnel table)
+// Get current user's personnel number from session
 $current_personnel_number = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : '';
-$current_personnel_id = 0;
-$current_personnel_name = '';
 
 // Database connection
 try {
@@ -37,44 +35,21 @@ try {
     die("Connection failed: " . $e->getMessage());
 }
 
-// Get current user's personnel ID from personnel table using personnel_number
-if (!empty($current_personnel_number)) {
-    $stmt = $pdo->prepare("SELECT personnel_number, full_name_en, rank FROM personnel WHERE personnel_number = ?");
-    $stmt->execute([$current_personnel_number]);
-    $personnel = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($personnel) {
-        $current_personnel_id = $personnel['personnel_number'];
-        $current_personnel_name = $personnel['full_name_en'];
-        $_SESSION['user_personnel_id'] = $current_personnel_id;
-        $_SESSION['user_personnel_name'] = $current_personnel_name;
-    }
-}
-
-// If still no personnel ID, get first personnel as fallback
-if (empty($current_personnel_id)) {
-    $stmt = $pdo->prepare("SELECT personnel_number FROM personnel LIMIT 1");
-    $stmt->execute();
-    $first = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($first) {
-        $_SESSION['user_personnel_id'] = $first['personnel_number'];
-        $current_personnel_id = $first['personnel_number'];
-    }
-}
-
 // Generate CSRF token
 if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// Helper function to get personnel details
-function getPersonnelDetails($pdo, $personnel_number) {
-    $stmt = $pdo->prepare("SELECT personnel_number, full_name_en, rank FROM personnel WHERE personnel_number = ?");
-    $stmt->execute([$personnel_number]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
-}
-
 // Helper functions for leave balance
 function getLeaveBalance($pdo, $personnel_number) {
+    if (empty($personnel_number)) {
+        return [
+            'gharpari_bida_days' => 15,
+            'parba_bida_days' => 12,
+            'bhaeepari_bida_days' => 10
+        ];
+    }
+    
     $stmt = $pdo->prepare("SELECT * FROM leave_balance WHERE personnel_id = ?");
     $stmt->execute([$personnel_number]);
     $balance = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -126,29 +101,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         // Get all leave requests
         if ($action === 'get_all') {
             $filter = $_POST['filter'] ?? 'all';
-            $search = $_POST['search'] ?? '';
             $page = isset($_POST['page']) ? (int)$_POST['page'] : 1;
             $per_page = isset($_POST['per_page']) ? (int)$_POST['per_page'] : 10;
             $offset = ($page - 1) * $per_page;
             
+            // First, check what columns exist in personnel table
+            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            // Determine the correct name column
+            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
+            
+            // Using personnel table with leave_requests where personnel_id stores personnel_number
             $sql = "SELECT lr.*, 
-                           p.personnel_number, p.full_name_en as personnel_name, p.rank,
+                           p.{$nameColumn} as personnel_name, 
+                           p.rank,
+                           p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.full_name_en as initiating_officer_name,
-                           io.rank as initiating_officer_rank,
-                           ao.full_name_en as accepting_officer_name,
-                           ao.rank as accepting_officer_rank,
-                           vo.full_name_en as verifying_officer_name,
-                           vo.rank as verifying_officer_rank,
-                           receiver.full_name_en as receiver_name,
-                           receiver.rank as receiver_rank
+                           io_p.{$nameColumn} as initiating_officer_name,
+                           io_p.rank as initiating_officer_rank,
+                           ao_p.{$nameColumn} as accepting_officer_name,
+                           ao_p.rank as accepting_officer_rank,
+                           vo_p.{$nameColumn} as verifying_officer_name,
+                           vo_p.rank as verifying_officer_rank,
+                           receiver_p.{$nameColumn} as receiver_name,
+                           receiver_p.rank as receiver_rank
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
-                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
-                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
-                    LEFT JOIN personnel receiver ON lr.receiver_id = receiver.personnel_number
+                    LEFT JOIN personnel io_p ON lr.initiating_officer = io_p.personnel_number
+                    LEFT JOIN personnel ao_p ON lr.accepting_officer = ao_p.personnel_number
+                    LEFT JOIN personnel vo_p ON lr.verifying_officer = vo_p.personnel_number
+                    LEFT JOIN personnel receiver_p ON lr.receiver_id = receiver_p.personnel_number
                     WHERE 1=1";
             
             $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr WHERE 1=1";
@@ -158,15 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $sql .= " AND lr.status = ?";
                 $count_sql .= " AND lr.status = ?";
                 $params[] = $filter;
-            }
-            
-            if (!empty($search)) {
-                $sql .= " AND (p.full_name_en LIKE ? OR p.rank LIKE ? OR lr.reason LIKE ?)";
-                $count_sql .= " AND (p.full_name_en LIKE ? OR p.rank LIKE ? OR lr.reason LIKE ?)";
-                $searchTerm = "%$search%";
-                $params[] = $searchTerm;
-                $params[] = $searchTerm;
-                $params[] = $searchTerm;
             }
             
             $count_stmt = $pdo->prepare($count_sql);
@@ -201,25 +176,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Get pending requests for receiving officer (verifying_officer)
         if ($action === 'get_verifying_pending') {
+            if (empty($current_personnel_number)) {
+                echo json_encode(['success' => true, 'data' => []]);
+                exit;
+            }
+            
+            // Get the correct name column
+            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
+            
             $sql = "SELECT lr.*, 
-                           p.full_name_en as personnel_name, p.rank,
+                           p.{$nameColumn} as personnel_name, 
+                           p.rank,
+                           p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.full_name_en as initiating_officer_name,
-                           ao.full_name_en as accepting_officer_name,
-                           vo.full_name_en as verifying_officer_name
+                           io_p.{$nameColumn} as initiating_officer_name,
+                           ao_p.{$nameColumn} as accepting_officer_name,
+                           vo_p.{$nameColumn} as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
-                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
-                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
+                    LEFT JOIN personnel io_p ON lr.initiating_officer = io_p.personnel_number
+                    LEFT JOIN personnel ao_p ON lr.accepting_officer = ao_p.personnel_number
+                    LEFT JOIN personnel vo_p ON lr.verifying_officer = vo_p.personnel_number
                     WHERE lr.verifying_officer = ? 
                     AND (lr.verifying_officer_approved = 0 OR lr.verifying_officer_approved IS NULL)
                     AND lr.status = 'pending'
                     ORDER BY lr.created_at ASC";
             
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$current_personnel_id]);
+            $stmt->execute([$current_personnel_number]);
             $leaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             echo json_encode([
@@ -232,18 +219,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Get pending requests for initiating officer
         if ($action === 'get_initiating_pending') {
+            if (empty($current_personnel_number)) {
+                echo json_encode(['success' => true, 'data' => []]);
+                exit;
+            }
+            
+            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
+            
             $sql = "SELECT lr.*, 
-                           p.full_name_en as personnel_name, p.rank,
+                           p.{$nameColumn} as personnel_name, 
+                           p.rank,
+                           p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.full_name_en as initiating_officer_name,
-                           ao.full_name_en as accepting_officer_name,
-                           vo.full_name_en as verifying_officer_name
+                           io_p.{$nameColumn} as initiating_officer_name,
+                           ao_p.{$nameColumn} as accepting_officer_name,
+                           vo_p.{$nameColumn} as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
-                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
-                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
+                    LEFT JOIN personnel io_p ON lr.initiating_officer = io_p.personnel_number
+                    LEFT JOIN personnel ao_p ON lr.accepting_officer = ao_p.personnel_number
+                    LEFT JOIN personnel vo_p ON lr.verifying_officer = vo_p.personnel_number
                     WHERE lr.initiating_officer = ? 
                     AND lr.verifying_officer_approved = 1
                     AND (lr.initiating_officer_approved = 0 OR lr.initiating_officer_approved IS NULL)
@@ -251,7 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     ORDER BY lr.verifying_officer_approved_at ASC";
             
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$current_personnel_id]);
+            $stmt->execute([$current_personnel_number]);
             $leaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             echo json_encode([
@@ -264,18 +262,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Get pending requests for accepting officer
         if ($action === 'get_accepting_pending') {
+            if (empty($current_personnel_number)) {
+                echo json_encode(['success' => true, 'data' => []]);
+                exit;
+            }
+            
+            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
+            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
+            
             $sql = "SELECT lr.*, 
-                           p.full_name_en as personnel_name, p.rank,
+                           p.{$nameColumn} as personnel_name, 
+                           p.rank,
+                           p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.full_name_en as initiating_officer_name,
-                           ao.full_name_en as accepting_officer_name,
-                           vo.full_name_en as verifying_officer_name
+                           io_p.{$nameColumn} as initiating_officer_name,
+                           ao_p.{$nameColumn} as accepting_officer_name,
+                           vo_p.{$nameColumn} as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
-                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
-                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
+                    LEFT JOIN personnel io_p ON lr.initiating_officer = io_p.personnel_number
+                    LEFT JOIN personnel ao_p ON lr.accepting_officer = ao_p.personnel_number
+                    LEFT JOIN personnel vo_p ON lr.verifying_officer = vo_p.personnel_number
                     WHERE lr.accepting_officer = ? 
                     AND lr.verifying_officer_approved = 1
                     AND lr.initiating_officer_approved = 1
@@ -284,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     ORDER BY lr.initiating_officer_approved_at ASC";
             
             $stmt = $pdo->prepare($sql);
-            $stmt->execute([$current_personnel_id]);
+            $stmt->execute([$current_personnel_number]);
             $leaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             echo json_encode([
@@ -297,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Submit leave request
         if ($action === 'submit_leave') {
-            $personnel_id = trim($_POST['personnel_id'] ?? '');
+            $personnel_number = trim($_POST['personnel_id'] ?? '');
             $leave_type = trim($_POST['leave_type'] ?? '');
             $start_date = $_POST['start_date'] ?? '';
             $end_date = $_POST['end_date'] ?? '';
@@ -306,8 +315,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $initiating_officer = trim($_POST['initiating_officer'] ?? '');
             $accepting_officer = trim($_POST['accepting_officer'] ?? '');
             
-            if (empty($personnel_id) || empty($leave_type) || empty($start_date) || empty($end_date) || empty($reason)) {
+            if (empty($personnel_number) || empty($leave_type) || empty($start_date) || empty($end_date) || empty($reason)) {
                 echo json_encode(['success' => false, 'error' => 'All required fields must be filled']);
+                exit;
+            }
+            
+            // Verify personnel exists
+            $stmt = $pdo->prepare("SELECT personnel_number FROM personnel WHERE personnel_number = ?");
+            $stmt->execute([$personnel_number]);
+            if (!$stmt->fetch()) {
+                echo json_encode(['success' => false, 'error' => 'Personnel not found']);
                 exit;
             }
             
@@ -326,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $interval = $start->diff($end);
             $leave_days = $interval->days + 1;
             
-            $balance = getLeaveBalance($pdo, $personnel_id);
+            $balance = getLeaveBalance($pdo, $personnel_number);
             $balance_field = '';
             if ($leave_type === 'gharpari_bida') $balance_field = 'gharpari_bida_days';
             elseif ($leave_type === 'parba_bida') $balance_field = 'parba_bida_days';
@@ -347,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 AND status IN ('pending', 'verified', 'initiating_approved', 'approved')
                 AND ((start_date <= ? AND end_date >= ?) OR (start_date <= ? AND end_date >= ?))
             ");
-            $stmt->execute([$personnel_id, $end_date, $start_date, $end_date, $start_date]);
+            $stmt->execute([$personnel_number, $end_date, $start_date, $end_date, $start_date]);
             $overlap = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($overlap['count'] > 0) {
@@ -364,13 +381,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             ");
             
             $result = $stmt->execute([
-                $personnel_id, 
+                $personnel_number, 
                 $leave_type, 
                 $start_date, 
                 $end_date, 
                 $leave_days, 
                 $reason, 
-                $_SESSION['user_id'] ?? $personnel_id,
+                $current_personnel_number,
                 $receiving_officer,
                 $initiating_officer,
                 $accepting_officer
@@ -384,9 +401,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             exit;
         }
         
-        // Receiving Officer approves - FORWARD TO INITIATING OFFICER
+        // Receiving Officer approves
         if ($action === 'verifying_officer_approve') {
-            if (empty($current_personnel_id)) {
+            if (empty($current_personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -406,7 +423,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($leave['verifying_officer'] != $current_personnel_id) {
+            if ($leave['verifying_officer'] != $current_personnel_number) {
                 echo json_encode(['success' => false, 'error' => 'You are not authorized to approve this request']);
                 exit;
             }
@@ -422,10 +439,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             // Check if receiving officer is also the initiating officer
-            $isSameAsInitiating = ($current_personnel_id == $leave['initiating_officer']);
+            $isSameAsInitiating = ($current_personnel_number == $leave['initiating_officer']);
             
             if ($isSameAsInitiating) {
-                // If same user, automatically approve both stages and go to accepting officer
                 $stmt = $pdo->prepare("
                     UPDATE leave_requests 
                     SET verifying_officer_approved = 1,
@@ -438,15 +454,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                         status = 'initiating_approved'
                     WHERE id = ?
                 ");
-                $result = $stmt->execute([
-                    $remarks, 
-                    $current_personnel_id,
-                    $remarks,
-                    $id
-                ]);
-                $message = 'Request received and automatically forwarded to accepting officer (Receiving and Initiating Officer are the same)';
+                $result = $stmt->execute([$remarks, $current_personnel_number, $remarks, $id]);
+                $message = 'Request received and automatically forwarded to accepting officer';
             } else {
-                // Normal flow - forward to initiating officer
                 $stmt = $pdo->prepare("
                     UPDATE leave_requests 
                     SET verifying_officer_approved = 1,
@@ -456,7 +466,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                         status = 'verified'
                     WHERE id = ?
                 ");
-                $result = $stmt->execute([$remarks, $current_personnel_id, $id]);
+                $result = $stmt->execute([$remarks, $current_personnel_number, $id]);
                 $message = 'Request received and forwarded to initiating officer';
             }
             
@@ -470,7 +480,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Receiving Officer rejects
         if ($action === 'verifying_officer_reject') {
-            if (empty($current_personnel_id)) {
+            if (empty($current_personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -483,10 +493,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            $stmt = $pdo->prepare("
-                SELECT verifying_officer, status 
-                FROM leave_requests WHERE id = ?
-            ");
+            $stmt = $pdo->prepare("SELECT verifying_officer, status FROM leave_requests WHERE id = ?");
             $stmt->execute([$id]);
             $leave = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -495,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($leave['verifying_officer'] != $current_personnel_id) {
+            if ($leave['verifying_officer'] != $current_personnel_number) {
                 echo json_encode(['success' => false, 'error' => 'You are not authorized to reject this request']);
                 exit;
             }
@@ -504,17 +511,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 UPDATE leave_requests 
                 SET status = 'rejected',
                     approver_remarks = ?,
+                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $id]);
+            $result = $stmt->execute([$remarks, $current_personnel_number, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
         
-        // Initiating Officer approves - FORWARD TO ACCEPTING OFFICER
+        // Initiating Officer approves
         if ($action === 'initiating_officer_approve') {
-            if (empty($current_personnel_id)) {
+            if (empty($current_personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -534,7 +542,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($leave['initiating_officer'] != $current_personnel_id) {
+            if ($leave['initiating_officer'] != $current_personnel_number) {
                 echo json_encode(['success' => false, 'error' => 'You are not authorized to approve this request']);
                 exit;
             }
@@ -550,11 +558,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             if ($leave['status'] != 'verified') {
-                echo json_encode(['success' => false, 'error' => 'Request cannot be approved at this stage. Current status: ' . $leave['status']]);
+                echo json_encode(['success' => false, 'error' => 'Request cannot be approved at this stage']);
                 exit;
             }
             
-            // Forward to accepting officer
             $stmt = $pdo->prepare("
                 UPDATE leave_requests 
                 SET initiating_officer_approved = 1,
@@ -566,7 +573,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $result = $stmt->execute([$remarks, $id]);
             
             if ($result) {
-                echo json_encode(['success' => true, 'message' => 'Request approved and forwarded to accepting officer for final approval']);
+                echo json_encode(['success' => true, 'message' => 'Request approved and forwarded to accepting officer']);
             } else {
                 echo json_encode(['success' => false, 'error' => 'Failed to approve request']);
             }
@@ -575,7 +582,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Initiating Officer rejects
         if ($action === 'initiating_officer_reject') {
-            if (empty($current_personnel_id)) {
+            if (empty($current_personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -588,10 +595,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            $stmt = $pdo->prepare("
-                SELECT initiating_officer, status 
-                FROM leave_requests WHERE id = ?
-            ");
+            $stmt = $pdo->prepare("SELECT initiating_officer, status FROM leave_requests WHERE id = ?");
             $stmt->execute([$id]);
             $leave = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -600,7 +604,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($leave['initiating_officer'] != $current_personnel_id) {
+            if ($leave['initiating_officer'] != $current_personnel_number) {
                 echo json_encode(['success' => false, 'error' => 'You are not authorized to reject this request']);
                 exit;
             }
@@ -609,17 +613,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 UPDATE leave_requests 
                 SET status = 'rejected',
                     approver_remarks = ?,
+                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $id]);
+            $result = $stmt->execute([$remarks, $current_personnel_number, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
         
         // Accepting Officer approves - FINAL APPROVAL
         if ($action === 'accepting_officer_approve') {
-            if (empty($current_personnel_id)) {
+            if (empty($current_personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -640,7 +645,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($leave['accepting_officer'] != $current_personnel_id) {
+            if ($leave['accepting_officer'] != $current_personnel_number) {
                 echo json_encode(['success' => false, 'error' => 'You are not authorized to approve this request']);
                 exit;
             }
@@ -661,7 +666,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             if ($leave['status'] != 'initiating_approved') {
-                echo json_encode(['success' => false, 'error' => 'Request is not in the correct state for approval. Current status: ' . $leave['status']]);
+                echo json_encode(['success' => false, 'error' => 'Request is not in the correct state for approval']);
                 exit;
             }
             
@@ -691,10 +696,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     accepting_officer_approved_at = NOW(),
                     accepting_officer_remarks = ?,
                     status = 'approved',
+                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $id]);
+            $result = $stmt->execute([$remarks, $current_personnel_number, $id]);
             
             if ($result) {
                 echo json_encode(['success' => true, 'message' => 'Leave request FINALLY APPROVED! Leave has been granted.']);
@@ -706,7 +712,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Accepting Officer rejects
         if ($action === 'accepting_officer_reject') {
-            if (empty($current_personnel_id)) {
+            if (empty($current_personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -719,10 +725,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            $stmt = $pdo->prepare("
-                SELECT accepting_officer, status 
-                FROM leave_requests WHERE id = ?
-            ");
+            $stmt = $pdo->prepare("SELECT accepting_officer, status FROM leave_requests WHERE id = ?");
             $stmt->execute([$id]);
             $leave = $stmt->fetch(PDO::FETCH_ASSOC);
             
@@ -731,7 +734,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 exit;
             }
             
-            if ($leave['accepting_officer'] != $current_personnel_id) {
+            if ($leave['accepting_officer'] != $current_personnel_number) {
                 echo json_encode(['success' => false, 'error' => 'You are not authorized to reject this request']);
                 exit;
             }
@@ -740,10 +743,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 UPDATE leave_requests 
                 SET status = 'rejected',
                     approver_remarks = ?,
+                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $id]);
+            $result = $stmt->execute([$remarks, $current_personnel_number, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
@@ -753,15 +757,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $stats = [];
             
             $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE verifying_officer = ? AND (verifying_officer_approved = 0 OR verifying_officer_approved IS NULL) AND status = 'pending'");
-            $stmt->execute([$current_personnel_id]);
+            $stmt->execute([$current_personnel_number]);
             $stats['verifying_pending'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
             
             $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE initiating_officer = ? AND verifying_officer_approved = 1 AND (initiating_officer_approved = 0 OR initiating_officer_approved IS NULL) AND status = 'verified'");
-            $stmt->execute([$current_personnel_id]);
+            $stmt->execute([$current_personnel_number]);
             $stats['initiating_pending'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
             
             $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE accepting_officer = ? AND initiating_officer_approved = 1 AND (accepting_officer_approved = 0 OR accepting_officer_approved IS NULL) AND status = 'initiating_approved'");
-            $stmt->execute([$current_personnel_id]);
+            $stmt->execute([$current_personnel_number]);
             $stats['accepting_pending'] = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
             
             $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE status = 'approved'");
@@ -774,19 +778,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Get my balance
         if ($action === 'get_my_balance') {
-            $balance = getLeaveBalance($pdo, $current_personnel_id);
+            $balance = getLeaveBalance($pdo, $current_personnel_number);
             echo json_encode(['success' => true, 'data' => $balance]);
             exit;
         }
         
         // Get leave balance for a personnel
         if ($action === 'get_leave_balance') {
-            $personnel_id = trim($_POST['personnel_id'] ?? '');
-            if (empty($personnel_id)) {
+            $personnel_number = $_POST['personnel_id'] ?? '';
+            if (empty($personnel_number)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid personnel ID']);
                 exit;
             }
-            $balance = getLeaveBalance($pdo, $personnel_id);
+            $balance = getLeaveBalance($pdo, $personnel_number);
             echo json_encode(['success' => true, 'data' => $balance]);
             exit;
         }
@@ -802,7 +806,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 }
 
 // Get current user's leave balance
-$myBalance = getLeaveBalance($pdo, $current_personnel_id);
+$myBalance = getLeaveBalance($pdo, $current_personnel_number);
 
 // Get statistics for initial display
 $verifyingPending = 0;
@@ -810,25 +814,16 @@ $initiatingPending = 0;
 $acceptingPending = 0;
 
 $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE verifying_officer = ? AND (verifying_officer_approved = 0 OR verifying_officer_approved IS NULL) AND status = 'pending'");
-$stmt->execute([$current_personnel_id]);
+$stmt->execute([$current_personnel_number]);
 $verifyingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
 $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE initiating_officer = ? AND verifying_officer_approved = 1 AND (initiating_officer_approved = 0 OR initiating_officer_approved IS NULL) AND status = 'verified'");
-$stmt->execute([$current_personnel_id]);
+$stmt->execute([$current_personnel_number]);
 $initiatingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
 $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE accepting_officer = ? AND initiating_officer_approved = 1 AND (accepting_officer_approved = 0 OR accepting_officer_approved IS NULL) AND status = 'initiating_approved'");
-$stmt->execute([$current_personnel_id]);
+$stmt->execute([$current_personnel_number]);
 $acceptingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
-
-// Get all personnel for dropdowns from personnel table
-$personnelList = [];
-try {
-    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-    $personnelList = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    $personnelList = [];
-}
 
 ob_start();
 ?>
@@ -840,23 +835,23 @@ ob_start();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leave Management System</title>
     <link href="/css/fontawesome.css" rel="stylesheet">
-    <link href="/css/fontawesome.css" rel="stylesheet">
 
     <style>
+        * { box-sizing: border-box; }
         .status-pending { background-color: #fff3cd; color: #856404; }
         .status-verified { background-color: #cce5ff; color: #004085; }
         .status-initiated { background-color: #d4edda; color: #155724; }
         .status-approved { background-color: #d4edda; color: #155724; }
         .status-rejected { background-color: #f8d7da; color: #721c24; }
-        .badge-officer { background-color: #e9ecef; padding: 3px 8px; border-radius: 12px; font-size: 11px; }
-        .btn-process { padding: 4px 12px; font-size: 12px; margin: 2px; border-radius: 4px; cursor: pointer; }
-        .btn-approve { background: #28a745; color: white; border: none; }
-        .btn-reject { background: #dc3545; color: white; border: none; }
+        .btn-process { padding: 4px 12px; font-size: 12px; margin: 2px; border-radius: 4px; cursor: pointer; border: none; }
+        .btn-approve { background: #28a745; color: white; }
+        .btn-reject { background: #dc3545; color: white; }
         .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; }
+        .stat-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); }
         .stat-card.verifying { border-left: 4px solid #ffc107; }
         .stat-card.initiating { border-left: 4px solid #17a2b8; }
         .stat-card.accepting { border-left: 4px solid #28a745; }
@@ -873,115 +868,68 @@ ob_start();
         .badge-new { background: #dc3545; color: white; border-radius: 20px; padding: 2px 8px; font-size: 11px; margin-left: 10px; }
         .balance-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
         .balance-card { background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .balance-card .days { font-size: 24px; font-weight: bold; }
-        .filter-section { margin-bottom: 20px; }
-        .filter-btn { margin: 5px; padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; }
+        .balance-card .days { font-size: 24px; font-weight: bold; color: #007bff; }
+        .filter-section { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 5px; }
+        .filter-btn { padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+        .filter-btn:hover { background: #f0f0f0; }
         .filter-btn.active { background: #007bff; color: white; border-color: #007bff; }
-        .search-section { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .search-bar { position: relative; width: 300px; }
-        .search-bar input { width: 100%; padding: 8px 35px 8px 15px; border: 1px solid #ddd; border-radius: 20px; }
-        .clear-search { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; }
-        .btn-add { background: #28a745; color: white; border: none; padding: 8px 20px; border-radius: 20px; cursor: pointer; }
+        .btn-add { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-size: 14px; margin-bottom: 20px; }
         .data-table { background: white; border-radius: 10px; overflow-x: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; min-width: 1200px; }
         th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f8f9fa; font-weight: 600; }
+        th { background: #f8f9fa; font-weight: 600; position: sticky; top: 0; }
         .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
         .action-btn { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; }
         .btn-approve-action { background: #28a745; color: white; }
         .btn-reject-action { background: #dc3545; color: white; }
         .btn-view-action { background: #17a2b8; color: white; }
-        .btn-pass-action { background: #6f42c1; color: white; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-        .modal-content { background: white; margin: 5% auto; width: 90%; max-width: 700px; border-radius: 10px; }
-        .modal-header { padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+        .modal-content { background: white; margin: 5% auto; width: 90%; max-width: 700px; border-radius: 10px; max-height: 90vh; overflow-y: auto; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; }
+        .modal-body { padding: 20px; }
         .input-field { margin-bottom: 15px; }
         .input-field label { display: block; margin-bottom: 5px; font-weight: 600; }
         .input-field input, .input-field select, .input-field textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; }
         .required-star { color: red; }
-        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; position: sticky; bottom: 0; background: white; padding-top: 10px; }
         .btn-cancel { background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
         .btn-submit { background: #007bff; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
         .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius: 5px; display: none; z-index: 1100; }
         .info-box { background: #e7f3ff; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; border-left: 4px solid #007bff; }
         .close, .close-action { cursor: pointer; font-size: 24px; line-height: 1; }
-        
-        /* Improved Approval Steps Styling */
-        .approval-steps {
-            margin-bottom: 25px;
-        }
-        .step-card {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-left: 4px solid;
-            transition: all 0.2s ease;
-        }
+        .approval-steps { margin-bottom: 25px; }
+        .step-card { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid; }
         .step-card.step-1 { border-left-color: #ffc107; }
         .step-card.step-2 { border-left-color: #17a2b8; }
         .step-card.step-3 { border-left-color: #28a745; }
-        .step-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-        .step-number {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            font-weight: bold;
-            font-size: 14px;
-            color: white;
-        }
+        .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .step-number { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-weight: bold; font-size: 14px; color: white; }
         .step-1 .step-number { background: #ffc107; }
         .step-2 .step-number { background: #17a2b8; }
         .step-3 .step-number { background: #28a745; }
-        .step-title {
-            font-weight: 600;
-            font-size: 15px;
-        }
+        .step-title { font-weight: 600; font-size: 15px; }
         .step-1 .step-title { color: #856404; }
         .step-2 .step-title { color: #004085; }
         .step-3 .step-title { color: #155724; }
-        .step-desc {
-            font-size: 12px;
-            color: #6c757d;
-            margin-bottom: 12px;
-            padding-left: 38px;
-        }
-        .step-card select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            background: white;
-        }
-        .officer-hint {
-            font-size: 11px;
-            color: #6c757d;
-            margin-top: 5px;
-            padding-left: 38px;
-        }
+        .step-desc { font-size: 12px; color: #6c757d; margin-bottom: 12px; padding-left: 38px; }
+        .step-card select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; }
+        .officer-hint { font-size: 11px; color: #6c757d; margin-top: 5px; padding-left: 38px; }
+        .date-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .readonly-field { background: #e9ecef; cursor: not-allowed; }
+        .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; flex-wrap: wrap; }
+        .page-btn { padding: 5px 10px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; }
+        .page-btn.active { background: #007bff; color: white; border-color: #007bff; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+        .empty-state { text-align: center; padding: 30px; color: #6c757d; }
+        .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         
-        .date-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        .readonly-field {
-            background: #e9ecef;
-            cursor: not-allowed;
-        }
         @media (max-width: 768px) {
             .stats-grid, .officer-actions, .balance-cards { grid-template-columns: 1fr; }
             .date-group { grid-template-columns: 1fr; }
+            .header-section { flex-direction: column; align-items: stretch; }
+            .btn-add { width: 100%; }
+            .filter-section { overflow-x: auto; flex-wrap: nowrap; }
+            .filter-btn { white-space: nowrap; }
         }
     </style>
 </head>
@@ -990,7 +938,6 @@ ob_start();
 <div class="container">
     <h2>Leave Management System</h2>
     
-    <!-- Statistics -->
     <div class="stats-grid">
         <div class="stat-card verifying" onclick="filterByStatus('pending')">
             <div class="stat-value" id="verifyingPending"><?php echo $verifyingPending; ?></div>
@@ -1006,7 +953,6 @@ ob_start();
         </div>
     </div>
 
-    <!-- Officer Action Cards -->
     <div class="officer-actions">
         <div class="officer-card">
             <div class="officer-card-header verifying">
@@ -1039,7 +985,6 @@ ob_start();
         </div>
     </div>
 
-    <!-- Balance Cards -->
     <div class="balance-cards">
         <div class="balance-card">
             <h4>🏠 Gharpari Bida</h4>
@@ -1058,26 +1003,18 @@ ob_start();
         </div>
     </div>
 
-    <!-- Search and Actions -->
-    <div class="search-section">
-        <div class="search-bar">
-            <input type="text" id="searchInput" placeholder="Search...">
-            <button class="clear-search" id="clearSearch">✕</button>
+    <div class="header-section">
+        <div class="filter-section">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="pending">Pending (Receiving)</button>
+            <button class="filter-btn" data-filter="verified">Verified (Initiating)</button>
+            <button class="filter-btn" data-filter="initiating_approved">Awaiting Final</button>
+            <button class="filter-btn" data-filter="approved">Approved</button>
+            <button class="filter-btn" data-filter="rejected">Rejected</button>
         </div>
         <button class="btn-add" id="newLeaveBtn">+ New Leave Request</button>
     </div>
 
-    <!-- Filter Tabs -->
-    <div class="filter-section">
-        <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="pending">Pending (Receiving)</button>
-        <button class="filter-btn" data-filter="verified">Verified (Initiating)</button>
-        <button class="filter-btn" data-filter="initiating_approved">Awaiting Final</button>
-        <button class="filter-btn" data-filter="approved">Approved</button>
-        <button class="filter-btn" data-filter="rejected">Rejected</button>
-    </div>
-
-    <!-- Leave Requests Table -->
     <div class="data-table">
         <table>
             <thead>
@@ -1085,6 +1022,7 @@ ob_start();
                     <th>ID</th>
                     <th>Personnel</th>
                     <th>Rank</th>
+                    <th>Personnel No</th>
                     <th>Leave Type</th>
                     <th>Period</th>
                     <th>Days</th>
@@ -1098,15 +1036,15 @@ ob_start();
                 </tr>
             </thead>
             <tbody id="leaveTableBody">
-                <tr><td colspan="13" style="text-align:center">Loading...</td></tr>
+                <tr><td colspan="14" style="text-align:center">Loading...<\/td></tr>
             </tbody>
         </table>
     </div>
 
-    <div id="paginationContainer" class="pagination-container" style="margin-top:20px"></div>
+    <div id="paginationContainer" class="pagination-container"></div>
 </div>
 
-<!-- New Leave Request Modal - Improved Layout -->
+<!-- New Leave Request Modal -->
 <div id="leaveModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -1117,17 +1055,25 @@ ob_start();
             <form id="leaveForm">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 
-                <!-- Personnel and Leave Type Row -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="input-field">
                         <label><i class="fas fa-user"></i> Personnel <span class="required-star">*</span></label>
                         <select id="personnelId" name="personnel_id" required>
                             <option value="">Select Personnel</option>
-                            <?php foreach($personnelList as $row): ?>
-                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <?php
+                            // Get the correct name column
+                            $stmt = $pdo->query("SHOW COLUMNS FROM personnel");
+                            $columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                            $nameColumn = in_array('full_name_en', $columns) ? 'full_name_en' : (in_array('full_name', $columns) ? 'full_name' : 'personnel_number');
+                            
+                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
+                                     . "</option>";
+                            }
+                            ?>
                         </select>
                     </div>
                     
@@ -1142,7 +1088,6 @@ ob_start();
                     </div>
                 </div>
                 
-                <!-- Workflow Info Box -->
                 <div class="info-box">
                     <i class="fas fa-info-circle"></i> <strong>Three-Level Approval Workflow:</strong><br>
                     1. Receiving Officer receives and verifies the request<br>
@@ -1150,76 +1095,71 @@ ob_start();
                     3. Accepting Officer gives final approval
                 </div>
                 
-                <!-- Approval Steps - Clean and Spacious -->
                 <div class="approval-steps">
-                    <!-- Step 1: Receiving Officer -->
                     <div class="step-card step-1">
                         <div class="step-header">
                             <span class="step-number">1</span>
                             <span class="step-title">📬 Receiving Officer (प्राप्त गर्ने)</span>
                         </div>
-                        <div class="step-desc">
-                            This person will receive and verify the request first
-                        </div>
+                        <div class="step-desc">This person will receive and verify the request first</div>
                         <select id="receivingOfficer" required>
                             <option value="">Select Personnel</option>
-                            <?php foreach($personnelList as $row): ?>
-                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <?php
+                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
+                                     . "</option>";
+                            }
+                            ?>
                         </select>
-                        <div class="officer-hint">
-                            <i class="fas fa-arrow-right"></i> Step 1: Initial verification
-                        </div>
+                        <div class="officer-hint"><i class="fas fa-arrow-right"></i> Step 1: Initial verification</div>
                     </div>
                     
-                    <!-- Step 2: Initiating Officer -->
                     <div class="step-card step-2">
                         <div class="step-header">
                             <span class="step-number">2</span>
                             <span class="step-title">✍️ Initiating Officer</span>
                         </div>
-                        <div class="step-desc">
-                            First level approval after receiving officer verification
-                        </div>
+                        <div class="step-desc">First level approval after receiving officer verification</div>
                         <select id="initiatingOfficer" required>
                             <option value="">Select Personnel</option>
-                            <?php foreach($personnelList as $row): ?>
-                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <?php
+                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
+                                     . "</option>";
+                            }
+                            ?>
                         </select>
-                        <div class="officer-hint">
-                            <i class="fas fa-arrow-right"></i> Step 2: First level approval
-                        </div>
+                        <div class="officer-hint"><i class="fas fa-arrow-right"></i> Step 2: First level approval</div>
                     </div>
                     
-                    <!-- Step 3: Accepting Officer -->
                     <div class="step-card step-3">
                         <div class="step-header">
                             <span class="step-number">3</span>
                             <span class="step-title">✅ Accepting Officer</span>
                         </div>
-                        <div class="step-desc">
-                            Final approval authority - grants the leave
-                        </div>
+                        <div class="step-desc">Final approval authority - grants the leave</div>
                         <select id="acceptingOfficer" required>
                             <option value="">Select Personnel</option>
-                            <?php foreach($personnelList as $row): ?>
-                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <?php
+                            $stmt = $pdo->query("SELECT personnel_number, {$nameColumn} as full_name, rank FROM personnel ORDER BY {$nameColumn}");
+                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                $displayName = !empty($row['full_name']) ? $row['full_name'] : $row['personnel_number'];
+                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
+                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
+                                     . "</option>";
+                            }
+                            ?>
                         </select>
-                        <div class="officer-hint">
-                            <i class="fas fa-arrow-right"></i> Step 3: Final approval
-                        </div>
+                        <div class="officer-hint"><i class="fas fa-arrow-right"></i> Step 3: Final approval</div>
                     </div>
                 </div>
                 
-                <!-- Date Selection -->
                 <div class="date-group">
                     <div class="input-field">
                         <label><i class="fas fa-calendar-alt"></i> Start Date <span class="required-star">*</span></label>
@@ -1231,7 +1171,6 @@ ob_start();
                     </div>
                 </div>
                 
-                <!-- Leave Info Row -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div class="input-field">
                         <label><i class="fas fa-clock"></i> Total Days</label>
@@ -1243,7 +1182,6 @@ ob_start();
                     </div>
                 </div>
                 
-                <!-- Reason -->
                 <div class="input-field">
                     <label><i class="fas fa-comment"></i> Reason for Leave <span class="required-star">*</span></label>
                     <textarea id="reason" rows="3" required placeholder="Please provide detailed reason for leave request..."></textarea>
@@ -1291,11 +1229,8 @@ ob_start();
     let currentFilter = 'all';
     let currentPage = 1;
     let currentPerPage = 10;
-    let totalPages = 1;
-    let currentUserRole = <?php echo $user_role_int; ?>;
-    let currentPersonnelId = '<?php echo htmlspecialchars($current_personnel_id); ?>';
+    let currentUserPersonnel = '<?php echo htmlspecialchars($current_personnel_number); ?>';
 
-    // Load receiving officer pending requests
     async function loadVerifyingPending() {
         try {
             const formData = new FormData();
@@ -1318,7 +1253,7 @@ ob_start();
                         <div class="pending-item">
                             <strong>📋 From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
                             <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
-                            <small>Will forward to: ${escapeHtml(leave.initiating_officer_name)}</small><br>
+                            <small>Will forward to: ${escapeHtml(leave.initiating_officer_name || leave.initiating_officer)}</small><br>
                             ${isSame ? '<small style="color:orange">⚠️ Same as Initiating Officer - Will auto-forward to Accepting Officer</small><br>' : ''}
                             <button class="btn-process btn-approve" onclick="openApprovalModal(${leave.id}, 'verifying', 'approve')">✅ Receive & Forward</button>
                             <button class="btn-process btn-reject" onclick="openApprovalModal(${leave.id}, 'verifying', 'reject')">❌ Reject</button>
@@ -1335,7 +1270,6 @@ ob_start();
         }
     }
 
-    // Load initiating officer pending requests
     async function loadInitiatingPending() {
         try {
             const formData = new FormData();
@@ -1357,8 +1291,8 @@ ob_start();
                         <div class="pending-item">
                             <strong>📌 From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
                             <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
-                            <small>Received by: ${escapeHtml(leave.verifying_officer_name)}</small><br>
-                            <small>Will forward to: ${escapeHtml(leave.accepting_officer_name)}</small><br>
+                            <small>Received by: ${escapeHtml(leave.verifying_officer_name || leave.verifying_officer)}</small><br>
+                            <small>Will forward to: ${escapeHtml(leave.accepting_officer_name || leave.accepting_officer)}</small><br>
                             <button class="btn-process btn-approve" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')">✅ Approve & Forward</button>
                             <button class="btn-process btn-reject" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')">❌ Reject</button>
                         </div>
@@ -1374,7 +1308,6 @@ ob_start();
         }
     }
 
-    // Load accepting officer pending requests
     async function loadAcceptingPending() {
         try {
             const formData = new FormData();
@@ -1396,8 +1329,8 @@ ob_start();
                         <div class="pending-item">
                             <strong>✅ From: ${escapeHtml(leave.personnel_name)}</strong> (${escapeHtml(leave.rank)})<br>
                             <small>${leave.leave_type} | ${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()} | ${leave.leave_days} days</small><br>
-                            <small>Verified by: ${escapeHtml(leave.verifying_officer_name)}</small><br>
-                            <small>Initiated by: ${escapeHtml(leave.initiating_officer_name)}</small><br>
+                            <small>Verified by: ${escapeHtml(leave.verifying_officer_name || leave.verifying_officer)}</small><br>
+                            <small>Initiated by: ${escapeHtml(leave.initiating_officer_name || leave.initiating_officer)}</small><br>
                             <button class="btn-process btn-approve" onclick="openApprovalModal(${leave.id}, 'accepting', 'approve')">✅ Final Approve</button>
                             <button class="btn-process btn-reject" onclick="openApprovalModal(${leave.id}, 'accepting', 'reject')">❌ Reject</button>
                         </div>
@@ -1413,13 +1346,11 @@ ob_start();
         }
     }
 
-    // Load all leave requests for table
     async function loadLeaveRequests() {
         try {
             const formData = new FormData();
             formData.append('action', 'get_all');
             formData.append('filter', currentFilter);
-            formData.append('search', document.getElementById('searchInput')?.value || '');
             formData.append('page', currentPage);
             formData.append('per_page', currentPerPage);
             formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
@@ -1446,12 +1377,12 @@ ob_start();
     function renderTable(leaves) {
         const tbody = document.getElementById('leaveTableBody');
         if (!leaves || leaves.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center">No leave requests found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="14" style="text-align:center">No leave requests found</td></tr>';
             return;
         }
         
         tbody.innerHTML = '';
-        leaves.forEach((leave, idx) => {
+        leaves.forEach((leave) => {
             let statusClass = '', statusText = '';
             if (leave.status === 'pending') { statusClass = 'status-pending'; statusText = 'Pending (Receiving)'; }
             else if (leave.status === 'verified') { statusClass = 'status-verified'; statusText = 'Verified (Initiating)'; }
@@ -1462,17 +1393,17 @@ ob_start();
             let actions = `<div class="action-buttons">
                 <button class="action-btn btn-view-action" onclick="viewDetails(${leave.id})">View</button>`;
             
-            if (leave.verifying_officer == currentPersonnelId && leave.verifying_officer_approved == 0 && leave.status === 'pending') {
+            if (leave.verifying_officer == currentUserPersonnel && leave.verifying_officer_approved == 0 && leave.status === 'pending') {
                 actions += `<button class="action-btn btn-approve-action" onclick="openApprovalModal(${leave.id}, 'verifying', 'approve')">Receive</button>
                            <button class="action-btn btn-reject-action" onclick="openApprovalModal(${leave.id}, 'verifying', 'reject')">Reject</button>`;
             }
             
-            if (leave.initiating_officer == currentPersonnelId && leave.verifying_officer_approved == 1 && leave.initiating_officer_approved == 0 && leave.status === 'verified') {
+            if (leave.initiating_officer == currentUserPersonnel && leave.verifying_officer_approved == 1 && leave.initiating_officer_approved == 0 && leave.status === 'verified') {
                 actions += `<button class="action-btn btn-approve-action" onclick="openApprovalModal(${leave.id}, 'initiating', 'approve')">Approve</button>
                            <button class="action-btn btn-reject-action" onclick="openApprovalModal(${leave.id}, 'initiating', 'reject')">Reject</button>`;
             }
             
-            if (leave.accepting_officer == currentPersonnelId && leave.initiating_officer_approved == 1 && leave.accepting_officer_approved == 0 && leave.status === 'initiating_approved') {
+            if (leave.accepting_officer == currentUserPersonnel && leave.initiating_officer_approved == 1 && leave.accepting_officer_approved == 0 && leave.status === 'initiating_approved') {
                 actions += `<button class="action-btn btn-approve-action" onclick="openApprovalModal(${leave.id}, 'accepting', 'approve')">Final Approve</button>
                            <button class="action-btn btn-reject-action" onclick="openApprovalModal(${leave.id}, 'accepting', 'reject')">Reject</button>`;
             }
@@ -1484,15 +1415,16 @@ ob_start();
                 <td>${leave.id}</td>
                 <td>${escapeHtml(leave.personnel_name)}</td>
                 <td>${escapeHtml(leave.rank)}</td>
+                <td>${escapeHtml(leave.personnel_number)}</td>
                 <td>${leave.leave_type}</td>
                 <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
                 <td>${leave.leave_days}</td>
                 <td>${escapeHtml((leave.reason || '').substring(0, 50))}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                <td>${leave.receiver_name || '-'}</td>
-                <td>${leave.verifying_officer_name || '-'}</td>
-                <td>${leave.initiating_officer_name || '-'}</td>
-                <td>${leave.accepting_officer_name || '-'}</td>
+                <td>${leave.receiver_name || leave.receiver_id || '-'}</td>
+                <td>${leave.verifying_officer_name || leave.verifying_officer || '-'}</td>
+                <td>${leave.initiating_officer_name || leave.initiating_officer || '-'}</td>
+                <td>${leave.accepting_officer_name || leave.accepting_officer || '-'}</td>
                 <td>${actions}</td>
             `;
         });
@@ -1506,8 +1438,18 @@ ob_start();
         }
         
         let html = '<div class="pagination">';
+        if (pagination.current_page > 1) {
+            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.current_page - 1})">« Prev</button>`;
+        }
         for (let i = 1; i <= pagination.total_pages; i++) {
-            html += `<button class="page-btn ${i === pagination.current_page ? 'active' : ''}" onclick="loadLeaveRequestsPage(${i})">${i}</button>`;
+            if (i === 1 || i === pagination.total_pages || (i >= pagination.current_page - 2 && i <= pagination.current_page + 2)) {
+                html += `<button class="page-btn ${i === pagination.current_page ? 'active' : ''}" onclick="loadLeaveRequestsPage(${i})">${i}</button>`;
+            } else if (i === pagination.current_page - 3 || i === pagination.current_page + 3) {
+                html += `<span class="page-dots">...</span>`;
+            }
+        }
+        if (pagination.current_page < pagination.total_pages) {
+            html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.current_page + 1})">Next »</button>`;
         }
         html += '</div>';
         container.innerHTML = html;
@@ -1523,19 +1465,26 @@ ob_start();
         document.getElementById('actionOfficerType').value = officerType;
         document.getElementById('actionType').value = action;
         
-        if (officerType === 'verifying') {
-            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Receive Leave Request' : 'Reject Leave Request';
-            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Receiving Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
-            document.getElementById('actionRemarks').placeholder = action === 'approve' ? 'Add any receiving remarks...' : 'Please provide reason for rejection...';
-        } else if (officerType === 'initiating') {
-            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Approve Leave Request' : 'Reject Leave Request';
-            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Forwarding Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
-            document.getElementById('actionRemarks').placeholder = action === 'approve' ? 'Add any forwarding remarks...' : 'Please provide reason for rejection...';
-        } else {
-            document.getElementById('actionModalTitle').innerHTML = action === 'approve' ? 'Final Approve Leave Request' : 'Reject Leave Request';
-            document.getElementById('actionLabel').innerHTML = action === 'approve' ? 'Approval Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>';
-            document.getElementById('actionRemarks').placeholder = action === 'approve' ? 'Add any approval remarks...' : 'Please provide reason for rejection...';
-        }
+        const titles = {
+            verifying: action === 'approve' ? 'Receive Leave Request' : 'Reject Leave Request',
+            initiating: action === 'approve' ? 'Approve Leave Request' : 'Reject Leave Request',
+            accepting: action === 'approve' ? 'Final Approve Leave Request' : 'Reject Leave Request'
+        };
+        document.getElementById('actionModalTitle').innerHTML = titles[officerType];
+        
+        const labels = {
+            verifying: action === 'approve' ? 'Receiving Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>',
+            initiating: action === 'approve' ? 'Forwarding Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>',
+            accepting: action === 'approve' ? 'Approval Remarks (Optional)' : 'Rejection Reason <span class="required-star">*</span>'
+        };
+        document.getElementById('actionLabel').innerHTML = labels[officerType];
+        
+        const placeholders = {
+            verifying: action === 'approve' ? 'Add any receiving remarks...' : 'Please provide reason for rejection...',
+            initiating: action === 'approve' ? 'Add any forwarding remarks...' : 'Please provide reason for rejection...',
+            accepting: action === 'approve' ? 'Add any approval remarks...' : 'Please provide reason for rejection...'
+        };
+        document.getElementById('actionRemarks').placeholder = placeholders[officerType];
         
         document.getElementById('actionRemarks').value = '';
         document.getElementById('actionModal').style.display = 'block';
@@ -1621,7 +1570,9 @@ ob_start();
     // Event Listeners
     document.getElementById('newLeaveBtn')?.addEventListener('click', () => {
         document.getElementById('leaveForm').reset();
-        document.getElementById('startDate').min = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('startDate').min = today;
+        document.getElementById('endDate').min = today;
         document.getElementById('leaveModal').style.display = 'block';
     });
 
@@ -1690,16 +1641,27 @@ ob_start();
     document.getElementById('leaveForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        // Validate that officers are not the same as personnel
+        const personnelId = document.getElementById('personnelId').value;
+        const receivingOfficer = document.getElementById('receivingOfficer').value;
+        const initiatingOfficer = document.getElementById('initiatingOfficer').value;
+        const acceptingOfficer = document.getElementById('acceptingOfficer').value;
+        
+        if (personnelId === receivingOfficer) {
+            showToast('Receiving Officer cannot be the same as the personnel requesting leave', 'error');
+            return;
+        }
+        
         const formData = new FormData();
         formData.append('action', 'submit_leave');
-        formData.append('personnel_id', document.getElementById('personnelId').value);
+        formData.append('personnel_id', personnelId);
         formData.append('leave_type', document.getElementById('leaveType').value);
         formData.append('start_date', document.getElementById('startDate').value);
         formData.append('end_date', document.getElementById('endDate').value);
         formData.append('reason', document.getElementById('reason').value);
-        formData.append('receiving_officer', document.getElementById('receivingOfficer').value);
-        formData.append('initiating_officer', document.getElementById('initiatingOfficer').value);
-        formData.append('accepting_officer', document.getElementById('acceptingOfficer').value);
+        formData.append('receiving_officer', receivingOfficer);
+        formData.append('initiating_officer', initiatingOfficer);
+        formData.append('accepting_officer', acceptingOfficer);
         formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
         
         try {
@@ -1736,27 +1698,25 @@ ob_start();
         const action = document.getElementById('actionType').value;
         const remarks = document.getElementById('actionRemarks').value;
         
-        if (action === 'reject' && !remarks) {
+        if (action === 'reject' && !remarks.trim()) {
             showToast('Remarks required for rejection', 'error');
             return;
         }
         
-        let endpoint = '';
-        let successMsg = '';
+        const endpoints = {
+            verifying: action === 'approve' ? 'verifying_officer_approve' : 'verifying_officer_reject',
+            initiating: action === 'approve' ? 'initiating_officer_approve' : 'initiating_officer_reject',
+            accepting: action === 'approve' ? 'accepting_officer_approve' : 'accepting_officer_reject'
+        };
         
-        if (officerType === 'verifying') {
-            endpoint = action === 'approve' ? 'verifying_officer_approve' : 'verifying_officer_reject';
-            successMsg = action === 'approve' ? 'Request received and forwarded!' : 'Request rejected!';
-        } else if (officerType === 'initiating') {
-            endpoint = action === 'approve' ? 'initiating_officer_approve' : 'initiating_officer_reject';
-            successMsg = action === 'approve' ? 'Request approved and forwarded to accepting officer!' : 'Request rejected!';
-        } else {
-            endpoint = action === 'approve' ? 'accepting_officer_approve' : 'accepting_officer_reject';
-            successMsg = action === 'approve' ? 'Request FINALLY APPROVED! Leave granted.' : 'Request rejected!';
-        }
+        const successMsgs = {
+            verifying: action === 'approve' ? 'Request received and forwarded!' : 'Request rejected!',
+            initiating: action === 'approve' ? 'Request approved and forwarded to accepting officer!' : 'Request rejected!',
+            accepting: action === 'approve' ? 'Request FINALLY APPROVED! Leave granted.' : 'Request rejected!'
+        };
         
         const formData = new FormData();
-        formData.append('action', endpoint);
+        formData.append('action', endpoints[officerType]);
         formData.append('id', id);
         formData.append('remarks', remarks);
         formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
@@ -1770,7 +1730,7 @@ ob_start();
             const result = await response.json();
             
             if (result.success) {
-                showToast(result.message || successMsg, 'success');
+                showToast(result.message || successMsgs[officerType], 'success');
                 document.getElementById('actionModal').style.display = 'none';
                 loadLeaveRequests();
                 loadStatistics();
@@ -1793,19 +1753,13 @@ ob_start();
         });
     });
 
-    document.getElementById('searchInput')?.addEventListener('input', function() {
-        clearTimeout(window.searchTimeout);
-        window.searchTimeout = setTimeout(() => {
-            currentPage = 1;
-            loadLeaveRequests();
-        }, 500);
-    });
-
-    document.getElementById('clearSearch')?.addEventListener('click', function() {
-        document.getElementById('searchInput').value = '';
-        currentPage = 1;
-        loadLeaveRequests();
-    });
+    // Refresh data every 30 seconds
+    setInterval(() => {
+        loadStatistics();
+        loadVerifyingPending();
+        loadInitiatingPending();
+        loadAcceptingPending();
+    }, 30000);
 
     // Initial load
     loadLeaveRequests();
@@ -1814,6 +1768,11 @@ ob_start();
     loadVerifyingPending();
     loadInitiatingPending();
     loadAcceptingPending();
+    
+    // Set min date for date inputs
+    const today = new Date().toISOString().split('T')[0];
+    if(document.getElementById('startDate')) document.getElementById('startDate').min = today;
+    if(document.getElementById('endDate')) document.getElementById('endDate').min = today;
 </script>
 
 </body>
