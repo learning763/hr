@@ -109,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $per_page = isset($_POST['per_page']) ? (int)$_POST['per_page'] : 10;
             $offset = ($page - 1) * $per_page;
             
-            // Build the main query - using CONCAT for name display
+            // Build the main query
             $sql = "SELECT lr.*, 
                            CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
                            p.rank,
@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                     LEFT JOIN personnel receiver_p ON lr.receiver_id = receiver_p.personnel_number
                     WHERE 1=1";
             
-            $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr WHERE 1=1";
+            $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr INNER JOIN personnel p ON lr.personnel_id = p.personnel_number WHERE 1=1";
             $params = [];
             
             // Status filter
@@ -849,6 +849,11 @@ $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE accept
 $stmt->execute([$current_personnel_number]);
 $acceptingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
+// Get all personnel for dropdowns
+$personnel_list = [];
+$stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+$personnel_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 ob_start();
 ?>
 
@@ -858,8 +863,6 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leave Management System</title>
-    <link href="/css/fontawesome.css" rel="stylesheet">
-
     <style>
         * { box-sizing: border-box; }
         .status-pending { background-color: #fff3cd; color: #856404; }
@@ -948,7 +951,6 @@ ob_start();
         .empty-state { text-align: center; padding: 30px; color: #6c757d; }
         .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
         
-        /* Search and filter bar styles */
         .search-bar {
             background: white;
             border-radius: 10px;
@@ -960,42 +962,13 @@ ob_start();
             gap: 15px;
             align-items: flex-end;
         }
-        .search-group {
-            flex: 1;
-            min-width: 150px;
-        }
-        .search-group label {
-            display: block;
-            font-size: 12px;
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: #666;
-        }
-        .search-group input, .search-group select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-        }
-        .search-group button {
-            padding: 8px 20px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            width: 100%;
-        }
-        .search-group button:hover {
-            background: #0056b3;
-        }
-        .clear-search {
-            background: #6c757d !important;
-        }
-        .clear-search:hover {
-            background: #5a6268 !important;
-        }
+        .search-group { flex: 1; min-width: 150px; }
+        .search-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #666; }
+        .search-group input, .search-group select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
+        .search-group button { padding: 8px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
+        .search-group button:hover { background: #0056b3; }
+        .clear-search { background: #6c757d !important; }
+        .clear-search:hover { background: #5a6268 !important; }
         
         @media (max-width: 768px) {
             .stats-grid, .officer-actions, .balance-cards { grid-template-columns: 1fr; }
@@ -1089,6 +1062,11 @@ ob_start();
             <label>👤 Filter by Personnel</label>
             <select id="personnelFilterSelect">
                 <option value="">All Personnel</option>
+                <?php foreach ($personnel_list as $person): ?>
+                    <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                        <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div class="search-group">
@@ -1147,14 +1125,14 @@ ob_start();
         </table>
     </div>
 
-    <div id="paginationContainer" class="pagination-container"></div>
+    <div id="paginationContainer"></div>
 </div>
 
 <!-- New Leave Request Modal -->
 <div id="leaveModal" class="modal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3><i class="fas fa-paper-plane"></i> New Leave Request</h3>
+            <h3> New Leave Request</h3>
             <span class="close">&times;</span>
         </div>
         <div class="modal-body">
@@ -1163,23 +1141,19 @@ ob_start();
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="input-field">
-                        <label><i class="fas fa-user"></i> Personnel <span class="required-star">*</span></label>
+                        <label> Personnel <span class="required-star">*</span></label>
                         <select id="personnelId" name="personnel_id" required>
                             <option value="">Select Personnel</option>
-                            <?php
-                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
-                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
-                                     . "</option>";
-                            }
-                            ?>
+                            <?php foreach ($personnel_list as $person): ?>
+                                <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     
                     <div class="input-field">
-                        <label><i class="fas fa-tag"></i> Leave Type <span class="required-star">*</span></label>
+                        <label> Leave Type <span class="required-star">*</span></label>
                         <select id="leaveType" required>
                             <option value="">Select Type</option>
                             <option value="gharpari_bida">🏠 Gharpari Bida (Home Leave)</option>
@@ -1190,7 +1164,7 @@ ob_start();
                 </div>
                 
                 <div class="info-box">
-                    <i class="fas fa-info-circle"></i> <strong>Three-Level Approval Workflow:</strong><br>
+                    <strong>Three-Level Approval Workflow:</strong><br>
                     1. Receiving Officer receives and verifies the request<br>
                     2. Initiating Officer approves after verification<br>
                     3. Accepting Officer gives final approval
@@ -1205,17 +1179,13 @@ ob_start();
                         <div class="step-desc">This person will receive and verify the request first</div>
                         <select id="receivingOfficer" required>
                             <option value="">Select Personnel</option>
-                            <?php
-                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
-                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
-                                     . "</option>";
-                            }
-                            ?>
+                            <?php foreach ($personnel_list as $person): ?>
+                                <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
-                        <div class="officer-hint"><i class="fas fa-arrow-right"></i> Step 1: Initial verification</div>
+                        <div class="officer-hint"> Step 1: Initial verification</div>
                     </div>
                     
                     <div class="step-card step-2">
@@ -1226,17 +1196,13 @@ ob_start();
                         <div class="step-desc">First level approval after receiving officer verification</div>
                         <select id="initiatingOfficer" required>
                             <option value="">Select Personnel</option>
-                            <?php
-                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
-                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
-                                     . "</option>";
-                            }
-                            ?>
+                            <?php foreach ($personnel_list as $person): ?>
+                                <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
-                        <div class="officer-hint"><i class="fas fa-arrow-right"></i> Step 2: First level approval</div>
+                        <div class="officer-hint"> Step 2: First level approval</div>
                     </div>
                     
                     <div class="step-card step-3">
@@ -1247,50 +1213,46 @@ ob_start();
                         <div class="step-desc">Final approval authority - grants the leave</div>
                         <select id="acceptingOfficer" required>
                             <option value="">Select Personnel</option>
-                            <?php
-                            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-                            while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                $displayName = !empty($row['full_name_en']) ? $row['full_name_en'] : $row['personnel_number'];
-                                echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-                                     . htmlspecialchars($row['rank'] . ' ' . $displayName . ' (' . $row['personnel_number'] . ')') 
-                                     . "</option>";
-                            }
-                            ?>
+                            <?php foreach ($personnel_list as $person): ?>
+                                <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
-                        <div class="officer-hint"><i class="fas fa-arrow-right"></i> Step 3: Final approval</div>
+                        <div class="officer-hint"> Step 3: Final approval</div>
                     </div>
                 </div>
                 
                 <div class="date-group">
                     <div class="input-field">
-                        <label><i class="fas fa-calendar-alt"></i> Start Date <span class="required-star">*</span></label>
+                        <label> Start Date <span class="required-star">*</span></label>
                         <input type="date" id="startDate" required>
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-calendar-alt"></i> End Date <span class="required-star">*</span></label>
+                        <label> End Date <span class="required-star">*</span></label>
                         <input type="date" id="endDate" required>
                     </div>
                 </div>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div class="input-field">
-                        <label><i class="fas fa-clock"></i> Total Days</label>
+                        <label> Total Days</label>
                         <input type="text" id="totalDays" class="readonly-field" readonly placeholder="Will be calculated automatically">
                     </div>
                     <div class="input-field">
-                        <label><i class="fas fa-chart-line"></i> Available Balance</label>
+                        <label> Available Balance</label>
                         <input type="text" id="availableBalance" class="readonly-field" readonly placeholder="Select leave type first">
                     </div>
                 </div>
                 
                 <div class="input-field">
-                    <label><i class="fas fa-comment"></i> Reason for Leave <span class="required-star">*</span></label>
+                    <label> Reason for Leave <span class="required-star">*</span></label>
                     <textarea id="reason" rows="3" required placeholder="Please provide detailed reason for leave request..."></textarea>
                 </div>
                 
                 <div class="modal-buttons">
-                    <button type="button" class="btn-cancel" id="cancelBtn"><i class="fas fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn-submit"><i class="fas fa-paper-plane"></i> Submit Request</button>
+                    <button type="button" class="btn-cancel" id="cancelBtn"> Cancel</button>
+                    <button type="submit" class="btn-submit"> Submit Request</button>
                 </div>
             </form>
         </div>
@@ -1335,6 +1297,7 @@ ob_start();
     let currentPersonnelFilter = '';
     let currentDateFrom = '';
     let currentDateTo = '';
+    let searchTimeout;
 
     async function loadVerifyingPending() {
         try {
@@ -1451,35 +1414,6 @@ ob_start();
         }
     }
 
-    async function loadPersonnelDropdown() {
-        try {
-            const formData = new FormData();
-            formData.append('action', 'get_all_personnel');
-            formData.append('csrf_token', '<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>');
-            
-            const response = await fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            const result = await response.json();
-            
-            if (result.success) {
-                const select = document.getElementById('personnelFilterSelect');
-                select.innerHTML = '<option value="">All Personnel</option>';
-                result.data.forEach(person => {
-                    const option = document.createElement('option');
-                    option.value = person.personnel_number;
-                    const displayName = person.full_name_en || person.personnel_number;
-                    option.textContent = `${person.rank} ${displayName} (${person.personnel_number})`;
-                    select.appendChild(option);
-                });
-            }
-        } catch (error) {
-            console.error(error);
-        }
-    }
-
     async function loadLeaveRequests() {
         try {
             const formData = new FormData();
@@ -1586,7 +1520,7 @@ ob_start();
         
         if (startPage > 1) {
             html += `<button class="page-btn" onclick="loadLeaveRequestsPage(1)">1</button>`;
-            if (startPage > 2) html += `<span class="page-dots">...</span>`;
+            if (startPage > 2) html += `<span>...</span>`;
         }
         
         for (let i = startPage; i <= endPage; i++) {
@@ -1594,7 +1528,7 @@ ob_start();
         }
         
         if (endPage < pagination.total_pages) {
-            if (endPage < pagination.total_pages - 1) html += `<span class="page-dots">...</span>`;
+            if (endPage < pagination.total_pages - 1) html += `<span>...</span>`;
             html += `<button class="page-btn" onclick="loadLeaveRequestsPage(${pagination.total_pages})">${pagination.total_pages}</button>`;
         }
         
@@ -1749,6 +1683,20 @@ ob_start();
         document.getElementById('leaveModal').style.display = 'block';
     });
 
+    document.getElementById('searchInput')?.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            applyFilters();
+        }, 500);
+    });
+
+    document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            clearTimeout(searchTimeout);
+            applyFilters();
+        }
+    });
+
     document.querySelectorAll('.close, .close-action').forEach(btn => {
         btn.onclick = () => {
             document.getElementById('leaveModal').style.display = 'none';
@@ -1772,11 +1720,6 @@ ob_start();
     document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFilters);
     document.getElementById('clearFiltersBtn')?.addEventListener('click', clearFilters);
     
-    // Add enter key support for search
-    document.getElementById('searchInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') applyFilters();
-    });
-
     document.getElementById('startDate')?.addEventListener('change', calculateDays);
     document.getElementById('endDate')?.addEventListener('change', calculateDays);
     document.getElementById('leaveType')?.addEventListener('change', calculateDays);
@@ -1822,7 +1765,6 @@ ob_start();
     document.getElementById('leaveForm')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        // Validate that officers are not the same as personnel
         const personnelId = document.getElementById('personnelId').value;
         const receivingOfficer = document.getElementById('receivingOfficer').value;
         const initiatingOfficer = document.getElementById('initiatingOfficer').value;
@@ -1946,7 +1888,6 @@ ob_start();
     }, 30000);
 
     // Initial load
-    loadPersonnelDropdown();
     loadLeaveRequests();
     loadStatistics();
     loadBalance();
@@ -1954,7 +1895,6 @@ ob_start();
     loadInitiatingPending();
     loadAcceptingPending();
     
-    // Set min date for date inputs
     const today = new Date().toISOString().split('T')[0];
     if(document.getElementById('startDate')) document.getElementById('startDate').min = today;
     if(document.getElementById('endDate')) document.getElementById('endDate').min = today;
