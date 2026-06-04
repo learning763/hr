@@ -985,22 +985,6 @@ ob_start();
 <body>
 
 <div class="container">
-    <h2>Leave Management System</h2>
-    
-    <div class="stats-grid">
-        <div class="stat-card verifying" onclick="filterByStatus('pending')">
-            <div class="stat-value" id="verifyingPending"><?php echo $verifyingPending; ?></div>
-            <div>प्राप्त गर्ने (Receiving Officer)</div>
-        </div>
-        <div class="stat-card initiating" onclick="filterByStatus('verified')">
-            <div class="stat-value" id="initiatingPending"><?php echo $initiatingPending; ?></div>
-            <div>Initiating Officer</div>
-        </div>
-        <div class="stat-card accepting" onclick="filterByStatus('initiating_approved')">
-            <div class="stat-value" id="acceptingPending"><?php echo $acceptingPending; ?></div>
-            <div>Accepting Officer (Final)</div>
-        </div>
-    </div>
 
     <div class="officer-actions">
         <div class="officer-card">

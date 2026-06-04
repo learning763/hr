@@ -14,53 +14,53 @@
     
     <ul style="list-style: none; margin: 0; padding: 0 12px;">
         <li style="margin-bottom: 4px;">
-            <a href="dashboard.php" class="sidebar-link" data-page="dashboard" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; transition: all 0.3s ease; position: relative; overflow: hidden;">
-                <i class="fas fa-tachometer-alt" style="width: 20px; font-size: 18px;"></i>
+            <a href="dashboard.php" class="sidebar-link" data-page="dashboard" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; position: relative; overflow: hidden; transition: all 0.3s ease;">
+                <i class="fas fa-tachometer-alt" style="width: 20px; font-size: 18px; transition: all 0.3s ease;"></i>
                 <span>Dashboard</span>
-                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
+                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
             </a>
         </li>
         <li style="margin-bottom: 4px;">
-            <a href="personnel.php" class="sidebar-link" data-page="personnel" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; transition: all 0.3s ease; position: relative; overflow: hidden;">
-                <i class="fas fa-users" style="width: 20px; font-size: 18px;"></i>
+            <a href="personnel.php" class="sidebar-link" data-page="personnel" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; position: relative; overflow: hidden; transition: all 0.3s ease;">
+                <i class="fas fa-users" style="width: 20px; font-size: 18px; transition: all 0.3s ease;"></i>
                 <span>Personnel</span>
-                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
+                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
             </a>
         </li>
         <li style="margin-bottom: 4px;">
-            <a href="attendance.php" class="sidebar-link active" data-page="attendance" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #1a3c34; font-size: 14px; font-weight: 600; transition: all 0.3s ease; position: relative; overflow: hidden; background: #f0f7f4;">
-                <i class="fas fa-clock" style="width: 20px; font-size: 18px; color: #1a3c34;"></i>
+            <a href="attendance.php" class="sidebar-link" data-page="attendance" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #1a3c34; font-size: 14px; font-weight: 600; position: relative; overflow: hidden; background: #f0f7f4;">
+                <i class="fas fa-clock" style="width: 20px; font-size: 18px; color: #1a3c34; transition: all 0.3s ease;"></i>
                 <span>InOut</span>
                 <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; background: #ffd700; border-radius: 0 2px 2px 0;"></div>
             </a>
         </li>
         <li style="margin-bottom: 4px;">
-            <a href="events.php" class="sidebar-link" data-page="events" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; transition: all 0.3s ease; position: relative; overflow: hidden;">
-                <i class="fas fa-calendar-alt" style="width: 20px; font-size: 18px;"></i>
+            <a href="events.php" class="sidebar-link" data-page="events" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; position: relative; overflow: hidden; transition: all 0.3s ease;">
+                <i class="fas fa-calendar-alt" style="width: 20px; font-size: 18px; transition: all 0.3s ease;"></i>
                 <span>Events</span>
-                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
+                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
             </a>
         </li>
         <li style="margin-bottom: 4px;">
-            <a href="leave.php" class="sidebar-link" data-page="leave" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; transition: all 0.3s ease; position: relative; overflow: hidden;">
-                <i class="fas fa-umbrella-beach" style="width: 20px; font-size: 18px;"></i>
+            <a href="leave.php" class="sidebar-link" data-page="leave" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; position: relative; overflow: hidden; transition: all 0.3s ease;">
+                <i class="fas fa-umbrella-beach" style="width: 20px; font-size: 18px; transition: all 0.3s ease;"></i>
                 <span>Leave Requests</span>
-                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
+                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
             </a>
         </li>
         <li style="margin-top: 20px; border-top: 1px solid #eef2f6; padding-top: 12px;"></li>
         <li style="margin-bottom: 4px;">
-            <a href="profile.php" class="sidebar-link" data-page="profile" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; transition: all 0.3s ease; position: relative; overflow: hidden;">
-                <i class="fas fa-user-circle" style="width: 20px; font-size: 18px;"></i>
+            <a href="profile.php" class="sidebar-link" data-page="profile" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; position: relative; overflow: hidden; transition: all 0.3s ease;">
+                <i class="fas fa-user-circle" style="width: 20px; font-size: 18px; transition: all 0.3s ease;"></i>
                 <span>My Profile</span>
-                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
+                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
             </a>
         </li>
         <li style="margin-bottom: 4px;">
-            <a href="settings.php" class="sidebar-link" data-page="settings" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; transition: all 0.3s ease; position: relative; overflow: hidden;">
-                <i class="fas fa-cog" style="width: 20px; font-size: 18px;"></i>
+            <a href="settings.php" class="sidebar-link" data-page="settings" style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; text-decoration: none; color: #5b6e8c; font-size: 14px; font-weight: 500; position: relative; overflow: hidden; transition: all 0.3s ease;">
+                <i class="fas fa-cog" style="width: 20px; font-size: 18px; transition: all 0.3s ease;"></i>
                 <span>Settings</span>
-                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
+                <div class="active-indicator" style="position: absolute; left: 0; top: 50%; width: 3px; height: 0; background: #ffd700; border-radius: 0 2px 2px 0; transition: height 0.3s ease;"></div>
             </a>
         </li>
     </ul>
@@ -76,7 +76,7 @@
 </aside>
 
 <style>
-    /* Sidebar link hover effect */
+    /* Sidebar link hover effect - no translation */
     .sidebar-link {
         position: relative;
     }
@@ -84,7 +84,6 @@
     .sidebar-link:hover {
         background: #f0f7f4;
         color: #1a3c34 !important;
-        transform: translateX(4px);
     }
     
     .sidebar-link:hover i {
@@ -113,7 +112,7 @@
     
     /* Icon animation */
     .sidebar-link i {
-        transition: all 0.3s ease;
+        transition: transform 0.3s ease, color 0.3s ease;
         color: #9aa9bc;
     }
     
