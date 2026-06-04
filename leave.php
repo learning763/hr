@@ -24,8 +24,10 @@ if ($user_role_int === 2) {
     $user_role_string = 'user';
 }
 
-// Get current user's personnel ID from session
-$current_personnel_id = isset($_SESSION['user_personnel_id']) ? (int)$_SESSION['user_personnel_id'] : 0;
+// Get current user's personnel ID from session (using personnel_number from personnel table)
+$current_personnel_number = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : '';
+$current_personnel_id = 0;
+$current_personnel_name = '';
 
 // Database connection
 try {
@@ -35,24 +37,27 @@ try {
     die("Connection failed: " . $e->getMessage());
 }
 
-// Get current user's personnel ID from personnel table
-if ($current_personnel_id == 0 && isset($_SESSION['user_id'])) {
-    $stmt = $pdo->prepare("SELECT id FROM military_personnel_status WHERE personnel_number = ?");
-    $stmt->execute([$_SESSION['user_id']]);
+// Get current user's personnel ID from personnel table using personnel_number
+if (!empty($current_personnel_number)) {
+    $stmt = $pdo->prepare("SELECT personnel_number, full_name_en, rank FROM personnel WHERE personnel_number = ?");
+    $stmt->execute([$current_personnel_number]);
     $personnel = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($personnel) {
-        $_SESSION['user_personnel_id'] = $personnel['id'];
-        $current_personnel_id = $personnel['id'];
+        $current_personnel_id = $personnel['personnel_number'];
+        $current_personnel_name = $personnel['full_name_en'];
+        $_SESSION['user_personnel_id'] = $current_personnel_id;
+        $_SESSION['user_personnel_name'] = $current_personnel_name;
     }
 }
 
-if ($current_personnel_id == 0) {
-    $stmt = $pdo->prepare("SELECT id FROM military_personnel_status LIMIT 1");
+// If still no personnel ID, get first personnel as fallback
+if (empty($current_personnel_id)) {
+    $stmt = $pdo->prepare("SELECT personnel_number FROM personnel LIMIT 1");
     $stmt->execute();
     $first = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($first) {
-        $_SESSION['user_personnel_id'] = $first['id'];
-        $current_personnel_id = $first['id'];
+        $_SESSION['user_personnel_id'] = $first['personnel_number'];
+        $current_personnel_id = $first['personnel_number'];
     }
 }
 
@@ -61,25 +66,32 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// Helper functions
-function getLeaveBalance($pdo, $personnel_id) {
+// Helper function to get personnel details
+function getPersonnelDetails($pdo, $personnel_number) {
+    $stmt = $pdo->prepare("SELECT personnel_number, full_name_en, rank FROM personnel WHERE personnel_number = ?");
+    $stmt->execute([$personnel_number]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+// Helper functions for leave balance
+function getLeaveBalance($pdo, $personnel_number) {
     $stmt = $pdo->prepare("SELECT * FROM leave_balance WHERE personnel_id = ?");
-    $stmt->execute([$personnel_id]);
+    $stmt->execute([$personnel_number]);
     $balance = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$balance) {
         $stmt = $pdo->prepare("INSERT INTO leave_balance (personnel_id, gharpari_bida_days, parba_bida_days, bhaeepari_bida_days) VALUES (?, 15, 12, 10)");
-        $stmt->execute([$personnel_id]);
+        $stmt->execute([$personnel_number]);
         
         $stmt = $pdo->prepare("SELECT * FROM leave_balance WHERE personnel_id = ?");
-        $stmt->execute([$personnel_id]);
+        $stmt->execute([$personnel_number]);
         $balance = $stmt->fetch(PDO::FETCH_ASSOC);
     }
     return $balance;
 }
 
-function deductLeaveBalance($pdo, $personnel_id, $leave_type, $days_used) {
-    $balance = getLeaveBalance($pdo, $personnel_id);
+function deductLeaveBalance($pdo, $personnel_number, $leave_type, $days_used) {
+    $balance = getLeaveBalance($pdo, $personnel_number);
     
     $field_map = [
         'gharpari_bida' => 'gharpari_bida_days',
@@ -96,7 +108,7 @@ function deductLeaveBalance($pdo, $personnel_id, $leave_type, $days_used) {
     
     $new_days = $current_days - $days_used;
     $stmt = $pdo->prepare("UPDATE leave_balance SET $field = ?, last_updated = NOW() WHERE personnel_id = ?");
-    return $stmt->execute([$new_days, $personnel_id]);
+    return $stmt->execute([$new_days, $personnel_number]);
 }
 
 // Handle AJAX requests
@@ -120,23 +132,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $offset = ($page - 1) * $per_page;
             
             $sql = "SELECT lr.*, 
-                           mps.personnel_name, mps.rank, mps.personnel_number,
+                           p.personnel_number, p.full_name_en as personnel_name, p.rank,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.personnel_name as initiating_officer_name,
+                           io.full_name_en as initiating_officer_name,
                            io.rank as initiating_officer_rank,
-                           ao.personnel_name as accepting_officer_name,
+                           ao.full_name_en as accepting_officer_name,
                            ao.rank as accepting_officer_rank,
-                           vo.personnel_name as verifying_officer_name,
+                           vo.full_name_en as verifying_officer_name,
                            vo.rank as verifying_officer_rank,
-                           receiver.personnel_name as receiver_name,
+                           receiver.full_name_en as receiver_name,
                            receiver.rank as receiver_rank
                     FROM leave_requests lr
-                    INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
+                    INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
-                    LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
-                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
-                    LEFT JOIN military_personnel_status receiver ON lr.receiver_id = receiver.id
+                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
+                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
+                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
+                    LEFT JOIN personnel receiver ON lr.receiver_id = receiver.personnel_number
                     WHERE 1=1";
             
             $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr WHERE 1=1";
@@ -149,8 +161,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             if (!empty($search)) {
-                $sql .= " AND (mps.personnel_name LIKE ? OR mps.rank LIKE ? OR lr.reason LIKE ?)";
-                $count_sql .= " AND (mps.personnel_name LIKE ? OR mps.rank LIKE ? OR lr.reason LIKE ?)";
+                $sql .= " AND (p.full_name_en LIKE ? OR p.rank LIKE ? OR lr.reason LIKE ?)";
+                $count_sql .= " AND (p.full_name_en LIKE ? OR p.rank LIKE ? OR lr.reason LIKE ?)";
                 $searchTerm = "%$search%";
                 $params[] = $searchTerm;
                 $params[] = $searchTerm;
@@ -190,17 +202,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         // Get pending requests for receiving officer (verifying_officer)
         if ($action === 'get_verifying_pending') {
             $sql = "SELECT lr.*, 
-                           mps.personnel_name, mps.rank,
+                           p.full_name_en as personnel_name, p.rank,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.personnel_name as initiating_officer_name,
-                           ao.personnel_name as accepting_officer_name,
-                           vo.personnel_name as verifying_officer_name
+                           io.full_name_en as initiating_officer_name,
+                           ao.full_name_en as accepting_officer_name,
+                           vo.full_name_en as verifying_officer_name
                     FROM leave_requests lr
-                    INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
+                    INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
-                    LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
-                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
+                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
+                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
+                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
                     WHERE lr.verifying_officer = ? 
                     AND (lr.verifying_officer_approved = 0 OR lr.verifying_officer_approved IS NULL)
                     AND lr.status = 'pending'
@@ -221,17 +233,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         // Get pending requests for initiating officer
         if ($action === 'get_initiating_pending') {
             $sql = "SELECT lr.*, 
-                           mps.personnel_name, mps.rank,
+                           p.full_name_en as personnel_name, p.rank,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.personnel_name as initiating_officer_name,
-                           ao.personnel_name as accepting_officer_name,
-                           vo.personnel_name as verifying_officer_name
+                           io.full_name_en as initiating_officer_name,
+                           ao.full_name_en as accepting_officer_name,
+                           vo.full_name_en as verifying_officer_name
                     FROM leave_requests lr
-                    INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
+                    INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
-                    LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
-                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
+                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
+                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
+                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
                     WHERE lr.initiating_officer = ? 
                     AND lr.verifying_officer_approved = 1
                     AND (lr.initiating_officer_approved = 0 OR lr.initiating_officer_approved IS NULL)
@@ -253,17 +265,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         // Get pending requests for accepting officer
         if ($action === 'get_accepting_pending') {
             $sql = "SELECT lr.*, 
-                           mps.personnel_name, mps.rank,
+                           p.full_name_en as personnel_name, p.rank,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           io.personnel_name as initiating_officer_name,
-                           ao.personnel_name as accepting_officer_name,
-                           vo.personnel_name as verifying_officer_name
+                           io.full_name_en as initiating_officer_name,
+                           ao.full_name_en as accepting_officer_name,
+                           vo.full_name_en as verifying_officer_name
                     FROM leave_requests lr
-                    INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
+                    INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
-                    LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
-                    LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
+                    LEFT JOIN personnel io ON lr.initiating_officer = io.personnel_number
+                    LEFT JOIN personnel ao ON lr.accepting_officer = ao.personnel_number
+                    LEFT JOIN personnel vo ON lr.verifying_officer = vo.personnel_number
                     WHERE lr.accepting_officer = ? 
                     AND lr.verifying_officer_approved = 1
                     AND lr.initiating_officer_approved = 1
@@ -285,21 +297,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Submit leave request
         if ($action === 'submit_leave') {
-            $personnel_id = intval($_POST['personnel_id'] ?? 0);
+            $personnel_id = trim($_POST['personnel_id'] ?? '');
             $leave_type = trim($_POST['leave_type'] ?? '');
             $start_date = $_POST['start_date'] ?? '';
             $end_date = $_POST['end_date'] ?? '';
             $reason = trim($_POST['reason'] ?? '');
-            $receiving_officer = intval($_POST['receiving_officer'] ?? 0);
-            $initiating_officer = intval($_POST['initiating_officer'] ?? 0);
-            $accepting_officer = intval($_POST['accepting_officer'] ?? 0);
+            $receiving_officer = trim($_POST['receiving_officer'] ?? '');
+            $initiating_officer = trim($_POST['initiating_officer'] ?? '');
+            $accepting_officer = trim($_POST['accepting_officer'] ?? '');
             
-            if ($personnel_id <= 0 || empty($leave_type) || empty($start_date) || empty($end_date) || empty($reason)) {
+            if (empty($personnel_id) || empty($leave_type) || empty($start_date) || empty($end_date) || empty($reason)) {
                 echo json_encode(['success' => false, 'error' => 'All required fields must be filled']);
                 exit;
             }
             
-            if ($receiving_officer <= 0 || $initiating_officer <= 0 || $accepting_officer <= 0) {
+            if (empty($receiving_officer) || empty($initiating_officer) || empty($accepting_officer)) {
                 echo json_encode(['success' => false, 'error' => 'Please select receiving, initiating and accepting officers']);
                 exit;
             }
@@ -358,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $end_date, 
                 $leave_days, 
                 $reason, 
-                $_SESSION['user_personnel_id'] ?? $personnel_id,
+                $_SESSION['user_id'] ?? $personnel_id,
                 $receiving_officer,
                 $initiating_officer,
                 $accepting_officer
@@ -374,7 +386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Receiving Officer approves - FORWARD TO INITIATING OFFICER
         if ($action === 'verifying_officer_approve') {
-            if ($current_personnel_id <= 0) {
+            if (empty($current_personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -417,21 +429,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $stmt = $pdo->prepare("
                     UPDATE leave_requests 
                     SET verifying_officer_approved = 1,
-                        verifying_officer_approved_by = ?,
                         verifying_officer_approved_at = NOW(),
                         verifying_officer_remarks = ?,
                         receiver_id = ?,
                         initiating_officer_approved = 1,
-                        initiating_officer_approved_by = ?,
                         initiating_officer_approved_at = NOW(),
                         initiating_officer_remarks = CONCAT('Auto-approved by receiving officer (same as initiating): ', ?),
                         status = 'initiating_approved'
                     WHERE id = ?
                 ");
                 $result = $stmt->execute([
-                    $current_personnel_id, 
                     $remarks, 
-                    $current_personnel_id,
                     $current_personnel_id,
                     $remarks,
                     $id
@@ -442,14 +450,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 $stmt = $pdo->prepare("
                     UPDATE leave_requests 
                     SET verifying_officer_approved = 1,
-                        verifying_officer_approved_by = ?,
                         verifying_officer_approved_at = NOW(),
                         verifying_officer_remarks = ?,
                         receiver_id = ?,
                         status = 'verified'
                     WHERE id = ?
                 ");
-                $result = $stmt->execute([$current_personnel_id, $remarks, $current_personnel_id, $id]);
+                $result = $stmt->execute([$remarks, $current_personnel_id, $id]);
                 $message = 'Request received and forwarded to initiating officer';
             }
             
@@ -463,7 +470,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Receiving Officer rejects
         if ($action === 'verifying_officer_reject') {
-            if ($current_personnel_id <= 0) {
+            if (empty($current_personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -497,18 +504,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 UPDATE leave_requests 
                 SET status = 'rejected',
                     approver_remarks = ?,
-                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $current_personnel_id, $id]);
+            $result = $stmt->execute([$remarks, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
         
         // Initiating Officer approves - FORWARD TO ACCEPTING OFFICER
         if ($action === 'initiating_officer_approve') {
-            if ($current_personnel_id <= 0) {
+            if (empty($current_personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -552,13 +558,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $stmt = $pdo->prepare("
                 UPDATE leave_requests 
                 SET initiating_officer_approved = 1,
-                    initiating_officer_approved_by = ?,
                     initiating_officer_approved_at = NOW(),
                     initiating_officer_remarks = ?,
                     status = 'initiating_approved'
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$current_personnel_id, $remarks, $id]);
+            $result = $stmt->execute([$remarks, $id]);
             
             if ($result) {
                 echo json_encode(['success' => true, 'message' => 'Request approved and forwarded to accepting officer for final approval']);
@@ -570,7 +575,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Initiating Officer rejects
         if ($action === 'initiating_officer_reject') {
-            if ($current_personnel_id <= 0) {
+            if (empty($current_personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -604,18 +609,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 UPDATE leave_requests 
                 SET status = 'rejected',
                     approver_remarks = ?,
-                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $current_personnel_id, $id]);
+            $result = $stmt->execute([$remarks, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
         
         // Accepting Officer approves - FINAL APPROVAL
         if ($action === 'accepting_officer_approve') {
-            if ($current_personnel_id <= 0) {
+            if (empty($current_personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -684,15 +688,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $stmt = $pdo->prepare("
                 UPDATE leave_requests 
                 SET accepting_officer_approved = 1,
-                    accepting_officer_approved_by = ?,
                     accepting_officer_approved_at = NOW(),
                     accepting_officer_remarks = ?,
                     status = 'approved',
-                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$current_personnel_id, $remarks, $current_personnel_id, $id]);
+            $result = $stmt->execute([$remarks, $id]);
             
             if ($result) {
                 echo json_encode(['success' => true, 'message' => 'Leave request FINALLY APPROVED! Leave has been granted.']);
@@ -704,7 +706,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Accepting Officer rejects
         if ($action === 'accepting_officer_reject') {
-            if ($current_personnel_id <= 0) {
+            if (empty($current_personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid user']);
                 exit;
             }
@@ -738,11 +740,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
                 UPDATE leave_requests 
                 SET status = 'rejected',
                     approver_remarks = ?,
-                    approved_by = ?,
                     approved_at = NOW()
                 WHERE id = ?
             ");
-            $result = $stmt->execute([$remarks, $current_personnel_id, $id]);
+            $result = $stmt->execute([$remarks, $id]);
             echo json_encode(['success' => $result]);
             exit;
         }
@@ -780,8 +781,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Get leave balance for a personnel
         if ($action === 'get_leave_balance') {
-            $personnel_id = intval($_POST['personnel_id'] ?? 0);
-            if ($personnel_id <= 0) {
+            $personnel_id = trim($_POST['personnel_id'] ?? '');
+            if (empty($personnel_id)) {
                 echo json_encode(['success' => false, 'error' => 'Invalid personnel ID']);
                 exit;
             }
@@ -820,13 +821,13 @@ $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM leave_requests WHERE accept
 $stmt->execute([$current_personnel_id]);
 $acceptingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-// Get officers for dropdown
-$officers = [];
+// Get all personnel for dropdowns from personnel table
+$personnelList = [];
 try {
-    $stmt = $pdo->query("SELECT id, personnel_name, rank FROM military_personnel_status ORDER BY personnel_name");
-    $officers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+    $personnelList = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    $officers = [];
+    $personnelList = [];
 }
 
 ob_start();
@@ -838,10 +839,7 @@ ob_start();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leave Management System</title>
-    <!-- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"> -->
-         <link href="/css/fontawesome.css" rel="stylesheet">
-
-    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"> -->
+    <link href="/css/fontawesome.css" rel="stylesheet">
     <link href="/css/fontawesome.css" rel="stylesheet">
 
     <style>
@@ -1124,17 +1122,13 @@ ob_start();
                     <div class="input-field">
                         <label><i class="fas fa-user"></i> Personnel <span class="required-star">*</span></label>
                         <select id="personnelId" name="personnel_id" required>
-    <option value="">Select Personnel</option>
-    <?php
-    // Get personnel directly from personnel table only
-    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
-             . "</option>";
-    }
-    ?>
-</select>
+                            <option value="">Select Personnel</option>
+                            <?php foreach($personnelList as $row): ?>
+                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     
                     <div class="input-field">
@@ -1169,15 +1163,11 @@ ob_start();
                         </div>
                         <select id="receivingOfficer" required>
                             <option value="">Select Personnel</option>
-    <?php
-    // Get personnel directly from personnel table only
-    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
-             . "</option>";
-    }
-    ?>
+                            <?php foreach($personnelList as $row): ?>
+                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                         <div class="officer-hint">
                             <i class="fas fa-arrow-right"></i> Step 1: Initial verification
@@ -1195,15 +1185,11 @@ ob_start();
                         </div>
                         <select id="initiatingOfficer" required>
                             <option value="">Select Personnel</option>
-    <?php
-    // Get personnel directly from personnel table only
-    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
-             . "</option>";
-    }
-    ?>
+                            <?php foreach($personnelList as $row): ?>
+                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                         <div class="officer-hint">
                             <i class="fas fa-arrow-right"></i> Step 2: First level approval
@@ -1221,15 +1207,11 @@ ob_start();
                         </div>
                         <select id="acceptingOfficer" required>
                             <option value="">Select Personnel</option>
-    <?php
-    // Get personnel directly from personnel table only
-    $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
-    while($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        echo "<option value='" . htmlspecialchars($row['personnel_number']) . "'>" 
-             . htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')') 
-             . "</option>";
-    }
-    ?>
+                            <?php foreach($personnelList as $row): ?>
+                                <option value="<?php echo htmlspecialchars($row['personnel_number']); ?>">
+                                    <?php echo htmlspecialchars($row['rank'] . ' ' . $row['full_name_en'] . ' (' . $row['personnel_number'] . ')'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                         <div class="officer-hint">
                             <i class="fas fa-arrow-right"></i> Step 3: Final approval
@@ -1311,7 +1293,7 @@ ob_start();
     let currentPerPage = 10;
     let totalPages = 1;
     let currentUserRole = <?php echo $user_role_int; ?>;
-    let currentPersonnelId = <?php echo $current_personnel_id; ?>;
+    let currentPersonnelId = '<?php echo htmlspecialchars($current_personnel_id); ?>';
 
     // Load receiving officer pending requests
     async function loadVerifyingPending() {

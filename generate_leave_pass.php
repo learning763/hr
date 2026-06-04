@@ -14,37 +14,55 @@ if ($leave_id <= 0) {
     die("Invalid leave request ID");
 }
 
-// Get current user's role and personnel ID
+// Get current user's role and personnel number
 $current_user_role = isset($_SESSION['user_role']) ? (int)$_SESSION['user_role'] : 0;
-$current_personnel_id = isset($_SESSION['user_personnel_id']) ? (int)$_SESSION['user_personnel_id'] : 0;
+$current_personnel_number = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : '';
 
-// Fetch leave request details with all related data including verifying officer
+// Database connection with proper collation
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
+} catch(PDOException $e) {
+    die("Connection failed: " . $e->getMessage());
+}
+
+// Fetch leave request details with all related data from personnel table
 try {
     $sql = "SELECT lr.*, 
-                   mps.personnel_name, mps.rank, mps.personnel_number,
-                   io.personnel_name as initiating_officer_name, 
+                   p.personnel_number,
+                   p.full_name_en as personnel_name, 
+                   p.rank,
+                   p.unit,
+                   p.appointment,
+                   p.signature as personnel_signature,
+                   p.contact,
+                   p.address,
+                   p.province,
+                   p.district,
+                   p.municipality,
+                   p.ward_number,
+                   p.village_tole,
+                   io.full_name_en as initiating_officer_name, 
                    io.rank as initiating_officer_rank,
-                   ao.personnel_name as accepting_officer_name,
+                   io.signature as initiating_officer_signature,
+                   ao.full_name_en as accepting_officer_name,
                    ao.rank as accepting_officer_rank,
-                   vo.personnel_name as verifying_officer_name,
+                   ao.signature as accepting_officer_signature,
+                   vo.full_name_en as verifying_officer_name,
                    vo.rank as verifying_officer_rank,
-                   p_io.signature as initiating_officer_signature,
-                   p_ao.signature as accepting_officer_signature,
-                   p_vo.signature as verifying_officer_signature,
-                   p_personnel.signature as personnel_signature,
-                   receiver.personnel_name as receiver_name,
+                   vo.signature as verifying_officer_signature,
+                   receiver.full_name_en as receiver_name,
                    receiver.rank as receiver_rank,
-                   lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days
+                   lb.gharpari_bida_days, 
+                   lb.parba_bida_days, 
+                   lb.bhaeepari_bida_days
             FROM leave_requests lr
-            INNER JOIN military_personnel_status mps ON lr.personnel_id = mps.id
-            INNER JOIN personnel p_personnel ON mps.personnel_number = p_personnel.personnel_number
-            LEFT JOIN military_personnel_status io ON lr.initiating_officer = io.id
-            LEFT JOIN personnel p_io ON io.personnel_number = p_io.personnel_number
-            LEFT JOIN military_personnel_status ao ON lr.accepting_officer = ao.id
-            LEFT JOIN personnel p_ao ON ao.personnel_number = p_ao.personnel_number
-            LEFT JOIN military_personnel_status vo ON lr.verifying_officer = vo.id
-            LEFT JOIN personnel p_vo ON vo.personnel_number = p_vo.personnel_number
-            LEFT JOIN military_personnel_status receiver ON lr.receiver_id = receiver.id
+            INNER JOIN personnel p ON lr.personnel_id COLLATE utf8mb4_unicode_ci = p.personnel_number
+            LEFT JOIN personnel io ON lr.initiating_officer COLLATE utf8mb4_unicode_ci = io.personnel_number
+            LEFT JOIN personnel ao ON lr.accepting_officer COLLATE utf8mb4_unicode_ci = ao.personnel_number
+            LEFT JOIN personnel vo ON lr.verifying_officer COLLATE utf8mb4_unicode_ci = vo.personnel_number
+            LEFT JOIN personnel receiver ON lr.receiver_id COLLATE utf8mb4_unicode_ci = receiver.personnel_number
             LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
             WHERE lr.id = ?";
     
@@ -60,13 +78,13 @@ try {
     $is_authorized = false;
     if ($current_user_role >= 1) { // Admin or Super Admin
         $is_authorized = true;
-    } elseif ($current_personnel_id == $leave['personnel_id']) { // The personnel who submitted
+    } elseif ($current_personnel_number == $leave['personnel_number']) { // The personnel who submitted
         $is_authorized = true;
-    } elseif ($current_personnel_id == $leave['initiating_officer']) { // Initiating officer
+    } elseif ($current_personnel_number == $leave['initiating_officer']) { // Initiating officer
         $is_authorized = true;
-    } elseif ($current_personnel_id == $leave['accepting_officer']) { // Accepting officer
+    } elseif ($current_personnel_number == $leave['accepting_officer']) { // Accepting officer
         $is_authorized = true;
-    } elseif ($current_personnel_id == $leave['verifying_officer']) { // Verifying officer (Receiving)
+    } elseif ($current_personnel_number == $leave['verifying_officer']) { // Verifying officer (Receiving)
         $is_authorized = true;
     }
     
@@ -74,28 +92,9 @@ try {
         die("You are not authorized to view this leave request.");
     }
 
-    // Get unit, location, and appointment details from personnel table
-    $unit = '';
-    $appointment = '';
-    $personnel_info = [];
-    try {
-        $stmt2 = $pdo->prepare("SELECT unit, contact, address, province, district, municipality, ward_number, village_tole, appointment FROM personnel WHERE personnel_number = ?");
-        $stmt2->execute([$leave['personnel_number']]);
-        $personnel_info = $stmt2->fetch(PDO::FETCH_ASSOC);
-        
-        if ($personnel_info) {
-            $unit = $personnel_info['unit'] ?? 'श्री साइबर सुरक्षा निर्देशनालय';
-            $appointment = $personnel_info['appointment'] ?? '';
-        } else {
-            $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
-            $appointment = '';
-            $personnel_info = [];
-        }
-    } catch (PDOException $e) {
-        $unit = 'श्री साइबर सुरक्षा निर्देशनालय';
-        $appointment = '';
-        $personnel_info = [];
-    }
+    // Get unit and appointment details (already in leave array from JOIN)
+    $unit = $leave['unit'] ?? 'श्री साइबर सुरक्षा निर्देशनालय';
+    $appointment = $leave['appointment'] ?? '';
 
 } catch(PDOException $e) {
     die("Database error: " . $e->getMessage());
@@ -120,12 +119,12 @@ function numberToNepaliWords($number) {
 $current_date = date('Y/m/d');
 
 // Get location details with proper fallbacks
-$province      = $personnel_info['province']      ?? 'वागमती प्रदेश';
-$district      = $personnel_info['district']      ?? 'काठमाडौं';
-$municipality  = $personnel_info['municipality']  ?? 'चा.न.पा.';
-$ward_number   = $personnel_info['ward_number']   ?? '९';
-$village_tole  = $personnel_info['village_tole']  ?? $personnel_info['address'] ?? '';
-$address       = !empty($village_tole) ? $village_tole : ($personnel_info['address'] ?? 'ताथली');
+$province      = $leave['province']      ?? 'वागमती प्रदेश';
+$district      = $leave['district']      ?? 'काठमाडौं';
+$municipality  = $leave['municipality']  ?? 'चा.न.पा.';
+$ward_number   = $leave['ward_number']   ?? '९';
+$village_tole  = $leave['village_tole']  ?? $leave['address'] ?? '';
+$address       = !empty($village_tole) ? $village_tole : ($leave['address'] ?? 'ताथली');
 
 $gharpari_balance  = $leave['gharpari_bida_days']  ?? 0;
 $parba_balance     = $leave['parba_bida_days']     ?? 0;
@@ -309,7 +308,6 @@ $show_status_indicator = ($leave['status'] !== 'approved');
             padding-right: 8px;
         }
 
-        /* Flexbox layout for address section - 3 column grid */
         .address-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -321,7 +319,6 @@ $show_status_indicator = ($leave['status'] !== 'approved');
             white-space: nowrap;
         }
 
-        /* Signature area with receiver on LEFT corner and applicant on RIGHT corner */
         .signatures-wrapper {
             display: flex;
             justify-content: space-between;
@@ -431,7 +428,6 @@ $show_status_indicator = ($leave['status'] !== 'approved');
             margin-top: 3px;
         }
         
-        /* Status indicator for non-approved leaves */
         .status-indicator {
             background: #fef3c7;
             color: #92400e;
@@ -593,15 +589,15 @@ $show_status_indicator = ($leave['status'] !== 'approved');
             <table class="balance-table">
                 <tr>
                     <td>(क)</td>
-                    <td>घ.वि.: <?php echo $gharpari_balance; ?>
+                    <td>घ.वि.: <?php echo $gharpari_balance; ?></td>
                 </tr>
                 <tr>
                     <td>(ख)</td>
-                    <td>भै.वि.: <?php echo $bhaeepari_balance; ?>
+                    <td>भै.वि.: <?php echo $bhaeepari_balance; ?></td>
                 </tr>
                 <tr>
                     <td>(ग)</td>
-                    <td>प.वि.: <?php echo $parba_balance; ?>
+                    <td>प.वि.: <?php echo $parba_balance; ?></td>
                 </tr>
             </table>
 
@@ -611,14 +607,13 @@ $show_status_indicator = ($leave['status'] !== 'approved');
 
             <p class="section-label">४. विदामा रहँदाको सम्पर्क ठेगाना</p>
             
-            <!-- Using CSS Grid for 3 columns - Items align in grid pattern -->
             <div class="address-grid">
                 <div class="address-item">(क) प्रदेश :- <?php echo htmlspecialchars($province); ?></div>
                 <div class="address-item">(ख) जिल्ला :- <?php echo htmlspecialchars($district); ?></div>
                 <div class="address-item">(ग) न.पा./गा.पा :- <?php echo htmlspecialchars($municipality); ?></div>
                 <div class="address-item">(घ) वडा नं. :- <?php echo htmlspecialchars($ward_number); ?></div>
                 <div class="address-item">(ङ) गाउँ/टोल :- <?php echo htmlspecialchars($address); ?></div>
-                <div class="address-item"></div> <!-- Empty cell for alignment -->
+                <div class="address-item"></div>
             </div>
 
             <p style="margin-top:6px;">५. समाविष्ट कागज (केही प्रमाण भएमा) :- </p>
@@ -632,7 +627,6 @@ $show_status_indicator = ($leave['status'] !== 'approved');
                     <div class="signature-title">प्राप्त गर्ने व्यक्ति (Receiver)</div>
                     <div class="signature-container">
                         <?php 
-                        // Show verifying officer (receiving officer) signature when they have approved
                         if ($show_verifying_signature && !empty($leave['verifying_officer_signature'])) {
                             echo displaySignatureImage($leave['verifying_officer_signature'], $leave['verifying_officer_name']);
                         } elseif ($show_verifying_signature && empty($leave['verifying_officer_signature'])) {
@@ -718,7 +712,6 @@ $show_status_indicator = ($leave['status'] !== 'approved');
                 <div class="signature-title">स्वीकृत गर्ने</div>
                 <div class="signature-container">
                     <?php 
-                    // Show accepting officer signature only when they have approved
                     if ($show_accepting_signature) {
                         if (!empty($leave['accepting_officer_signature'])) {
                             echo displaySignatureImage($leave['accepting_officer_signature'], $leave['accepting_officer_name']);
