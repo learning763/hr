@@ -11,7 +11,7 @@
         <div style="height: 30px; width: 1px; background: rgba(255,255,255,0.2); margin-left: 8px;"></div>
         <div style="font-size: 12px; color: rgba(255,255,255,0.7); letter-spacing: 0.5px;">
             <i class="fas fa-flag-checkered" style="margin-right: 6px; font-size: 10px;"></i>
-            Nepal Army
+            नेपाली सेना
         </div>
     </div>
     
@@ -22,7 +22,7 @@
             <i class="far fa-calendar-alt" style="font-size: 13px; color: #ffd700;"></i>
             <span id="currentDateTime" style="font-size: 13px; color: rgba(255,255,255,0.9); font-weight: 500;"></span>
         </div>
-        
+    
         <!-- Logout Button -->
         <div id="logoutBtnNav" style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: rgba(255,255,255,0.1); border-radius: 30px; cursor: pointer; font-size: 13px; font-weight: 500; color: #ffffff; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.15);" 
              onmouseover="this.style.background='rgba(220, 38, 38, 0.8)'; this.style.borderColor='rgba(255,255,255,0.3)'; this.style.transform='translateY(-1px)'" 
