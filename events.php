@@ -403,7 +403,7 @@ ob_start();
 <div class="page-actions">
     <?php if ($can_manage_events): ?>
         <button class="btn-add" id="addEventBtn">
-            <i class="fas fa-plus-circle"></i> Add New Event
+            <i class="fas fa-plus-circle"></i> नयाँ कार्यक्रम थप्नुहोस्
         </button>
     <?php endif; ?>
     <button class="btn-filter-date" id="toggleAdvancedFilterBtn">
@@ -472,7 +472,7 @@ ob_start();
 <div class="advanced-filter-section" id="advancedFilterSection" style="display: none;">
     <div class="filter-box">
         <div class="filter-header">
-            <h4><i class="fas fa-filter"></i> Advanced Filters</h4>
+            <h4><i class="fas fa-filter"></i> Advance Filter</h4>
             <button id="closeAdvancedFilter" class="close-filter">&times;</button>
         </div>
         <div class="filter-body">
@@ -601,12 +601,12 @@ ob_start();
 
                     <div class="form-grid">
                         <div class="input-field full-width">
-                            <label><i class="fas fa-heading"></i> Event Title <span class="required-star">*</span></label>
+                            <label>कार्यक्रमको शिर्षक<span class="required-star">*</span></label>
                             <input type="text" id="title" name="title" placeholder="Enter event title" required>
                         </div>
 
                         <div class="input-field">
-                            <label><i class="fas fa-tag"></i> Event Type</label>
+                            <label><i class="fas fa-tag"></i> कार्यक्रमको प्रकार</label>
                             <select id="eventType" name="event_type">
                                 <option value="meeting">📋 Meeting</option>
                                 <option value="training">🎓 Training</option>
@@ -618,7 +618,7 @@ ob_start();
                         </div>
 
                         <div class="input-field">
-                            <label><i class="fas fa-flag"></i> Priority</label>
+                            <label><i class="fas fa-flag"></i> प्राथमिकता</label>
                             <select id="priority" name="priority">
                                 <option value="low">🟢 Low</option>
                                 <option value="medium" selected>🟡 Medium</option>
@@ -627,19 +627,19 @@ ob_start();
                         </div>
 
                         <div class="input-field">
-                            <label><i class="fas fa-calendar-day"></i> Start Date <span
+                            <label><i class="fas fa-calendar-day"></i> कार्यक्रम शुरु मिति<span
                                     class="required-star">*</span></label>
                             <input type="date" id="startDate" name="start_date" required>
                         </div>
 
                         <div class="input-field">
-                            <label><i class="fas fa-calendar-day"></i> End Date</label>
+                            <label><i class="fas fa-calendar-day"></i>कार्यक्रम समापन मिति</label>
                             <input type="date" id="endDate" name="end_date">
                             <small>Leave empty if single day event</small>
                         </div>
 
                         <div class="input-field">
-                            <label><i class="fas fa-tasks"></i> Status</label>
+                            <label><i class="fas fa-tasks"></i> कार्यक्रमको अवस्था</label>
                             <select id="eventStatus" name="status">
                                 <option value="upcoming">⏰ Upcoming</option>
                                 <option value="ongoing">▶️ Ongoing</option>
@@ -649,12 +649,12 @@ ob_start();
                         </div>
 
                         <div class="input-field full-width">
-                            <label><i class="fas fa-location-dot"></i> Location</label>
+                            <label><i class="fas fa-location-dot"></i> स्थान</label>
                             <input type="text" id="location" name="location" placeholder="Venue, room, or online link">
                         </div>
 
                         <div class="input-field full-width">
-                            <label><i class="fas fa-align-left"></i> Description</label>
+                            <label><i class="fas fa-align-left"></i> कार्यक्रमको संक्षिप्त विवरण</label>
                             <textarea id="description" name="description" rows="4"
                                 placeholder="Event details, agenda, notes..."></textarea>
                         </div>
@@ -662,7 +662,7 @@ ob_start();
 
                     <div class="modal-buttons">
                         <button type="button" class="btn-cancel" id="cancelModalBtn">Cancel</button>
-                        <button type="submit" class="btn-submit">Save Event</button>
+                        <button type="submit" class="btn-submit">Save</button>
                     </div>
                 </form>
             </div>
@@ -1926,7 +1926,7 @@ ob_start();
             return;
         }
 
-        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-calendar-plus"></i> Add New Event';
+        document.getElementById('modalTitle').innerHTML = '<i class="fas fa-calendar-plus"></i> नयाँ कार्यक्रम थप्नुहोस्';
         document.getElementById('eventId').value = '0';
         document.getElementById('eventForm').reset();
         document.getElementById('eventStatus').value = 'upcoming';
