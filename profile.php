@@ -1,5 +1,7 @@
 <?php
 session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 include ('helper/rank.php');
 
 include('includes/config.php');
@@ -114,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
     
     if ($action === 'update_profile') {
         $personnel_number = $_POST['personnel_number'] ?? '';
-        $full_name_en = trim($_POST['full_name_en'] ?? '');
+        $full_name_ne = trim($_POST['full_name_ne'] ?? '');
         $full_name_ne = trim($_POST['full_name_ne'] ?? '');
         $dob = $_POST['dob'] ?? null;
         $gender = $_POST['gender'] ?? null;
@@ -177,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         $current_status = trim($_POST['current_status'] ?? 'Active');
         
         $sql = "UPDATE personnel 
-                SET full_name_en = ?, full_name_ne = ?, dob = ?, gender = ?, blood_group = ?,
+                SET full_name_ne = ?, full_name_ne = ?, dob = ?, gender = ?, blood_group = ?,
                     `rank` = ?, unit = ?, email = ?, contact = ?, phone = ?, address = ?,
                     religion = ?, military_status = ?, recruitment_date = ?, commission_date = ?,
                     father_name = ?, mother_name = ?, spouse_name = ?, grandfather_name = ?,
@@ -187,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         $stmt = $pdo->prepare($sql);
         $result = $stmt->execute([
-            $full_name_en, $full_name_ne, $dob, $gender, $blood_group,
+            $full_name_ne, $full_name_ne, $dob, $gender, $blood_group,
             $rank, $unit, $email, $contact, $phone, $address,
             $religion, $military_status, $recruitment_date, $commission_date,
             $father_name, $mother_name, $spouse_name, $grandfather_name,
@@ -211,17 +213,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 // Get total count for personnel
 if (!empty($search_term)) {
     $searchTerm = "%$search_term%";
-    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM personnel WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ?");
+    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM personnel WHERE personnel_number LIKE ? OR full_name_ne LIKE ? OR rank LIKE ? OR unit LIKE ?");
     $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
     $totalRecords = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
     
-    $stmt = $pdo->prepare("SELECT * FROM personnel WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? ORDER BY full_name_en LIMIT " . (int)$limit . " OFFSET " . (int)$offset);
+    $stmt = $pdo->prepare("SELECT * FROM personnel WHERE personnel_number LIKE ? OR full_name_ne LIKE ? OR rank LIKE ? OR unit LIKE ? ORDER BY full_name_ne LIMIT " . (int)$limit . " OFFSET " . (int)$offset);
     $stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
 } else {
     $countStmt = $pdo->query("SELECT COUNT(*) as total FROM personnel");
     $totalRecords = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
     
-    $stmt = $pdo->prepare("SELECT * FROM personnel ORDER BY full_name_en LIMIT " . (int)$limit . " OFFSET " . (int)$offset);
+    $stmt = $pdo->prepare("SELECT * FROM personnel ORDER BY full_name_ne LIMIT " . (int)$limit . " OFFSET " . (int)$offset);
     $stmt->execute();
 }
 
@@ -260,7 +262,7 @@ ob_start();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personnel Profile - Nepali Army</title>
+    <title>सकलदर्जाको प्रोफाइल - नेपाली सेना</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* All your existing styles remain the same */
@@ -545,13 +547,13 @@ ob_start();
         <table class="personnel-table">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Photo</th>
-                    <th>Personnel No.</th>
-                    <th>Rank</th>
-                    <th>Full Name</th>
-                    <th>Unit</th>
-                    <th>Status</th>
+                    <th>सि.नं.</th>
+                    <th>फोटो</th>
+                    <th>व्य.नं.</th>
+                    <th>दर्जा</th>
+                    <th>नामथर</th>
+                    <th>युनिट</th>
+                    <th>बहालवाला/अवकास</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -567,16 +569,16 @@ ob_start();
                         <?php if (!empty($person['profile_picture_path'])): ?>
                             <img src="<?php echo htmlspecialchars($person['profile_picture_path']); ?>" 
                                  class="table-profile-img"
-                                 onclick="event.stopPropagation(); viewProfilePhoto('<?php echo htmlspecialchars($person['profile_picture_path']); ?>', '<?php echo htmlspecialchars($person['full_name_en']); ?>')">
+                                 onclick="event.stopPropagation(); viewProfilePhoto('<?php echo htmlspecialchars($person['profile_picture_path']); ?>', '<?php echo htmlspecialchars($person['full_name_ne']); ?>')">
                         <?php else: ?>
-                            <div class="table-avatar-placeholder" onclick="event.stopPropagation(); editProfilePhoto('<?php echo htmlspecialchars($person['personnel_number']); ?>', '<?php echo htmlspecialchars($person['full_name_en']); ?>')">
+                            <div class="table-avatar-placeholder" onclick="event.stopPropagation(); editProfilePhoto('<?php echo htmlspecialchars($person['personnel_number']); ?>', '<?php echo htmlspecialchars($person['full_name_ne']); ?>')">
                                 <i class="fas fa-user"></i>
                             </div>
                         <?php endif; ?>
                     </td>
                     <td class="personnel-no"><?php echo htmlspecialchars($person['personnel_number']); ?></td>
                     <td class="rank-cell"><?php echo htmlspecialchars($person['rank']); ?></td>
-                    <td class="name-cell"><?php echo htmlspecialchars($person['full_name_en']); ?></td>
+                    <td class="name-cell"><?php echo htmlspecialchars($person['full_name_ne']); ?></td>
                     <td><?php echo htmlspecialchars($person['unit']); ?></td>
                     <td><span class="status-badge status-<?php echo strtolower($person['current_status'] ?? 'active'); ?>"><?php echo htmlspecialchars($person['current_status'] ?? 'Active'); ?></span></td>
                     <td><a href="?personnel_number=<?php echo urlencode($person['personnel_number']); ?>&page=<?php echo $page; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?>" class="view-profile-btn"><i class="fas fa-eye"></i> View</a></td>
@@ -621,13 +623,13 @@ ob_start();
             <?php if (!empty($selectedPersonnel['profile_picture_path'])): ?>
                 <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>" 
                      class="profile-avatar" id="mainProfilePhoto"
-                     onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+                     onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?>')">
             <?php else: ?>
-                <div class="profile-avatar-placeholder" id="mainProfilePhoto" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+                <div class="profile-avatar-placeholder" id="mainProfilePhoto" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?>')">
                     <i class="fas fa-user"></i>
                 </div>
             <?php endif; ?>
-            <button class="avatar-edit-btn" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?>')">
+            <button class="avatar-edit-btn" onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?>')">
                 <i class="fas fa-camera"></i>
             </button>
         </div>
@@ -637,7 +639,7 @@ ob_start();
     <!-- Profile Info Bar -->
     <div class="profile-info-bar">
         <div class="profile-name-section">
-            <h2><?php echo htmlspecialchars($selectedPersonnel['full_name_en']); ?></h2>
+            <h2><?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?></h2>
             <div class="profile-badges">
                 <span class="badge-rank"><i class="fas fa-star-of-life"></i> <?php echo htmlspecialchars($selectedPersonnel['rank']); ?></span>
                 <span class="badge-id"><i class="fas fa-id-card"></i> <?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?></span>
@@ -832,13 +834,26 @@ ob_start();
                 <!-- Personal Information Section -->
                 <div class="form-section-title"><i class="fas fa-user-circle"></i> Personal Information</div>
                 <div class="modal-form-grid">
-                    <div class="form-group"><label>Full Name (English)</label><input type="text" name="full_name_en" value="<?php echo htmlspecialchars($selectedPersonnel['full_name_en'] ?? ''); ?>"></div>
+                    <div class="form-group"><label>Full Name (English)</label><input type="text" name="full_name_ne" value="<?php echo htmlspecialchars($selectedPersonnel['full_name_ne'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Full Name (Nepali)</label><input type="text" name="full_name_ne" value="<?php echo htmlspecialchars($selectedPersonnel['full_name_ne'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Rank</label><input type="text" name="rank" value="<?php echo htmlspecialchars($selectedPersonnel['rank'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Unit</label><input type="text" name="unit" value="<?php echo htmlspecialchars($selectedPersonnel['unit'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Date of Birth</label><input type="date" name="dob" value="<?php echo $selectedPersonnel['dob'] && $selectedPersonnel['dob'] != '0000-00-00' ? $selectedPersonnel['dob'] : ''; ?>"></div>
                     <div class="form-group"><label>Gender</label><select name="gender"><option value="">Select</option><option value="Male" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Male' ? 'selected' : ''; ?>>Male</option><option value="Female" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Female' ? 'selected' : ''; ?>>Female</option><option value="Other" <?php echo ($selectedPersonnel['gender'] ?? '') == 'Other' ? 'selected' : ''; ?>>Other</option></select></div>
-                    <div class="form-group"><label>Blood Group</label><input type="text" name="blood_group" value="<?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? ''); ?>" placeholder="A+, B+, O+, etc."></div>
+                    <div class="form-group"><label>Blood Group</label>
+                    <select name="blood_group">
+                        <option value="">Select Blood Group</option>
+                        <option value="A+"  <?php echo ($selectedPersonnel['blood_group'] == 'A+') ? 'selected' : ''; ?>>A+</option>
+                        <option value="B+"  <?php echo ($selectedPersonnel['blood_group'] == 'B+') ? 'selected' : ''; ?>>B+</option>
+                        <option value="O+"  <?php echo ($selectedPersonnel['blood_group'] == 'O+') ? 'selected' : ''; ?>>O+</option>
+                        <option value="AB+" <?php echo ($selectedPersonnel['blood_group'] == 'AB+') ? 'selected' : ''; ?>>AB+</option>
+                        <option value="A-"  <?php echo ($selectedPersonnel['blood_group'] == 'A-') ? 'selected' : ''; ?>>A-</option>
+                        <option value="B-"  <?php echo ($selectedPersonnel['blood_group'] == 'B-') ? 'selected' : ''; ?>>B-</option>
+                        <option value="O-"  <?php echo ($selectedPersonnel['blood_group'] == 'O-') ? 'selected' : ''; ?>>O-</option>
+                        <option value="AB-" <?php echo ($selectedPersonnel['blood_group'] == 'AB-') ? 'selected' : ''; ?>>AB-</option>
+                    </select>
+                    <!-- <input type="text" name="blood_group" value="<?php echo htmlspecialchars($selectedPersonnel['blood_group'] ?? ''); ?>" placeholder="A+, B+, O+, etc."> -->
+                    </div>
                     <div class="form-group"><label>Religion</label><input type="text" name="religion" value="<?php echo htmlspecialchars($selectedPersonnel['religion'] ?? 'Hindu'); ?>"></div>
                     <div class="form-group"><label>Email</label><input type="email" name="email" value="<?php echo htmlspecialchars($selectedPersonnel['email'] ?? ''); ?>"></div>
                     <div class="form-group"><label>Contact/Mobile</label><input type="text" name="contact" value="<?php echo htmlspecialchars($selectedPersonnel['contact'] ?? ''); ?>"></div>

@@ -53,6 +53,7 @@ function setupLogout() {
     }
 }
 
+
 // Initialize everything when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     setActiveSidebarLink();

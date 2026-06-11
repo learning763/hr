@@ -9,7 +9,7 @@ ini_set('log_errors', 1);
 include('includes/config.php');
 include_once('includes/pagination.php');
 
-$pageTitle = "Leave Management";
+$pageTitle = "बिदा विवरण";
 $pageSubtitle = "Manage military personnel leave requests, approvals, and tracking";
 $activePage = "leave";
 
@@ -110,28 +110,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $offset = ($page - 1) * $per_page;
             
             // Build the main query
-            $sql = "SELECT lr.*, 
-                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
-                           p.rank,
-                           p.personnel_number,
-                           p.full_name_en,
-                           lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
-                           io_p.rank as initiating_officer_rank,
-                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
-                           ao_p.rank as accepting_officer_rank,
-                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name,
-                           vo_p.rank as verifying_officer_rank,
-                           CONCAT(COALESCE(receiver_p.rank, ''), ' ', COALESCE(receiver_p.full_name_en, receiver_p.personnel_number)) as receiver_name,
-                           receiver_p.rank as receiver_rank
-                    FROM leave_requests lr
-                    INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
-                    LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
-                    LEFT JOIN personnel io_p ON lr.initiating_officer = io_p.personnel_number
-                    LEFT JOIN personnel ao_p ON lr.accepting_officer = ao_p.personnel_number
-                    LEFT JOIN personnel vo_p ON lr.verifying_officer = vo_p.personnel_number
-                    LEFT JOIN personnel receiver_p ON lr.receiver_id = receiver_p.personnel_number
-                    WHERE 1=1";
+            $sql = "SELECT lr.*,
+
+            -- Personnel (requester)
+            CONCAT(
+                -- COALESCE(dr_p.rank_unicode, p.rank), ' ',
+                COALESCE(p.full_name_ne, p.personnel_number)
+            ) AS personnel_name,
+
+            dr_p.rank_unicode AS rank_unicode,
+            p.rank,
+            p.personnel_number,
+            p.full_name_ne,
+
+            lb.gharpari_bida_days,
+            lb.parba_bida_days,
+            lb.bhaeepari_bida_days,
+
+            -- Initiating Officer
+            CONCAT(
+                COALESCE(dr_io.rank_unicode, io_p.rank), ' ',
+                COALESCE(io_p.full_name_ne, io_p.personnel_number)
+            ) AS initiating_officer_name,
+
+            dr_io.rank_unicode AS initiating_officer_rank,
+
+            -- Accepting Officer
+            CONCAT(
+                COALESCE(dr_ao.rank_unicode, ao_p.rank), ' ',
+                COALESCE(ao_p.full_name_ne, ao_p.personnel_number)
+            ) AS accepting_officer_name,
+
+            dr_ao.rank_unicode AS accepting_officer_rank,
+
+            -- Verifying Officer
+            CONCAT(
+                COALESCE(dr_vo.rank_unicode, vo_p.rank), ' ',
+                COALESCE(vo_p.full_name_ne, vo_p.personnel_number)
+            ) AS verifying_officer_name,
+
+            dr_vo.rank_unicode AS verifying_officer_rank,
+
+            -- Receiver
+            CONCAT(
+                COALESCE(dr_r.rank_unicode, receiver_p.rank), ' ',
+                COALESCE(receiver_p.full_name_ne, receiver_p.personnel_number)
+            ) AS receiver_name,
+
+            dr_r.rank_unicode AS receiver_rank
+
+        FROM leave_requests lr
+
+        INNER JOIN personnel p 
+            ON lr.personnel_id = p.personnel_number
+
+        LEFT JOIN leave_balance lb 
+            ON lr.personnel_id = lb.personnel_id
+
+        LEFT JOIN personnel io_p 
+            ON lr.initiating_officer = io_p.personnel_number
+
+        LEFT JOIN personnel ao_p 
+            ON lr.accepting_officer = ao_p.personnel_number
+
+        LEFT JOIN personnel vo_p 
+            ON lr.verifying_officer = vo_p.personnel_number
+
+        LEFT JOIN personnel receiver_p 
+            ON lr.receiver_id = receiver_p.personnel_number
+
+        -- 🔥 IMPORTANT: rank mapping table
+        LEFT JOIN def_rank dr_p 
+            ON p.rank = dr_p.rank_code
+
+        LEFT JOIN def_rank dr_io 
+            ON io_p.rank = dr_io.rank_code
+
+        LEFT JOIN def_rank dr_ao 
+            ON ao_p.rank = dr_ao.rank_code
+
+        LEFT JOIN def_rank dr_vo 
+            ON vo_p.rank = dr_vo.rank_code
+
+        LEFT JOIN def_rank dr_r 
+            ON receiver_p.rank = dr_r.rank_code
+
+        WHERE 1=1";            
             
             $count_sql = "SELECT COUNT(*) as total FROM leave_requests lr INNER JOIN personnel p ON lr.personnel_id = p.personnel_number WHERE 1=1";
             $params = [];
@@ -145,8 +209,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             
             // Search by personnel name or number
             if (!empty($search)) {
-                $sql .= " AND (p.full_name_en LIKE ? OR p.personnel_number LIKE ? OR p.rank LIKE ?)";
-                $count_sql .= " AND (p.full_name_en LIKE ? OR p.personnel_number LIKE ? OR p.rank LIKE ?)";
+                $sql .= " AND (p.full_name_ne LIKE ? OR p.personnel_number LIKE ? OR p.rank LIKE ?)";
+                $count_sql .= " AND (p.full_name_ne LIKE ? OR p.personnel_number LIKE ? OR p.rank LIKE ?)";
                 $searchParam = "%$search%";
                 $params[] = $searchParam;
                 $params[] = $searchParam;
@@ -211,13 +275,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             $sql = "SELECT lr.*, 
-                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_ne, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
-                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
-                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_ne, io_p.personnel_number)) as initiating_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_ne, ao_p.personnel_number)) as accepting_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_ne, vo_p.personnel_number)) as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -249,13 +313,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             $sql = "SELECT lr.*, 
-                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_ne, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
-                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
-                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_ne, io_p.personnel_number)) as initiating_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_ne, ao_p.personnel_number)) as accepting_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_ne, vo_p.personnel_number)) as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -288,13 +352,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             }
             
             $sql = "SELECT lr.*, 
-                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_en, p.personnel_number)) as personnel_name, 
+                           CONCAT(COALESCE(p.rank, ''), ' ', COALESCE(p.full_name_ne, p.personnel_number)) as personnel_name, 
                            p.rank,
                            p.personnel_number,
                            lb.gharpari_bida_days, lb.parba_bida_days, lb.bhaeepari_bida_days,
-                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_en, io_p.personnel_number)) as initiating_officer_name,
-                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_en, ao_p.personnel_number)) as accepting_officer_name,
-                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_en, vo_p.personnel_number)) as verifying_officer_name
+                           CONCAT(COALESCE(io_p.rank, ''), ' ', COALESCE(io_p.full_name_ne, io_p.personnel_number)) as initiating_officer_name,
+                           CONCAT(COALESCE(ao_p.rank, ''), ' ', COALESCE(ao_p.full_name_ne, ao_p.personnel_number)) as accepting_officer_name,
+                           CONCAT(COALESCE(vo_p.rank, ''), ' ', COALESCE(vo_p.full_name_ne, vo_p.personnel_number)) as verifying_officer_name
                     FROM leave_requests lr
                     INNER JOIN personnel p ON lr.personnel_id = p.personnel_number
                     LEFT JOIN leave_balance lb ON lr.personnel_id = lb.personnel_id
@@ -794,7 +858,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
         
         // Get all personnel for dropdown
         if ($action === 'get_all_personnel') {
-            $stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+            $stmt = $pdo->query("SELECT personnel_number, full_name_ne, rank FROM personnel ORDER BY full_name_ne");
             $personnel = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'data' => $personnel]);
             exit;
@@ -851,7 +915,18 @@ $acceptingPending = $stmt->fetch(PDO::FETCH_ASSOC)['count'];
 
 // Get all personnel for dropdowns
 $personnel_list = [];
-$stmt = $pdo->query("SELECT personnel_number, full_name_en, rank FROM personnel ORDER BY full_name_en");
+$stmt = $pdo->query("
+    SELECT 
+        p.personnel_number,
+        p.full_name_ne,
+        p.rank,
+        COALESCE(dr.rank_unicode, p.rank) AS rank_unicode
+    FROM personnel p
+    LEFT JOIN def_rank dr 
+        ON p.rank = dr.rank_code
+    ORDER BY p.full_name_ne
+");
+// $stmt = $pdo->query("SELECT personnel_number, full_name_ne, rank FROM personnel ORDER BY full_name_ne");
 $personnel_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 ob_start();
@@ -1020,45 +1095,45 @@ ob_start();
 
     <div class="balance-cards">
         <div class="balance-card">
-            <h4>🏠 Gharpari Bida</h4>
+            <h4>🏠 घर बिदा</h4>
             <div class="days" id="gharpariBalance"><?php echo $myBalance['gharpari_bida_days']; ?></div>
-            <small>Days remaining</small>
+            <small>दिन बाँकी</small>
         </div>
         <div class="balance-card">
-            <h4>🎉 Parba Bida</h4>
+            <h4>🎉 पर्व बिदा</h4>
             <div class="days" id="parbaBalance"><?php echo $myBalance['parba_bida_days']; ?></div>
-            <small>Days remaining</small>
+            <small>दिन बाँकी</small>
         </div>
         <div class="balance-card">
-            <h4>🤝 Bhaeepari Bida</h4>
+            <h4>🚨 क्या./भैपरी बिदा</h4>
             <div class="days" id="bhaeepariBalance"><?php echo $myBalance['bhaeepari_bida_days']; ?></div>
-            <small>Days remaining</small>
+            <small>दिन बाँकी</small>
         </div>
     </div>
 
     <!-- Search and Filter Bar -->
     <div class="search-bar">
         <div class="search-group" style="flex: 2;">
-            <label>🔍 Search by Name or Personnel Number</label>
+            <label style="font-size:15px;">🔍 नाम वा व्य.नं.बाट खोजी गर्नुहोस्</label>
             <input type="text" id="searchInput" placeholder="Type name, rank or personnel number..." autocomplete="off">
         </div>
         <div class="search-group">
-            <label>👤 Filter by Personnel</label>
+            <label style="font-size:15px;">👤 सैनिक व्यक्ति छान्नुहोस्</label>
             <select id="personnelFilterSelect">
                 <option value="">All Personnel</option>
                 <?php foreach ($personnel_list as $person): ?>
                     <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
-                        <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                        <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
         </div>
         <div class="search-group">
-            <label>📅 From Date</label>
+            <label style="font-size:15px;">📅 मिति (देखि)</label>
             <input type="date" id="dateFromFilter">
         </div>
         <div class="search-group">
-            <label>📅 To Date</label>
+            <label style="font-size:15px;">📅 मिति (सम्म)</label>
             <input type="date" id="dateToFilter">
         </div>
         <div class="search-group">
@@ -1088,18 +1163,17 @@ ob_start();
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Personnel</th>
-                    <th>Rank</th>
-                    <th>Personnel No</th>
-                    <th>Leave Type</th>
-                    <th>Period</th>
-                    <th>Days</th>
-                    <th>Reason</th>
-                    <th>Status</th>
-                    <th>Receiver</th>
-                    <th>Receiving Officer</th>
-                    <th>Initiating Officer</th>
-                    <th>Accepting Officer</th>
+                    <th>व्य.नं.</th>
+                    <th>दर्जा</th>  
+                    <th>नामथर</th>                                      
+                    <th>बिदाको प्रकार</th>
+                    <th>बिदाको अवधि</th>
+                    <th>जम्मा दिन</th>
+                    <th>बिदाको कारण</th>
+                    <th>बिदाको अवस्था</th>                    
+                    <th>कार्यभार बुझ्ने</th>
+                    <th>सिफारिस गर्ने</th>
+                    <th>स्वीकृत गर्ने</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -1125,24 +1199,24 @@ ob_start();
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                     <div class="input-field">
-                        <label> Personnel <span class="required-star">*</span></label>
+                        <label>बिदा अनुरोधकर्ता<span class="required-star">*</span></label>
                         <select id="personnelId" name="personnel_id" required>
-                            <option value="">Select Personnel</option>
+                            <option value="">छान्नुहोस्</option>
                             <?php foreach ($personnel_list as $person): ?>
                                 <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                    <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     
                     <div class="input-field">
-                        <label> Leave Type <span class="required-star">*</span></label>
+                        <label>बिदाको प्रकार <span class="required-star">*</span></label>
                         <select id="leaveType" required>
-                            <option value="">Select Type</option>
-                            <option value="gharpari_bida">🏠 Gharpari Bida (Home Leave)</option>
-                            <option value="parba_bida">🎉 Parba Bida (Festival Leave)</option>
-                            <option value="bhaeepari_bida">🤝 Bhaeepari Bida (Family/Friends Leave)</option>
+                            <option value="">छान्नुहोस्</option>
+                            <option value="gharpari_bida">घर बिदा </option>
+                            <option value="parba_bida">पर्व बिदा </option>
+                            <option value="bhaeepari_bida">क्या./भैपरी बिदा </option>
                         </select>
                     </div>
                 </div>
@@ -1165,7 +1239,7 @@ ob_start();
                             <option value="">Select Personnel</option>
                             <?php foreach ($personnel_list as $person): ?>
                                 <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                    <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -1182,7 +1256,7 @@ ob_start();
                             <option value="">Select Personnel</option>
                             <?php foreach ($personnel_list as $person): ?>
                                 <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                    <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -1199,7 +1273,7 @@ ob_start();
                             <option value="">Select Personnel</option>
                             <?php foreach ($personnel_list as $person): ?>
                                 <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
-                                    <?php echo htmlspecialchars($person['rank'] . ' ' . $person['full_name_en'] . ' (' . $person['personnel_number'] . ')'); ?>
+                                    <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -1209,29 +1283,29 @@ ob_start();
                 
                 <div class="date-group">
                     <div class="input-field">
-                        <label> Start Date <span class="required-star">*</span></label>
+                        <label>बिदा (देखि)<span class="required-star">*</span></label>
                         <input type="date" id="startDate" required>
                     </div>
                     <div class="input-field">
-                        <label> End Date <span class="required-star">*</span></label>
+                        <label>बिदा (सम्म)<span class="required-star">*</span></label>
                         <input type="date" id="endDate" required>
                     </div>
                 </div>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div class="input-field">
-                        <label> Total Days</label>
+                        <label>जम्मा दिन</label>
                         <input type="text" id="totalDays" class="readonly-field" readonly placeholder="Will be calculated automatically">
                     </div>
                     <div class="input-field">
-                        <label> Available Balance</label>
+                        <label>बाँकी बिदा</label>
                         <input type="text" id="availableBalance" class="readonly-field" readonly placeholder="Select leave type first">
                     </div>
                 </div>
                 
                 <div class="input-field">
-                    <label> Reason for Leave <span class="required-star">*</span></label>
-                    <textarea id="reason" rows="3" required placeholder="Please provide detailed reason for leave request..."></textarea>
+                    <label>बिदा लिनुको कारण<span class="required-star">*</span></label>
+                    <textarea id="reason" rows="3" required placeholder="उदाहरणः घरायसी समस्या"></textarea>
                 </div>
                 
                 <div class="modal-buttons">
@@ -1468,21 +1542,47 @@ ob_start();
             
             const row = tbody.insertRow();
             row.innerHTML = `
-                <td>${leave.id}</td>
-                <td>${escapeHtml(leave.personnel_name)}</td>
-                <td>${escapeHtml(leave.rank)}</td>
-                <td>${escapeHtml(leave.personnel_number)}</td>
-                <td>${leave.leave_type}</td>
-                <td>${new Date(leave.start_date).toLocaleDateString()} - ${new Date(leave.end_date).toLocaleDateString()}</td>
-                <td>${leave.leave_days}</td>
-                <td>${escapeHtml((leave.reason || '').substring(0, 50))}</td>
-                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-                <td>${leave.receiver_name || leave.receiver_id || '-'}</td>
-                <td>${leave.verifying_officer_name || leave.verifying_officer || '-'}</td>
-                <td>${leave.initiating_officer_name || leave.initiating_officer || '-'}</td>
-                <td>${leave.accepting_officer_name || leave.accepting_officer || '-'}</td>
-                <td>${actions}</td>
-            `;
+            <td>${leave.id}</td>
+
+            <!-- व्य.नं. -->
+            <td>${escapeHtml(leave.personnel_number)}</td>
+
+            <!-- दर्जा -->
+            <td>${escapeHtml(leave.rank_unicode || '')}</td>
+
+            <!-- नामथर -->
+            <td>${escapeHtml(leave.personnel_name)}</td>
+
+            <!-- बिदाको प्रकार -->
+            <td>${leave.leave_type}</td>
+
+            <!-- बिदाको अवधि -->
+            <td>
+                ${new Date(leave.start_date).toLocaleDateString()} - 
+                ${new Date(leave.end_date).toLocaleDateString()}
+            </td>
+
+            <!-- जम्मा दिन -->
+            <td>${leave.leave_days}</td>
+
+            <!-- बिदाको कारण -->
+            <td>${escapeHtml((leave.reason || '').substring(0, 50))}</td>
+
+            <!-- बिदाको अवस्था -->
+            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+
+            <!-- कार्यभार बुझ्ने -->
+            <td>${leave.receiver_name || leave.receiver_id || '-'}</td>
+
+            <!-- सिफारिस गर्ने -->
+            <td>${leave.verifying_officer_name || leave.verifying_officer || '-'}</td>
+
+            <!-- स्वीकृत गर्ने -->
+            <td>${leave.accepting_officer_name || leave.accepting_officer || '-'}</td>
+
+            <!-- Actions -->
+            <td>${actions}</td>
+        `;            
         });
     }
 
