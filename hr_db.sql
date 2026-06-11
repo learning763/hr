@@ -16,7 +16,7 @@
 
 
 -- Dumping database structure for hr
-CREATE DATABASE IF NOT EXISTS `hr` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */;
+CREATE DATABASE IF NOT EXISTS `hr` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */;
 USE `hr`;
 
 -- Dumping structure for table hr.events
@@ -34,11 +34,9 @@ CREATE TABLE IF NOT EXISTS `events` (
   `created_by` int(11) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Dumping data for table hr.events: ~0 rows (approximately)
-INSERT INTO `events` (`id`, `event_title`, `event_description`, `event_type`, `start_date`, `end_date`, `location`, `priority`, `status`, `personnel_id`, `created_by`, `created_at`) VALUES
-	(24, 'Libero necessitatibu', 'Natus aut minim omni', 'other', '2026-05-22', '2026-05-22', 'Officia eu delectus', 'low', 'upcoming', 38, 8512, '2026-05-22 10:07:32');
 
 -- Dumping structure for table hr.event_participants
 CREATE TABLE IF NOT EXISTS `event_participants` (
@@ -55,7 +53,7 @@ CREATE TABLE IF NOT EXISTS `event_participants` (
 -- Dumping structure for table hr.leave_balance
 CREATE TABLE IF NOT EXISTS `leave_balance` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `personnel_id` int(11) NOT NULL,
+  `personnel_id` varchar(20) DEFAULT NULL,
   `gharpari_bida_days` decimal(5,1) DEFAULT 0.0,
   `parba_bida_days` decimal(5,1) DEFAULT 0.0,
   `bhaeepari_bida_days` decimal(5,1) DEFAULT 0.0,
@@ -63,45 +61,53 @@ CREATE TABLE IF NOT EXISTS `leave_balance` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `personnel_id` (`personnel_id`),
   UNIQUE KEY `idx_personnel_id` (`personnel_id`),
-  CONSTRAINT `leave_balance_ibfk_1` FOREIGN KEY (`personnel_id`) REFERENCES `military_personnel_status` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=144 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  UNIQUE KEY `unique_personnel` (`personnel_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=189 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table hr.leave_balance: ~3 rows (approximately)
+-- Dumping data for table hr.leave_balance: ~5 rows (approximately)
 INSERT INTO `leave_balance` (`id`, `personnel_id`, `gharpari_bida_days`, `parba_bida_days`, `bhaeepari_bida_days`, `last_updated`) VALUES
-	(140, 36, 7.0, 1.0, 7.0, '2026-05-22 04:21:02'),
-	(141, 37, 15.0, 12.0, 10.0, '2026-05-20 11:00:22'),
-	(142, 38, 15.0, 12.0, 10.0, '2026-05-20 11:00:57'),
-	(143, 39, 14.0, 12.0, 10.0, '2026-05-22 08:35:19');
+	(183, '8512', 15.0, 12.0, 10.0, '2026-06-04 04:38:43'),
+	(184, '8571', 15.0, 12.0, 10.0, '2026-06-04 09:20:18'),
+	(185, '8572', 14.0, 12.0, 10.0, '2026-06-04 04:46:38'),
+	(186, '8589', 30.0, 12.0, 10.0, '2026-06-04 06:37:00'),
+	(187, '8590', 15.0, 12.0, 10.0, '2026-06-04 09:20:28'),
+	(188, '857', 15.0, 12.0, 10.0, '2026-06-04 09:20:45');
 
 -- Dumping structure for table hr.leave_requests
 CREATE TABLE IF NOT EXISTS `leave_requests` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `personnel_id` int(11) NOT NULL,
+  `personnel_id` varchar(20) DEFAULT NULL,
   `leave_type` enum('annual','sick','casual','emergency','study','maternity','paternity','gharpari_bida','parba_bida','bhaeepari_bida') NOT NULL,
   `start_date` date NOT NULL,
   `end_date` date NOT NULL,
   `leave_days` int(11) NOT NULL,
   `reason` text NOT NULL,
-  `initiating_officer` int(11) DEFAULT NULL,
-  `accepting_officer` int(11) DEFAULT NULL,
+  `initiating_officer` varchar(20) DEFAULT NULL,
+  `accepting_officer` varchar(20) DEFAULT NULL,
+  `verifying_officer` varchar(20) DEFAULT NULL,
+  `verifying_officer_approved` tinyint(1) DEFAULT 0,
+  `verifying_officer_approved_by` varchar(20) DEFAULT NULL,
+  `verifying_officer_approved_at` datetime DEFAULT NULL,
+  `verifying_officer_remarks` text DEFAULT NULL,
   `initiating_officer_approved` tinyint(1) DEFAULT 0,
-  `initiating_officer_approved_by` int(11) DEFAULT NULL,
+  `initiating_officer_approved_by` varchar(20) DEFAULT NULL,
   `initiating_officer_approved_at` datetime DEFAULT NULL,
   `initiating_officer_remarks` text DEFAULT NULL,
   `accepting_officer_approved` tinyint(1) DEFAULT 0,
-  `accepting_officer_approved_by` int(11) DEFAULT NULL,
+  `accepting_officer_approved_by` varchar(20) DEFAULT NULL,
   `accepting_officer_approved_at` datetime DEFAULT NULL,
   `accepting_officer_remarks` text DEFAULT NULL,
+  `receiver_id` varchar(20) DEFAULT NULL,
   `contact_number` varchar(20) DEFAULT NULL,
   `alternate_officer` varchar(100) DEFAULT NULL,
   `support_officer` int(11) DEFAULT NULL,
   `finalizing_officer` int(11) DEFAULT NULL,
-  `status` enum('pending','initiating_approved','forwarded','approved','rejected','cancelled') DEFAULT 'pending',
-  `created_by` int(11) DEFAULT NULL,
-  `approved_by` int(11) DEFAULT NULL,
-  `forwarded_by` int(11) DEFAULT NULL,
+  `status` enum('pending','verified','initiating_approved','forwarded','approved','rejected','cancelled') DEFAULT 'pending',
+  `created_by` varchar(20) DEFAULT NULL,
+  `approved_by` varchar(20) DEFAULT NULL,
+  `forwarded_by` varchar(20) DEFAULT NULL,
   `forwarded_at` datetime DEFAULT NULL,
-  `forwarded_to` int(11) DEFAULT NULL,
+  `forwarded_to` varchar(20) DEFAULT NULL,
   `forward_remarks` text DEFAULT NULL,
   `approved_at` datetime DEFAULT NULL,
   `approver_remarks` text DEFAULT NULL,
@@ -115,26 +121,19 @@ CREATE TABLE IF NOT EXISTS `leave_requests` (
   KEY `fk_leave_accepting_officer_approved_by` (`accepting_officer_approved_by`),
   KEY `idx_initiating_officer` (`initiating_officer`),
   KEY `idx_accepting_officer` (`accepting_officer`),
-  CONSTRAINT `fk_leave_accepting_officer` FOREIGN KEY (`accepting_officer`) REFERENCES `military_personnel_status` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_leave_accepting_officer_approved_by` FOREIGN KEY (`accepting_officer_approved_by`) REFERENCES `military_personnel_status` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_leave_initiating_officer` FOREIGN KEY (`initiating_officer`) REFERENCES `military_personnel_status` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_leave_initiating_officer_approved_by` FOREIGN KEY (`initiating_officer_approved_by`) REFERENCES `military_personnel_status` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `leave_requests_ibfk_1` FOREIGN KEY (`personnel_id`) REFERENCES `military_personnel_status` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_receiver_id` (`receiver_id`),
+  KEY `idx_verifying_officer` (`verifying_officer`),
+  KEY `fk_leave_verifying_officer_approved_by` (`verifying_officer_approved_by`)
+) ENGINE=InnoDB AUTO_INCREMENT=78 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table hr.leave_requests: ~11 rows (approximately)
-INSERT INTO `leave_requests` (`id`, `personnel_id`, `leave_type`, `start_date`, `end_date`, `leave_days`, `reason`, `initiating_officer`, `accepting_officer`, `initiating_officer_approved`, `initiating_officer_approved_by`, `initiating_officer_approved_at`, `initiating_officer_remarks`, `accepting_officer_approved`, `accepting_officer_approved_by`, `accepting_officer_approved_at`, `accepting_officer_remarks`, `contact_number`, `alternate_officer`, `support_officer`, `finalizing_officer`, `status`, `created_by`, `approved_by`, `forwarded_by`, `forwarded_at`, `forwarded_to`, `forward_remarks`, `approved_at`, `approver_remarks`, `created_at`, `updated_at`) VALUES
-	(34, 36, 'gharpari_bida', '2026-05-20', '2026-05-20', 1, 'short break for marraige ceremony', 37, 38, 1, 37, '2026-05-20 16:45:42', 'go ahead', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', 36, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-20 10:59:53', '2026-05-20 11:00:42'),
-	(35, 36, 'parba_bida', '2026-05-20', '2026-05-20', 1, 'Voluptas irure nihil', 37, 38, 1, 37, '2026-05-20 16:48:14', 'sdsds', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '', 36, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-20 11:02:46', '2026-05-20 11:03:14'),
-	(36, 36, 'parba_bida', '2026-05-20', '2026-05-20', 1, 'Quod proident dolor', 37, 38, 1, 37, '2026-05-20 16:59:45', 'dffd', 1, 38, '2026-05-20 17:00:20', 'done go ahead. chill bro', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-20 17:00:20', NULL, '2026-05-20 11:14:26', '2026-05-20 11:15:20'),
-	(37, 36, 'parba_bida', '2026-05-28', '2026-05-30', 3, 'vacation', 37, 38, 1, 37, '2026-05-21 09:48:27', 'ok', 1, 38, '2026-05-21 09:50:14', 'ok', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-21 09:50:14', NULL, '2026-05-21 03:45:10', '2026-05-21 04:05:14'),
-	(38, 36, 'bhaeepari_bida', '2026-05-31', '2026-05-31', 1, 'brother ceremony', 37, 38, 1, 37, '2026-05-21 09:48:22', 'ok', 1, 38, '2026-05-21 09:50:09', 'ok', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-21 09:50:09', NULL, '2026-05-21 03:46:51', '2026-05-21 04:05:09'),
-	(39, 36, 'bhaeepari_bida', '2026-06-22', '2026-06-23', 2, 'okay', 37, 38, 1, 37, '2026-05-21 09:48:15', 'ok', 1, 38, '2026-05-21 09:50:04', 'ok', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-21 09:50:04', NULL, '2026-05-21 03:48:31', '2026-05-21 04:05:04'),
-	(40, 36, 'gharpari_bida', '2026-06-28', '2026-06-29', 2, 'ghumna jaane', 37, 38, 1, 37, '2026-05-21 09:48:31', 'ok', 1, 38, '2026-05-21 09:50:18', 'ok', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-21 09:50:18', NULL, '2026-05-21 03:49:12', '2026-05-21 04:05:18'),
-	(41, 36, 'parba_bida', '2026-08-23', '2026-08-29', 7, 'okay', 37, 38, 1, 37, '2026-05-21 09:48:44', 'ok', 1, 38, '2026-05-21 09:50:22', 'ok', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-21 09:50:22', NULL, '2026-05-21 03:49:51', '2026-05-21 04:05:22'),
-	(42, 36, 'gharpari_bida', '2026-11-23', '2026-11-27', 5, 'oossdsd', 37, 38, 1, 37, '2026-05-21 09:54:07', 'oko', 1, 38, '2026-05-21 09:54:41', 'ok', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-21 09:54:41', NULL, '2026-05-21 04:08:43', '2026-05-21 04:09:41'),
-	(43, 36, 'gharpari_bida', '2026-05-25', '2026-05-25', 1, 'ok', 37, 38, 1, 37, '2026-05-22 10:05:36', 'ok forward', 1, 38, '2026-05-22 10:06:02', 'go ahead', NULL, NULL, NULL, NULL, 'approved', 36, 38, NULL, NULL, NULL, NULL, '2026-05-22 10:06:02', NULL, '2026-05-22 04:20:06', '2026-05-22 04:21:02'),
-	(44, 39, 'gharpari_bida', '2026-05-22', '2026-05-22', 1, 'okay', 37, 38, 1, 37, '2026-05-22 14:19:54', 'ok', 1, 38, '2026-05-22 14:20:19', 'ok', NULL, NULL, NULL, NULL, 'approved', 39, 38, NULL, NULL, NULL, NULL, '2026-05-22 14:20:19', NULL, '2026-05-22 08:34:05', '2026-05-22 08:35:19');
+-- Dumping data for table hr.leave_requests: ~5 rows (approximately)
+INSERT INTO `leave_requests` (`id`, `personnel_id`, `leave_type`, `start_date`, `end_date`, `leave_days`, `reason`, `initiating_officer`, `accepting_officer`, `verifying_officer`, `verifying_officer_approved`, `verifying_officer_approved_by`, `verifying_officer_approved_at`, `verifying_officer_remarks`, `initiating_officer_approved`, `initiating_officer_approved_by`, `initiating_officer_approved_at`, `initiating_officer_remarks`, `accepting_officer_approved`, `accepting_officer_approved_by`, `accepting_officer_approved_at`, `accepting_officer_remarks`, `receiver_id`, `contact_number`, `alternate_officer`, `support_officer`, `finalizing_officer`, `status`, `created_by`, `approved_by`, `forwarded_by`, `forwarded_at`, `forwarded_to`, `forward_remarks`, `approved_at`, `approver_remarks`, `created_at`, `updated_at`) VALUES
+	(72, '8572', 'gharpari_bida', '2026-06-04', '2026-06-04', 1, 'ok', '857', '8512', '8589', 1, NULL, '2026-06-04 10:30:41', 'ok', 1, NULL, '2026-06-04 10:31:18', 'ok', 1, NULL, '2026-06-04 10:31:38', 'okok', '8589', NULL, NULL, NULL, NULL, 'approved', '8589', NULL, NULL, NULL, NULL, NULL, '2026-06-04 10:31:38', NULL, '2026-06-04 04:45:09', '2026-06-04 04:46:38'),
+	(73, '8572', 'gharpari_bida', '2026-06-26', '2026-06-27', 2, 'ok', '857', '8512', '8589', 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'pending', '8572', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 04:53:08', '2026-06-04 04:53:08'),
+	(74, '8571', 'gharpari_bida', '2026-06-04', '2026-06-04', 1, 'ok', '8512', '8589', '8589', 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'pending', '8512', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 09:18:24', '2026-06-04 09:21:03'),
+	(75, '8572', 'bhaeepari_bida', '2026-06-21', '2026-06-22', 2, 'ok', '8571', '8512', '8589', 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'pending', '8572', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 10:30:55', '2026-06-04 10:30:55'),
+	(76, '8512', 'gharpari_bida', '2026-06-24', '2026-06-26', 3, 'ok', '8572', '8571', '8589', 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'pending', '8572', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 10:31:26', '2026-06-04 10:31:26'),
+	(77, '8571', 'parba_bida', '2026-06-23', '2026-06-26', 4, 'ok', '8572', '8512', '8589', 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'pending', '8572', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 10:32:03', '2026-06-04 10:32:03');
 
 -- Dumping structure for table hr.leave_settings
 CREATE TABLE IF NOT EXISTS `leave_settings` (
@@ -148,6 +147,20 @@ CREATE TABLE IF NOT EXISTS `leave_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Dumping data for table hr.leave_settings: ~1 rows (approximately)
+
+-- Dumping structure for table hr.leave_types
+CREATE TABLE IF NOT EXISTS `leave_types` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `leave_name` varchar(100) NOT NULL,
+  `available_days` int(11) NOT NULL DEFAULT 0,
+  `description` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `leave_name` (`leave_name`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Dumping data for table hr.leave_types: ~0 rows (approximately)
 
 -- Dumping structure for table hr.military_personnel_status
 CREATE TABLE IF NOT EXISTS `military_personnel_status` (
@@ -166,19 +179,14 @@ CREATE TABLE IF NOT EXISTS `military_personnel_status` (
   KEY `idx_status` (`status`),
   KEY `idx_date` (`record_date`),
   KEY `idx_personnel_number` (`personnel_number`)
-) ENGINE=InnoDB AUTO_INCREMENT=40 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table hr.military_personnel_status: ~2 rows (approximately)
-INSERT INTO `military_personnel_status` (`id`, `personnel_number`, `personnel_name`, `rank`, `status`, `record_date`, `in_time`, `out_time`, `remarks`, `created_at`, `updated_at`) VALUES
-	(36, '8572', 'Susmin Basnet', 'Lieutenant', 'present', '2026-05-20', NULL, NULL, 'Auto-created from login', '2026-05-20 06:16:23', '2026-05-20 06:16:23'),
-	(37, '8571', 'Dikshya Thapa', 'Lieutenant', 'present', '2026-05-20', NULL, NULL, 'Auto-created from login', '2026-05-20 06:17:30', '2026-05-20 06:17:30'),
-	(38, '8512', 'Suraj shahi', 'Lieutenant', 'present', '2026-05-20', NULL, NULL, 'Auto-created from login', '2026-05-20 06:20:14', '2026-05-20 06:20:14'),
-	(39, '9999', 'Shad Mcguire', 'Praesentium voluptat', 'present', '2026-05-22', NULL, NULL, 'Auto-created from login', '2026-05-22 08:31:21', '2026-05-22 08:31:21');
+-- Dumping data for table hr.military_personnel_status: ~0 rows (approximately)
 
 -- Dumping structure for table hr.personnel
 CREATE TABLE IF NOT EXISTS `personnel` (
   `personnel_number` varchar(20) NOT NULL,
-  `full_name_en` varchar(100) NOT NULL,
+  `full_name_en` varchar(100) DEFAULT NULL,
   `full_name_ne` varchar(100) DEFAULT NULL,
   `dob` date DEFAULT NULL,
   `gender` enum('Male','Female','Other') DEFAULT 'Other',
@@ -225,6 +233,11 @@ CREATE TABLE IF NOT EXISTS `personnel` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `role` tinyint(4) NOT NULL DEFAULT 0,
   `password_updated_at` timestamp NULL DEFAULT NULL COMMENT 'Timestamp when password was last updated',
+  `appointment` varchar(255) DEFAULT NULL,
+  `profile_picture_path` varchar(255) DEFAULT NULL,
+  `received_person_name` varchar(255) DEFAULT NULL,
+  `professional_trainings` longtext DEFAULT NULL COMMENT 'Dynamic professional trainings stored as JSON array' CHECK (json_valid(`professional_trainings`)),
+  `foreign_trainings` longtext DEFAULT NULL COMMENT 'Dynamic foreign trainings stored as JSON array' CHECK (json_valid(`foreign_trainings`)),
   PRIMARY KEY (`personnel_number`),
   UNIQUE KEY `email` (`email`),
   KEY `idx_email` (`email`),
@@ -237,12 +250,11 @@ CREATE TABLE IF NOT EXISTS `personnel` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Dumping data for table hr.personnel: ~5 rows (approximately)
-INSERT INTO `personnel` (`personnel_number`, `full_name_en`, `full_name_ne`, `dob`, `gender`, `blood_group`, `rank`, `current_status`, `unit`, `email`, `signature`, `joint_date`, `contact`, `phone`, `address`, `province`, `district`, `municipality`, `ward_number`, `village_tole`, `religion`, `military_status`, `password`, `remember_token`, `recruitment_date`, `commission_date`, `father_name`, `mother_name`, `spouse_name`, `children_names`, `family_notes`, `grandfather_name`, `higher_education`, `military_trainings`, `training`, `training_address`, `training1`, `training1_address`, `training2`, `training2_address`, `training3`, `training4`, `training5`, `foreign_training`, `created_at`, `updated_at`, `role`, `password_updated_at`) VALUES
-	('8512', 'Suraj shahi', NULL, NULL, 'Other', NULL, 'Lieutenant', 'Active', 'Corps of Engineers', 'superadmin@gmail.com', '/uploads/signatures/8512_signature_1779338833.jpg', '2026-05-20', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$tzVrrDP8hdA3t/0.8Eb1mebckAPdKr7v44zzlsdwbtX60I5eOqAjq', 'b51d7e67aed2b300b2aa0a4ab877cceceaaf9d08589613843b223a7df579e21e', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-20 03:58:12', '2026-05-22 06:26:02', 2, NULL),
-	('8571', 'Dikshya Thapa', NULL, NULL, 'Other', NULL, 'Lieutenant', 'Active', 'Signals', 'admin@gmail.com', '/uploads/signatures/8571_signature_1779338848.jpg', '2026-05-20', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$oe28ENJFCJ/OuLPmNUCXWucX3yEM/RjRYqvx0HFk2awxTTr873F92', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-20 03:57:21', '2026-05-21 04:47:28', 1, NULL),
-	('8572', 'Susmin Basnet', NULL, NULL, 'Other', NULL, 'Lieutenant', 'Active', 'Intelligence', 'user@gmail.com', '/uploads/signatures/8572_signature_1779338857.jpg', '2026-05-20', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$Hl9bjp8ogKAvVZoHs8ar6Om1nbkf0cgueB51CMXvREwoza/czoBEi', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-05-20 03:56:20', '2026-05-21 04:47:37', 0, NULL),
-	('9000', 'Bijay khadka', '', '2026-05-07', 'Male', 'A+', 'Captain', 'Active', 'Brigade', 'bijay@gmail.com', '/uploads/signatures/9000_signature_1779338810.jpg', NULL, '9763608859', '', 'okay', NULL, NULL, NULL, NULL, NULL, '', '', '', NULL, '2026-05-21', NULL, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '2026-05-21 04:38:00', '2026-05-21 04:46:50', 0, NULL),
-	('9999', 'Shad Mcguire', '', '2012-08-15', 'Female', 'B-', 'Praesentium voluptat', 'Leave', 'Veritatis beatae ear', 'test@gmail.com', '/uploads/signatures/9999_signature_1779444981.png', NULL, '9763608859', '', 'balkumari', 'Madhesh Province', 'Kanchanpur', 'bhimdatta', '2', 'thapathali', '', '', '$2y$10$tzVrrDP8hdA3t/0.8Eb1mebckAPdKr7v44zzlsdwbtX60I5eOqAjq', NULL, '1994-09-23', NULL, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '2026-05-22 06:58:46', '2026-05-22 10:16:21', 1, NULL);
+INSERT INTO `personnel` (`personnel_number`, `full_name_en`, `full_name_ne`, `dob`, `gender`, `blood_group`, `rank`, `current_status`, `unit`, `email`, `signature`, `joint_date`, `contact`, `phone`, `address`, `province`, `district`, `municipality`, `ward_number`, `village_tole`, `religion`, `military_status`, `password`, `remember_token`, `recruitment_date`, `commission_date`, `father_name`, `mother_name`, `spouse_name`, `children_names`, `family_notes`, `grandfather_name`, `higher_education`, `military_trainings`, `training`, `training_address`, `training1`, `training1_address`, `training2`, `training2_address`, `training3`, `training4`, `training5`, `foreign_training`, `created_at`, `updated_at`, `role`, `password_updated_at`, `appointment`, `profile_picture_path`, `received_person_name`, `professional_trainings`, `foreign_trainings`) VALUES
+	('8512', 'Suraj shahi', NULL, NULL, 'Other', NULL, 'Lieutenant', 'Active', 'Artillery', 'superadmin@gmail.com', '/uploads/signatures/8512_signature_1780548947.png', '2026-06-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$5XeiiICmCOyh6r7PAPibXOLGaK5R0JP.BqofEoNhHWRiJLwkr54tW', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 04:38:43', '2026-06-04 04:55:47', 2, NULL, NULL, 'uploads/profile_photos/8512_photo_1780548939.jpeg', NULL, NULL, NULL),
+	('8571', 'Dikshya Thapa', NULL, NULL, 'Other', NULL, 'Lieutenant', 'Active', 'Intelligence Corps', 'admin@gmail.com', '/uploads/signatures/857_signature_1780548928.png', '2026-06-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$nIOXIsopIfey72s7mlLKjeloQjARQcfuc33sOB2OKXMGBUpYv/VdC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 04:40:59', '2026-06-04 09:20:02', 1, NULL, NULL, 'uploads/profile_photos/857_photo_1780548918.jpeg', NULL, NULL, NULL),
+	('8572', 'Susmin Basnet', NULL, NULL, 'Other', NULL, 'Lieutenant', 'Active', 'Signals', 'user@gmail.com', '/uploads/signatures/8572_signature_1780548905.png', '2026-06-04', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$pcmPO8kxrTAfbddmTcfkbe5k90pl6tu/LGM04nTvG1ufmy4A6Hhcm', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 04:41:51', '2026-06-04 04:55:05', 0, NULL, NULL, 'uploads/profile_photos/8572_photo_1780548896.jpeg', NULL, NULL, NULL),
+	('8589', 'Manish Ghimire', NULL, NULL, 'Other', NULL, 'Lieutenant Colonel', 'Active', 'Corps of Engineers', 'manish@gmail.com', '/uploads/signatures/8589_signature_1780548879.png', '2026-06-21', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Hindu', 'Single', '$2y$10$JCIm.C8mfKlpBy6nV2hqTuchedQsgD6X2Cp7HXVE9/gJI8gOtYxCq', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-06-04 04:43:09', '2026-06-04 04:54:39', 0, NULL, NULL, 'uploads/profile_photos/8589_photo_1780548865.jpeg', NULL, NULL, NULL);
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
