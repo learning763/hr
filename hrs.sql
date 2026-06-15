@@ -2,7 +2,7 @@
 -- Host:                         127.0.0.1
 -- Server version:               10.4.32-MariaDB - mariadb.org binary distribution
 -- Server OS:                    Win64
--- HeidiSQL Version:             12.16.0.7229
+-- HeidiSQL Version:             12.18.0.7304
 -- --------------------------------------------------------
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS `def_rank` (
   `group_rank` longtext DEFAULT NULL,
   `rank_level` longtext DEFAULT NULL,
   `cv_rank` longtext DEFAULT NULL,
-  `is_active` varchar(2) DEFAULT NULL,
+  `is_active` enum('Y','N') DEFAULT 'Y',
   UNIQUE KEY `pkrank_code` (`rank_code`),
   KEY `rank_code` (`rank_code`)
 ) ENGINE=InnoDB AUTO_INCREMENT=148 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -42,15 +42,15 @@ INSERT INTO `def_rank` (`rank_code`, `rank_name`, `rank_abvt`, `rank_nep`, `rank
 	(5, 'LIEUTENANT GENERAL', 'LT GEN', '/yL', 'रथी', 'रथी', '/yL', 'Rathi', 'lalzi^ >])fL', NULL, 'Y'),
 	(7, 'MAJOR GENERAL', 'MAJ GEN', 'pk/yL', 'उ.र.', 'उपरथी', 'p=/=', 'Rathi', 'lalzi^ >])fL', NULL, 'Y'),
 	(9, 'BRIGADIER GENERAL', 'BRIG GEN', ';xfos /yL', 'स.र.', 'सहायक रथी', ';=/', 'Rathi', '/F=k= k|yd >])fL', 'GAZATED I', 'Y'),
-	(10, 'ACTING BRIGADIER GENERAL', 'ACT BRI GEN', 'cf=;xfos /yL', 'आ.सहायक रथी', 'आ.सहायक रथी', 'cf=;=/=', 'Rathi', '/F=k= k|yd >])fL', 'GAZATED I', 'Y'),
+	(10, 'ACTING BRIGADIER GENERAL', 'ACT BRI GEN', 'cf=;xfos /yL', 'आ.सहायक रथी', 'आ.सहायक रथी', 'cf=;=/=', 'Rathi', '/F=k= k|yd >])fL', 'GAZATED I', 'N'),
 	(11, 'COLONEL', 'COL', 'dxf ;]gfgL', 'म.से.', 'महा सेनानी', 'd=;]=', 'Adhikrit', '/F=k= k|yd >])fL', 'GAZATED I', 'Y'),
-	(12, 'ACTING COLONEL', 'ACT COL', 'cf=dxf ;]gfgL', 'आ.महा सेनानी', 'आ.महा सेनानी', 'cf=d=;]=', 'Adhikrit', '/F=k= k|yd >])fL', 'GAZATED I', 'Y'),
+	(12, 'ACTING COLONEL', 'ACT COL', 'cf=dxf ;]gfgL', 'आ.महा सेनानी', 'आ.महा सेनानी', 'cf=d=;]=', 'Adhikrit', '/F=k= k|yd >])fL', 'GAZATED I', 'N'),
 	(13, 'LIEUTENANT COLONEL', 'LT COL', 'k|d\'v ;]gfgL', 'प्र.से.', 'प्रमुख सेनानी', 'k|=;]=', 'Adhikrit', '/f=k= bf]>f] >])fL', 'GAZATED II', 'Y'),
-	(14, 'ACTING LIEUTENANT COLONEL', 'ACT LT COL', 'cf=k|d\'v ;]gfgL', 'आ. प्रमुख सेनानी', 'आ. प्रमुख सेनानी', 'cf=k|=;]=', 'Adhikrit', '/f=k= bf]>f] >])fL', 'GAZATED II', 'Y'),
+	(14, 'ACTING LIEUTENANT COLONEL', 'ACT LT COL', 'cf=k|d\'v ;]gfgL', 'आ. प्रमुख सेनानी', 'आ. प्रमुख सेनानी', 'cf=k|=;]=', 'Adhikrit', '/f=k= bf]>f] >])fL', 'GAZATED II', 'N'),
 	(15, 'MAJOR', 'MAJ', ';]gfgL', 'सेनानी', 'सेनानी', ';]gfgL', 'Adhikrit', '/f=k= bf]>f] >])fL', 'GAZATED II', 'Y'),
-	(16, 'ACTING MAJOR', 'ACT MAJ', 'cf=;]gfgL', 'आ.सेनानी', 'आ.सेनानी', 'cf=;]gfgL', 'Adhikrit', '/f=k= bf]>f] >])fL', 'GAZATED II', 'Y'),
+	(16, 'ACTING MAJOR', 'ACT MAJ', 'cf=;]gfgL', 'आ.सेनानी', 'आ.सेनानी', 'cf=;]gfgL', 'Adhikrit', '/f=k= bf]>f] >])fL', 'GAZATED II', 'N'),
 	(17, 'CAPTAIN', 'CAPT', ';x ;]gfgL', 'सह से.', 'सह सेनानी', ';x=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'Y'),
-	(18, 'ACTING CAPTAIN', 'ACT CAPT', 'cf=;x ;]gfgL', 'आ.सह सेनानी', 'आ.सह सेनानी', 'cf=;x=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'Y'),
+	(18, 'ACTING CAPTAIN', 'ACT CAPT', 'cf=;x ;]gfgL', 'आ.सह सेनानी', 'आ.सह सेनानी', 'cf=;x=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'N'),
 	(19, 'LIEUTENANT', 'LT', 'pk ;]gfgL', 'उ.से.', 'उप सेनानी', 'p=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'Y'),
 	(21, 'SECOND LIEUTENANT', '2ND LT', ';xfos ;]gfgL', 'स.से.', 'सहायक सेनानी', ';=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'Y'),
 	(23, 'OFFICER CADET (DIRECT ENTRY)', 'OFF CDT (DE)', 'clws[t Sof*]^ z"?', 'अधिकृत क्याडेट शुरु', 'अधिकृत क्याडेट शुरु', NULL, 'Akya', NULL, NULL, NULL),
@@ -59,8 +59,8 @@ INSERT INTO `def_rank` (`rank_code`, `rank_name`, `rank_abvt`, `rank_nep`, `rank
 	(26, 'OFFICER CADET (INSERVICE)', 'OFF CDT (INSERV', 'OG;le{; Sof*]^', 'इन्सर्भिस क्याडेट', 'इन्सर्भिस क्याडेट', NULL, 'Akya', NULL, NULL, NULL),
 	(27, 'HONORARY CAPTAIN', 'HON CAPT', 'dfgfy{ ;x ;]gfgL', 'मानार्थ सह सेनानी', 'मानार्थ सह सेनानी', 'df=;x=;]=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', 'Y'),
 	(29, 'HONORARY LIEUTENANT', 'HON LT', 'dfgfy{ pk ;]gfgL', 'मानार्थ उप सेनानी', 'मानार्थ उप सेनानी', 'df=p=;]=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', 'Y'),
-	(31, 'SUBEDAR MAJOR', 'SU MAJ', 'k|d\'v ;\'a]bf/', 'प्रमुख सुवेदार', 'प्रमुख सुवेदार', 'k|=;"=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', NULL),
-	(33, 'SENIOR SUBEDAR', 'SR SU', 'l;lgo/ ;"a]bf/', 'सिनियर सुवेदार', 'सिनियर सुवेदार', 'l;=;"=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', NULL),
+	(31, 'SUBEDAR MAJOR', 'SU MAJ', 'k|d\'v ;\'a]bf/', 'प्रमुख सुवेदार', 'प्रमुख सुवेदार', 'k|=;"=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', 'Y'),
+	(33, 'SENIOR SUBEDAR', 'SR SU', 'l;lgo/ ;"a]bf/', 'सिनियर सुवेदार', 'सिनियर सुवेदार', 'l;=;"=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', 'Y'),
 	(35, 'SUBEDAR', 'SU', ';\'a]bf/', 'सु.', 'सु.', ';"=', 'Padik', '/f=k=c=k|yd >])fL', 'NON GAZ I', 'Y'),
 	(37, 'JEMADAR', 'JEM', 'hdbf/', 'जम.', 'जम.', 'hd=', 'Padik', '/f=k=c=l$lto >])fL -v/bf/ ;/x_', 'NON GAZ II', 'Y'),
 	(39, 'BATTALION HAVALDAR MAJOR', 'BAT HAV MAJ', 'u)f sfo{ x\'$f', 'गण कार्य हुद्बा', 'गण कार्य हुद्बा', 'u=sf=x"=', 'NCOS', '/f=k=c=t[lto >])fL', 'NON GAZ III', NULL),
@@ -75,7 +75,7 @@ INSERT INTO `def_rank` (`rank_code`, `rank_name`, `rank_abvt`, `rank_nep`, `rank
 	(51, 'LANCE NAIK', 'L NAIK', 'Ko\'&', 'प्युठ', 'प्युठ', 'Ko\'=', 'NCOS', '/f=k=c=rt\'y{ >])fL', 'NON GAZ IV', 'Y'),
 	(53, 'SOLDIER', 'SOLDIER', 'l;kfxL', 'सिपाही', 'सिपाही', 'l;=', 'NCOS', '/f=k=c=rt\'y{ >])fL', 'NON GAZ IV', 'Y'),
 	(54, 'NCE (V LEVEL)', 'NCE (V LEVEL)', 'Pg=l;=O{= kf+rf} :t/', 'एन.सि.ई.  पाँचौ स्तर', 'एन.सि.ई.  पाँचौ स्तर', 'Pg=l;=O{= kf+rf', NULL, '>])fLljlxg kf+rf}  ', NULL, NULL),
-	(55, 'RECRUIT', 'RECRUIT', ';}Go', 'सैन्य', 'सैन्य', NULL, 'Sainya', NULL, NULL, NULL),
+	(55, 'RECRUIT', 'RECRUIT', ';}Go', 'सैन्य', 'सैन्य', NULL, 'Sainya', NULL, NULL, 'Y'),
 	(56, 'RECRUIT AGENT', 'RECRUIT AGENT', 'P= ;}Go', 'ए.सैन्य', 'ए.सैन्य', 'P= ;}Go', NULL, NULL, NULL, NULL),
 	(57, 'BOY', 'BOY', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 	(58, 'NCE (IV LEVEL)', 'NCE (IV LEVEL)', 'Pg=l;=O{= rf}yf] :t/', 'एन.सि.ई. चौथो स्तर', 'एन.सि.ई. चौथो स्तर', 'Pg=l;=O{= rf}yf', NULL, '>])fLljlxg rt\'y{  ', NULL, NULL),
@@ -120,17 +120,17 @@ INSERT INTO `def_rank` (`rank_code`, `rank_name`, `rank_abvt`, `rank_nep`, `rank
 	(97, 'BHARI SAWARI CHALAK 2ND LEVEL', 'BHARI CHA/2ND', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 	(98, 'BHARI SAWARI CHALAK 3RD LEVEL', 'BHARI CHA/3RD', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
 	(99, 'UNCLASSIFIED RANK', 'UN RANK', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
-	(100, 'FELLOW CHARTERED ACCOUNTANT', 'FCA', NULL, 'वरिष्ठ चार्टर्ड एकाउन्टेन्ट', 'वरिष्ठ चार्टर्ड एकाउन्टेन्ट', NULL, NULL, NULL, NULL, 'Y'),
-	(101, 'JAG BRIGADIER GENERAL', 'JAG BRI GEN', ';xfos /yL', 'प्राड सहायक रथी', 'प्राड सहायक रथी', ';=/', 'Rathi', '/F=k= k|yd >])fL', 'GAZATED I', 'Y'),
-	(102, 'SECTION OFFICER', 'SECTION OFFICER', NULL, 'शाखा अधिकृत', 'शाखा अधिकृत', NULL, NULL, NULL, NULL, 'Y'),
-	(103, 'MAJOR (Rtd.)', 'MAJOR (Rtd.)', NULL, 'सेनानी (अ.प्रा.)', 'सेनानी (अ.प्रा.)', NULL, NULL, NULL, NULL, 'Y'),
-	(104, 'LIEUTENANT COLONEL (Rtd.)', 'LT COL (Rtd.)', NULL, 'प्र. से. (अ.प्रा.)', 'प्र. से. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'Y'),
-	(105, 'NAYEB SUBBA', 'NA.SU.', NULL, 'नायव सुब्बा', 'नायव सुब्बा', NULL, NULL, NULL, NULL, 'Y'),
-	(106, 'SU.KA. (Rtd.)', 'SU.KA. (Rtd.)', NULL, 'सु.क. (अ.प्रा.)', 'सु.क. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'Y'),
-	(107, 'JAMA.KA. (Rtd.)', 'JAMA.KA. (Rtd.)', NULL, 'जम.क. (अ.प्रा.)', 'जम.क. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'Y'),
-	(108, 'Maj. Gen. (Rtd.)', 'Maj. Gen. (Rtd.)', NULL, 'उ.र. (अ.प्रा.)', 'उ.र. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'Y'),
-	(109, 'COLONEL (Rtd.)', 'COL (Rtd.)', 'dxf ;]gfgL', 'म.से. (अ.प्रा.)', 'म.से. (अ.प्रा.)', 'd=;]=', 'Adhikrit', '/F=k= k|yd >])fL', 'GAZATED I', 'Y'),
-	(110, 'HONORARY MAJOR GENERAL', 'HON MAJ GEN', NULL, 'मा.उ.र.', 'मानार्थ उप रथी', NULL, 'Rathi', '', '', 'Y'),
+	(100, 'FELLOW CHARTERED ACCOUNTANT', 'FCA', NULL, 'वरिष्ठ चार्टर्ड एकाउन्टेन्ट', 'वरिष्ठ चार्टर्ड एकाउन्टेन्ट', NULL, NULL, NULL, NULL, 'N'),
+	(101, 'JAG BRIGADIER GENERAL', 'JAG BRI GEN', ';xfos /yL', 'प्राड सहायक रथी', 'प्राड सहायक रथी', ';=/', 'Rathi', '/F=k= k|yd >])fL', 'GAZATED I', 'N'),
+	(102, 'SECTION OFFICER', 'SECTION OFFICER', NULL, 'शाखा अधिकृत', 'शाखा अधिकृत', NULL, NULL, NULL, NULL, 'N'),
+	(103, 'MAJOR (Rtd.)', 'MAJOR (Rtd.)', NULL, 'सेनानी (अ.प्रा.)', 'सेनानी (अ.प्रा.)', NULL, NULL, NULL, NULL, 'N'),
+	(104, 'LIEUTENANT COLONEL (Rtd.)', 'LT COL (Rtd.)', NULL, 'प्र. से. (अ.प्रा.)', 'प्र. से. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'N'),
+	(105, 'NAYEB SUBBA', 'NA.SU.', NULL, 'नायव सुब्बा', 'नायव सुब्बा', NULL, NULL, NULL, NULL, 'N'),
+	(106, 'SU.KA. (Rtd.)', 'SU.KA. (Rtd.)', NULL, 'सु.क. (अ.प्रा.)', 'सु.क. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'N'),
+	(107, 'JAMA.KA. (Rtd.)', 'JAMA.KA. (Rtd.)', NULL, 'जम.क. (अ.प्रा.)', 'जम.क. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'N'),
+	(108, 'Maj. Gen. (Rtd.)', 'Maj. Gen. (Rtd.)', NULL, 'उ.र. (अ.प्रा.)', 'उ.र. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'N'),
+	(109, 'COLONEL (Rtd.)', 'COL (Rtd.)', 'dxf ;]gfgL', 'म.से. (अ.प्रा.)', 'म.से. (अ.प्रा.)', 'd=;]=', 'Adhikrit', '/F=k= k|yd >])fL', 'GAZATED I', 'N'),
+	(110, 'HONORARY MAJOR GENERAL', 'HON MAJ GEN', NULL, 'मा.उ.र.', 'मानार्थ उप रथी', NULL, 'Rathi', '', '', 'N'),
 	(111, 'Police Constable', 'Police Constable', NULL, 'प्रहरी जवान', 'प्रहरी जवान', NULL, NULL, NULL, NULL, NULL),
 	(112, 'Police Head Constable', 'Police Head Constable', NULL, 'प्रहरी हवल्दार', 'प्रहरी हवल्दार', NULL, NULL, NULL, NULL, NULL),
 	(113, 'Assistant Sub Inspector of Police', 'Assistant Sub Inspector of Police', NULL, 'प्रहरी सहायक निरीक्षक', 'प्रहरी सहायक निरीक्षक', NULL, NULL, NULL, NULL, NULL),
@@ -150,23 +150,23 @@ INSERT INTO `def_rank` (`rank_code`, `rank_name`, `rank_abvt`, `rank_nep`, `rank
 	(127, 'Assistant Sub Inspector (APF)', 'ASI', NULL, 'सशस्त्र प्रहरी सहायक निरीक्षक', 'सशस्त्र प्रहरी सहायक निरीक्षक', NULL, NULL, NULL, NULL, NULL),
 	(128, 'Sub Inspector(APF)', 'SI', NULL, 'सशस्त्र प्रहरी नायब निरीक्षक', 'सशस्त्र प्रहरी नायब निरीक्षक', NULL, NULL, NULL, NULL, NULL),
 	(129, 'Senior Sub Inspector (APF)', 'SSI', NULL, 'सशस्त्र प्रहरी वरिष्ठ नायब निरीक्षक', 'सशस्त्र प्रहरी वरिष्ठ नायब निरीक्षक', NULL, NULL, NULL, NULL, NULL),
-	(130, 'Inspector(APF)', 'INS', NULL, 'सशस्त्र प्रहरी निरीक्षक', 'सशस्त्र प्रहरी निरीक्षक', NULL, NULL, NULL, NULL, 'Y'),
-	(131, 'Deputy Superintendent (APF)', 'DSP', NULL, 'सशस्त्र प्रहरी नायब उपरीक्षक', 'सशस्त्र प्रहरी नायब उपरीक्षक', NULL, NULL, NULL, NULL, 'Y'),
+	(130, 'Inspector(APF)', 'INS', NULL, 'सशस्त्र प्रहरी निरीक्षक', 'सशस्त्र प्रहरी निरीक्षक', NULL, NULL, NULL, NULL, 'N'),
+	(131, 'Deputy Superintendent (APF)', 'DSP', NULL, 'सशस्त्र प्रहरी नायब उपरीक्षक', 'सशस्त्र प्रहरी नायब उपरीक्षक', NULL, NULL, NULL, NULL, 'N'),
 	(132, 'Superintendent (APF)', 'SP', NULL, 'सशस्त्र प्रहरी उपरीक्षक', 'सशस्त्र प्रहरी उपरीक्षक', NULL, NULL, NULL, NULL, NULL),
 	(133, 'Senior Superintendent (APF)', 'SSP', NULL, 'सशस्त्र प्रहरी वरिष्ठ उपरीक्षक', 'सशस्त्र प्रहरी वरिष्ठ उपरीक्षक', NULL, NULL, NULL, NULL, NULL),
 	(134, 'Deputy Inspector General (APF)', 'DIG', NULL, 'सशस्त्र प्रहरी नायब महानिरीक्षक', 'सशस्त्र प्रहरी नायब महानिरीक्षक', NULL, NULL, NULL, NULL, NULL),
 	(135, 'Additional Inspector General (APF)', 'AIG', NULL, 'सशस्त्र प्रहरी अतिरिक्त महानिरीक्षक', 'सशस्त्र प्रहरी अतिरिक्त महानिरीक्षक', NULL, NULL, NULL, NULL, NULL),
 	(136, 'Inspector General (APF)', 'IG', NULL, 'सशस्त्र प्रहरी महानिरीक्षक', 'सशस्त्र प्रहरी महानिरीक्षक', NULL, NULL, NULL, NULL, NULL),
-	(137, 'Brigj. Gen. (Rtd.)', 'Brigj. Gen. (Rtd.)', NULL, 'स.र. (अ.प्रा.)', 'स.र. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'Y'),
-	(138, 'PRITANA QUARTERMASTER HAVALDAR', 'PRI HAV MAJ', NULL, 'पृतना प्रबन्ध हुद्बा', 'पृतना प्रबन्ध हुद्बा', NULL, NULL, NULL, NULL, 'Y'),
-	(139, 'BRIGADE QUARTERMASTER HAVALDAR', 'BRIG  QUARTERMASTER HAVALDAR', NULL, 'बाहिनी प्रबन्ध हुद्बा', 'बाहिनी प्रबन्ध हुद्बा', NULL, NULL, NULL, NULL, 'Y'),
-	(140, 'HONORARY COLONEL', 'HON COL', NULL, 'मानार्थ महा सेनानी', 'मानार्थ महा सेनानी', NULL, 'Adhikrit', NULL, 'GAZATED I', 'Y'),
-	(141, 'HONORARY COLONEL (Rtd.)', 'HON COL (Rtd.)', NULL, 'मानार्थ महा सेनानी (अ.प्रा.)', 'मानार्थ महा सेनानी (अ.प्रा.)', NULL, 'Adhikrit', NULL, 'GAZATED I', 'Y'),
-	(142, 'LIEUTENANT GENERAL(Rtd.)', 'Lt.Gen.(Rtd.)', NULL, 'रथी (अ.प्रा.)', 'रथी(अ.प्रा.)', NULL, 'Rathi', NULL, NULL, 'Y'),
-	(143, 'HONORARY BRIGADIER GENERAL (Ret.)', 'HONORARY BRIGADIER GENERAL (Ret.)', NULL, 'मानार्थ सहायक रथी', 'मानार्थ सहायक रथी', NULL, NULL, NULL, NULL, 'Y'),
-	(144, 'BRIGADE HAVALDAR MAJOR', 'BRIG  HAV MAJ', NULL, 'बाहिनी कार्य हुद्बा', 'बाहिनी कार्य हुद्बा', NULL, NULL, NULL, NULL, 'Y'),
-	(145, 'LOGISTIC ADMINISTRATIVE LIEUTENANT COLONEL', 'L.A. Lt.Col.', NULL, 'ब.का. प्रमुख सेनानी', 'ब.का. प्रमुख सेनानी', NULL, NULL, NULL, NULL, 'Y'),
-	(147, 'LOG ADM CAPTAIN', 'LOG ADM CAPTAIN', ';x ;]gfgL', 'ब.का. सह सेनानी', 'ब.का. सह सेनानी', ';x=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'Y');
+	(137, 'Brigj. Gen. (Rtd.)', 'Brigj. Gen. (Rtd.)', NULL, 'स.र. (अ.प्रा.)', 'स.र. (अ.प्रा.)', NULL, NULL, NULL, NULL, 'N'),
+	(138, 'PRITANA QUARTERMASTER HAVALDAR', 'PRI HAV MAJ', NULL, 'पृतना प्रबन्ध हुद्बा', 'पृतना प्रबन्ध हुद्बा', NULL, NULL, NULL, NULL, 'N'),
+	(139, 'BRIGADE QUARTERMASTER HAVALDAR', 'BRIG  QUARTERMASTER HAVALDAR', NULL, 'बाहिनी प्रबन्ध हुद्बा', 'बाहिनी प्रबन्ध हुद्बा', NULL, NULL, NULL, NULL, 'N'),
+	(140, 'HONORARY COLONEL', 'HON COL', NULL, 'मानार्थ महा सेनानी', 'मानार्थ महा सेनानी', NULL, 'Adhikrit', NULL, 'GAZATED I', 'N'),
+	(141, 'HONORARY COLONEL (Rtd.)', 'HON COL (Rtd.)', NULL, 'मानार्थ महा सेनानी (अ.प्रा.)', 'मानार्थ महा सेनानी (अ.प्रा.)', NULL, 'Adhikrit', NULL, 'GAZATED I', 'N'),
+	(142, 'LIEUTENANT GENERAL(Rtd.)', 'Lt.Gen.(Rtd.)', NULL, 'रथी (अ.प्रा.)', 'रथी(अ.प्रा.)', NULL, 'Rathi', NULL, NULL, 'N'),
+	(143, 'HONORARY BRIGADIER GENERAL (Ret.)', 'HONORARY BRIGADIER GENERAL (Ret.)', NULL, 'मानार्थ सहायक रथी', 'मानार्थ सहायक रथी', NULL, NULL, NULL, NULL, 'N'),
+	(144, 'BRIGADE HAVALDAR MAJOR', 'BRIG  HAV MAJ', NULL, 'बाहिनी कार्य हुद्बा', 'बाहिनी कार्य हुद्बा', NULL, NULL, NULL, NULL, 'N'),
+	(145, 'LOGISTIC ADMINISTRATIVE LIEUTENANT COLONEL', 'L.A. Lt.Col.', NULL, 'ब.का. प्रमुख सेनानी', 'ब.का. प्रमुख सेनानी', NULL, NULL, NULL, NULL, 'N'),
+	(147, 'LOG ADM CAPTAIN', 'LOG ADM CAPTAIN', ';x ;]gfgL', 'ब.का. सह सेनानी', 'ब.का. सह सेनानी', ';x=;]=', 'Adhikrit', '/f=k= t]>f] >])fL', 'GAZATED III', 'N');
 
 -- Dumping structure for table hr.event_participants
 CREATE TABLE IF NOT EXISTS `event_participants` (
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS `leave_balance` (
   UNIQUE KEY `unique_personnel` (`personnel_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=190 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Dumping data for table hr.leave_balance: ~6 rows (approximately)
+-- Dumping data for table hr.leave_balance: ~7 rows (approximately)
 INSERT INTO `leave_balance` (`id`, `personnel_id`, `gharpari_bida_days`, `parba_bida_days`, `bhaeepari_bida_days`, `last_updated`) VALUES
 	(183, '8512', 15.0, 12.0, 10.0, '2026-06-04 04:38:43'),
 	(184, '8571', 15.0, 12.0, 10.0, '2026-06-04 09:20:18'),
