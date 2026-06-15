@@ -14,12 +14,15 @@ if (session_status() === PHP_SESSION_NONE) {
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/nepali.datepicker.v4.0.8.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
 
 
     <!-- <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"> -->
     <?php include('styles.php'); ?>
+    <?php include('css/style.css'); ?>
 </head>
-<body data-page="<?php echo $activePage ?? 'dashboard'; ?>" style="font-family:kalimati">
+<body data-page="<?php echo $activePage ?? 'dashboard'; ?>" style="font-family:kalimati;himal bold">
     <?php include('includes/navbar.php'); ?>
     <div class="layout">
         <?php include('sidebar.php'); ?>

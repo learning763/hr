@@ -9,6 +9,7 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/nepali.datepicker.v4.0.8.min.js"></script>
 
     <script>
         $(document).ready(function () {
@@ -62,10 +63,18 @@
                 }
             });
         });
-
+// datatable initialize 
         $('.datatable').DataTable({
             responsive: true
         });
+
+// Initialize the nepali datepicker  
+// $('.nepali-datepicker').each(function() {
+//     $(this).nepaliDatePicker();
+// });  
+$(document).ready(function () {
+    $('.nepali-datepicker').nepaliDatePicker();
+});  
 
     </script>
 </footer>

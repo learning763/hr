@@ -7,9 +7,9 @@ include('helper/rank.php');
 include('includes/config.php');
 include('includes/pagination.php');
 
-$pageTitle = "";
-// $pageSubtitle = "View and manage personnel information";
-// $activePage = "profile";
+$pageTitle = "Personnel Profile";
+$pageSubtitle = "View and manage personnel information";
+$activePage = "profile";
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
@@ -37,8 +37,8 @@ $limit = 10;
 $offset = ($page - 1) * $limit;
 
 // Get search parameter
-$search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
-$selected_personnel_number = isset($_GET['personnel_number']) ? $_GET['personnel_number'] : '';
+// $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
+// $selected_personnel_number = isset($_GET['personnel_number']) ? $_GET['personnel_number'] : '';
 
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
@@ -234,11 +234,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
 
 // Get total count for personnel
 if (!empty($search_term)) {
-    $searchTerm = "%$search_term%";
-    $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM personnel WHERE personnel_number LIKE ? OR full_name_ne LIKE ? OR rank LIKE ? OR unit LIKE ?");
-    $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
-    $totalRecords = $countStmt->fetch(PDO::FETCH_ASSOC)['total'];
+    // $searchTerm = "%$search_term%";
+    // // $countStmt = $pdo->prepare("SELECT COUNT(*) as total FROM personnel WHERE personnel_number LIKE ? OR full_name_ne LIKE ? OR rank LIKE ? OR unit LIKE ?");
+    // // $countStmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]);
+   
 
+  $stmt = $pdo->prepare("
+    SELECT p.*,
+           COALESCE(dr.rank_unicode, p.rank) AS rank_unicode
+    FROM personnel p
+    LEFT JOIN def_rank dr ON p.rank = dr.rank_code
+    WHERE p.personnel_number LIKE ?
+       OR p.full_name_ne LIKE ?
+       OR p.rank LIKE ?
+       OR p.unit LIKE ?
+    ORDER BY p.full_name_ne
+    LIMIT " . (int)$limit . "
+    OFFSET " . (int)$offset
+);
+$stmt->execute([$searchTerm, $searchTerm, $searchTerm, $searchTerm]); 
+ $totalRecords = $countStmt->fetch(PDO::FETCH_ASSOC)['total']; 
+
+    // $stmt = $pdo->prepare("SELECT * FROM personnel WHERE personnel_number LIKE ? OR full_name_ne LIKE ? OR rank LIKE ? OR unit LIKE ? ORDER BY full_name_ne LIMIT " . (int) $limit . " OFFSET " . (int) $offset);
     $stmt = $pdo->prepare("
     SELECT p.*,
            COALESCE(dr.rank_unicode, p.rank) AS rank_unicode
@@ -333,9 +350,10 @@ ob_start();
         }
 
         .army-header {
-            background: linear-gradient(135deg, #0f2c24 0%, #1a5a4a 60%, #134438 100%);
-            border-radius: 24px 24px 0 0;
-            padding: 25px 30px;
+            background: linear-gradient(135deg, #0f2c24 0%, #1a5a4a 100%);
+            border-radius: 20px;
+            margin-bottom: 30px;
+            padding: 30px;
             position: relative;
             overflow: hidden;
         }
@@ -355,31 +373,22 @@ ob_start();
         .army-header-content {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 25px;
             position: relative;
             z-index: 1;
-            flex-wrap: wrap;
-        }
-
-        .army-header-brand {
-            display: flex;
-            align-items: center;
-            gap: 25px;
         }
 
         .army-logo {
-            width: 70px;
-            height: 70px;
+            width: 80px;
+            height: 80px;
             background: rgba(255, 215, 0, 0.15);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 36px;
+            font-size: 42px;
             color: #ffd700;
             border: 2px solid rgba(255, 215, 0, 0.3);
-            flex-shrink: 0;
         }
 
         .army-title h1 {
@@ -600,105 +609,106 @@ ob_start();
 
         .profile-cover {
             background: linear-gradient(135deg, #1a5a4a, #0f3d32);
-            padding: 30px;
+            height: 180px;
             position: relative;
-            display: flex;
-            align-items: center;
-            gap: 30px;
-            flex-wrap: wrap;
         }
 
-        .profile-cover::before {
-            content: '';
+        .cover-overlay {
             position: absolute;
-            top: -50%;
-            right: -10%;
-            width: 50%;
-            height: 200%;
-            background: rgba(255, 215, 0, 0.04);
-            transform: rotate(35deg);
-            pointer-events: none;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6));
         }
 
         .profile-avatar-wrapper {
-            position: relative;
-            flex-shrink: 0;
-            z-index: 1;
+            position: absolute;
+            bottom: -50px;
+            left: 40px;
         }
 
         .profile-avatar {
-            width: 160px;
-            height: 160px;
-            border-radius: 20px;
-            object-fit: contain;
-            object-position: center;
-            background: white;
-            border: 4px solid rgba(255, 255, 255, 0.85);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid white;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
             cursor: pointer;
-            transition: transform 0.25s ease;
-        }
-
-        .profile-avatar:hover {
-            transform: scale(1.03);
+            background: white;
         }
 
         .profile-avatar-placeholder {
-            width: 160px;
-            height: 160px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.15);
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
             backdrop-filter: blur(10px);
             display: flex;
             align-items: center;
             justify-content: center;
-            border: 4px solid rgba(255, 255, 255, 0.85);
+            border: 4px solid white;
             cursor: pointer;
             color: #ffd700;
-            font-size: 60px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+            font-size: 55px;
         }
 
         .avatar-edit-btn {
             position: absolute;
-            bottom: -8px;
-            right: -8px;
-            width: 38px;
-            height: 38px;
+            bottom: 10px;
+            right: 10px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: #ffd700;
-            border: 3px solid white;
+            border: 2px solid white;
             color: #1a5a4a;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
         }
 
         .avatar-edit-btn:hover {
             transform: scale(1.1);
         }
 
+        .close-profile {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.2s;
+        }
+
+        .close-profile:hover {
+            background: rgba(220, 38, 38, 0.8);
+        }
+
         .profile-info-bar {
-            flex: 1;
+            padding: 20px 30px 20px 190px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 20px;
-            position: relative;
-            z-index: 1;
-            min-width: 250px;
+            border-bottom: 1px solid #f1f5f9;
         }
 
         .profile-name-section h2 {
-            font-size: 26px;
-            color: #ffffff;
-            margin-bottom: 10px;
+            font-size: 24px;
+            color: #1e293b;
+            margin-bottom: 8px;
             font-weight: 700;
-            letter-spacing: 0.5px;
         }
 
         .profile-badges {
@@ -713,28 +723,20 @@ ob_start();
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 5px 14px;
-            background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            padding: 4px 12px;
+            background: #f1f5f9;
             border-radius: 20px;
             font-size: 12px;
-            color: #f1f5f9;
-            backdrop-filter: blur(4px);
-        }
-
-        .badge-rank i,
-        .badge-id i,
-        .badge-unit i {
-            color: #ffd700;
+            color: #475569;
         }
 
         .edit-main-btn {
-            background: #ffd700;
-            color: #0f2c24;
+            background: #1a5a4a;
+            color: white;
             border: none;
             padding: 10px 24px;
             border-radius: 10px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
@@ -743,18 +745,8 @@ ob_start();
         }
 
         .edit-main-btn:hover {
-            background: #ffe44d;
+            background: #0f3d32;
             transform: translateY(-2px);
-        }
-
-        .download-profile-btn {
-            background: rgba(255, 255, 255, 0.12);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            color: #ffffff;
-        }
-
-        .download-profile-btn:hover {
-            background: rgba(255, 255, 255, 0.22);
         }
 
         .stats-grid {
@@ -1317,34 +1309,22 @@ ob_start();
                 grid-column: span 1;
             }
 
-            .profile-cover {
+            .profile-info-bar {
                 padding: 20px;
-                flex-direction: column;
-                text-align: center;
+            }
+
+            .profile-avatar-wrapper {
+                left: 20px;
             }
 
             .profile-avatar,
             .profile-avatar-placeholder {
-                width: 110px;
-                height: 110px;
+                width: 90px;
+                height: 90px;
             }
 
             .profile-info-bar {
-                justify-content: center;
-                text-align: center;
-            }
-
-            .profile-name-section {
-                width: 100%;
-            }
-
-            .profile-badges {
-                justify-content: center;
-            }
-
-            .action-buttons-group {
-                width: 100%;
-                justify-content: center;
+                padding-left: 130px;
             }
 
             .profile-tabs {
@@ -1375,18 +1355,121 @@ ob_start();
 
 <body>
 
+    <!-- Nepali Army Header -->
+    <div class="army-header">
+        <div class="army-header-content">
+            <div class="army-logo">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="army-title">
+                <h1>NEPALI ARMY</h1>
+                <p>DIRECTORATE OF CYBER SECURITY</p>
+                <span>STAFF PROFILE FORM</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Personnel List Section -->
+    <div class="personnel-list-section">
+        <!-- <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="personnelSearch" class="search-input"
+                placeholder="Search by Name, Number, Rank, or Unit..."
+                value="<?php //echo htmlspecialchars($search_term); ?>">
+            <button id="clearSearch" class="clear-search"
+                style="display: <?php //echo !empty($search_term) ? 'flex' : 'none'; ?>;">✕</button>
+        </div> -->
+
+        <div class="personnel-table-container">
+            <table class="datatable">
+                <thead>
+                    <tr>
+                        <th>सि.नं.</th>
+                        <th>फोटो</th>
+                        <th>व्य.नं.</th>
+                        <th>दर्जा</th>
+                        <th>नामथर</th>
+                        <th>युनिट</th>
+                        <th>बहालवाला/अवकास</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($allPersonnel)): ?>
+                        <tr class="empty-row">
+                            <td colspan="8" style="text-align: center; padding: 40px;">No personnel records found</td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($allPersonnel as $index => $person): ?>
+                            <tr class="personnel-row <?php echo ($person['personnel_number'] == $selected_personnel_number) ? 'active-row' : ''; ?>"
+                                data-personnel-number="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                                <td class="sn-cell"><?php echo $offset + $index + 1; ?></td>
+                                <td class="photo-cell">
+                                    <?php if (!empty($person['profile_picture_path'])): ?>
+                                        <img src="<?php echo htmlspecialchars($person['profile_picture_path']); ?>"
+                                            class="table-profile-img"
+                                            onclick="event.stopPropagation(); viewProfilePhoto('<?php echo htmlspecialchars($person['profile_picture_path']); ?>', '<?php echo htmlspecialchars($person['full_name_ne']); ?>')">
+                                    <?php else: ?>
+                                        <div class="table-avatar-placeholder"
+                                            onclick="event.stopPropagation(); editProfilePhoto('<?php echo htmlspecialchars($person['personnel_number']); ?>', '<?php echo htmlspecialchars($person['full_name_ne']); ?>')">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="personnel-no"><?php echo htmlspecialchars($person['personnel_number']); ?></td>
+                                <td class="rank-cell"><?php echo htmlspecialchars($person['rank_unicode']); ?></td>
+                                <td class="name-cell"><?php echo htmlspecialchars($person['full_name_ne']); ?></td>
+                                <td><?php echo htmlspecialchars($person['unit']); ?></td>
+                                <td><span
+                                        class="status-badge status-<?php echo strtolower($person['current_status'] ?? 'active'); ?>"><?php echo htmlspecialchars($person['current_status'] ?? 'Active'); ?></span>
+                                </td>
+                                <td><a href="?personnel_number=<?php echo urlencode($person['personnel_number']); ?>&page=<?php echo $page; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?>"
+                                        class="view-profile-btn"><i class="fas fa-eye"></i> View</a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- <div class="pagination-wrapper">
+            <div class="pagination-info">Showing <?php echo $offset + 1; ?> to
+                <?php echo min($offset + $limit, $totalRecords); ?> of <?php echo $totalRecords; ?> entries
+            </div>
+            <div class="pagination">
+                <?php if ($page > 1): ?>
+                    <a href="?page=1<?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?><?php echo !empty($selected_personnel_number) ? '&personnel_number=' . urlencode($selected_personnel_number) : ''; ?>"
+                        class="page-btn"><i class="fas fa-angle-double-left"></i></a>
+                    <a href="?page=<?php echo $page - 1; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?><?php echo !empty($selected_personnel_number) ? '&personnel_number=' . urlencode($selected_personnel_number) : ''; ?>"
+                        class="page-btn"><i class="fas fa-angle-left"></i></a>
+                <?php endif; ?>
+
+                <?php
+                $start = max(1, $page - 2);
+                $end = min($totalPages, $page + 2);
+                for ($i = $start; $i <= $end; $i++): ?>
+                    <a href="?page=<?php echo $i; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?><?php echo !empty($selected_personnel_number) ? '&personnel_number=' . urlencode($selected_personnel_number) : ''; ?>"
+                        class="page-btn <?php echo $i == $page ? 'active' : ''; ?>"><?php echo $i; ?></a>
+                <?php endfor; ?>
+
+                <?php if ($page < $totalPages): ?>
+                    <a href="?page=<?php echo $page + 1; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?><?php echo !empty($selected_personnel_number) ? '&personnel_number=' . urlencode($selected_personnel_number) : ''; ?>"
+                        class="page-btn"><i class="fas fa-angle-right"></i></a>
+                    <a href="?page=<?php echo $totalPages; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?><?php echo !empty($selected_personnel_number) ? '&personnel_number=' . urlencode($selected_personnel_number) : ''; ?>"
+                        class="page-btn"><i class="fas fa-angle-double-right"></i></a>
+                <?php endif; ?>
+            </div>
+        </div> -->
+    </div>
+
     <?php if ($selectedPersonnel): ?>
 
         <!-- Premium Profile Card -->
         <div class="premium-profile" id="profileContainer">
-            <!-- Merged Header + Cover Section -->
+            <!-- Cover Image Section -->
             <div class="profile-cover">
-                <!-- Army Branding -->
-                <div class="army-header-content" style="width: 100%; position: absolute; top: 18px; left: 30px; right: 30px;">
-                    
-                </div>
-
-                <div class="profile-avatar-wrapper" style="margin-top: 55px;">
+                <div class="cover-overlay"></div>
+                <div class="profile-avatar-wrapper">
                     <?php if (!empty($selectedPersonnel['profile_picture_path'])): ?>
                         <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>"
                             class="profile-avatar" id="mainProfilePhoto"
@@ -1402,25 +1485,28 @@ ob_start();
                         <i class="fas fa-camera"></i>
                     </button>
                 </div>
+                <button class="close-profile" id="closeProfileBtn"><i class="fas fa-times"></i></button>
+            </div>
 
-                <!-- Profile Info Bar -->
-                <div class="profile-info-bar" style="margin-top: 55px;">
-                    <div class="profile-name-section">
-                        <h2><?php echo $selectedPersonnel['rank_unicode']. ' ' .htmlspecialchars($selectedPersonnel['full_name_ne']); ?></h2>
-                        <div class="profile-badges">
-                            <span class="badge-id"><i class="fas fa-id-card"></i>
-                                <?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?></span>
-                            <span class="badge-unit"><i class="fas fa-building"></i>
-                                <?php echo htmlspecialchars($selectedPersonnel['unit'] ?? 'Corps of Engineers'); ?></span>
-                        </div>
+            <!-- Profile Info Bar -->
+            <div class="profile-info-bar">
+                <div class="profile-name-section">
+                    <h2><?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?></h2>
+                    <div class="profile-badges">
+                        <span class="badge-rank"><i class="fas fa-star-of-life"></i>
+                            <?php echo htmlspecialchars($selectedPersonnel['rank_unicode']); ?></span>
+                        <span class="badge-id"><i class="fas fa-id-card"></i>
+                            <?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?></span>
+                        <span class="badge-unit"><i class="fas fa-building"></i>
+                            <?php echo htmlspecialchars($selectedPersonnel['unit'] ?? 'Corps of Engineers'); ?></span>
                     </div>
-                    <div class="action-buttons-group">
-                        <button class="edit-main-btn" id="editProfileBtn"><i class="fas fa-edit"></i> Edit Profile</button>
-                        <a href="print_profile.php?personnel_number=<?php echo urlencode($selectedPersonnel['personnel_number']); ?>"
-                            class="download-profile-btn" target="_blank">
-                            <i class="fas fa-download"></i> Download Profile
-                        </a>
-                    </div>
+                </div>
+                <div class="action-buttons-group">
+                    <button class="edit-main-btn" id="editProfileBtn"><i class="fas fa-edit"></i> Edit Profile</button>
+                    <a href="print_profile.php?personnel_number=<?php echo urlencode($selectedPersonnel['personnel_number']); ?>"
+                        class="download-profile-btn" target="_blank">
+                        <i class="fas fa-download"></i> Download Profile
+                    </a>
                 </div>
             </div>
 
@@ -1993,6 +2079,57 @@ ob_start();
         // Counters for dynamic training items
         let professionalTrainingCounter = <?php echo !empty($professional_trainings_list) ? count($professional_trainings_list) : 1; ?>;
         let foreignTrainingCounter = <?php echo !empty($foreign_trainings_list) ? count($foreign_trainings_list) : 1; ?>;
+
+        const searchInput = document.getElementById('personnelSearch');
+        const clearSearchBtn = document.getElementById('clearSearch');
+        const closeProfileBtn = document.getElementById('closeProfileBtn');
+
+        if (closeProfileBtn) {
+            closeProfileBtn.addEventListener('click', () => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('personnel_number');
+                window.location.href = url.toString();
+            });
+        }
+
+        let searchTimeout;
+        if (searchInput) {
+            searchInput.addEventListener('input', function () {
+                const term = this.value.trim();
+                if (clearSearchBtn) clearSearchBtn.style.display = term ? 'flex' : 'none';
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    const url = new URL(window.location.href);
+                    if (term) url.searchParams.set('search', term);
+                    else url.searchParams.delete('search');
+                    url.searchParams.delete('page');
+                    window.location.href = url.toString();
+                }, 500);
+            });
+        }
+
+        if (clearSearchBtn) {
+            clearSearchBtn.addEventListener('click', () => {
+                if (searchInput) searchInput.value = '';
+                const url = new URL(window.location.href);
+                url.searchParams.delete('search');
+                window.location.href = url.toString();
+            });
+        }
+
+        document.querySelectorAll('.personnel-row').forEach(row => {
+            row.addEventListener('click', function (e) {
+                if (e.target.closest('.view-profile-btn')) return;
+                if (e.target.closest('.table-profile-img')) return;
+                if (e.target.closest('.table-avatar-placeholder')) return;
+                const num = this.dataset.personnelNumber;
+                if (num) {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('personnel_number', num);
+                    window.location.href = url.toString();
+                }
+            });
+        });
 
         const tabBtns = document.querySelectorAll('.tab-btn');
         const tabPanes = document.querySelectorAll('.tab-pane');

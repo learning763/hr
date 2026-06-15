@@ -1155,7 +1155,9 @@ ob_start();
             <button class="filter-btn" data-filter="approved">Approved</button>
             <button class="filter-btn" data-filter="rejected">Rejected</button>
         </div>
-        <button class="btn-add" id="newLeaveBtn">+ New Leave Request</button>
+        <div>
+            <button class="btn-add" id="newLeaveBtn">+ New Leave Request</button>
+        </div>
     </div>
 
     <div class="data-table">
@@ -1284,11 +1286,11 @@ ob_start();
                 <div class="date-group">
                     <div class="input-field">
                         <label>बिदा (देखि)<span class="required-star">*</span></label>
-                        <input type="date" id="startDate" required>
+                        <input type="text" id="startDate" class = "nepali-datepicker" required>
                     </div>
                     <div class="input-field">
                         <label>बिदा (सम्म)<span class="required-star">*</span></label>
-                        <input type="date" id="endDate" required>
+                        <input type="text" id="endDate" class = "nepali-datepicker" required>
                     </div>
                 </div>
                 

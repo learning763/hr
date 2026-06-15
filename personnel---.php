@@ -803,15 +803,6 @@ ob_start();
         transform: scale(1.05);
     }
 
-    .btn-view {
-        color: #0891b2;
-    }
-
-    .btn-view:hover {
-        background: #e0f7fa;
-        transform: scale(1.05);
-    }
-
     .btn-photo {
         color: #3b82f6;
     }
@@ -1218,19 +1209,19 @@ ob_start();
 
 <!-- Search and Add Personnel Section -->
 <div class="search-section">
-    <!-- <div class="search-container">
+    <div class="search-container">
         <i class="fas fa-search search-icon"></i>
         <form method="GET" action="" id="searchForm" style="flex: 1;">
             <input type="text" name="search" id="searchInput" class="search-input"
                 placeholder="🔍 Search by name, service no., rank, branch, email or location..."
-                value="<?php //echo htmlspecialchars($search_term); ?>">
-            <?php //if (!empty($search_term)): ?>
+                value="<?php echo htmlspecialchars($search_term); ?>">
+            <?php if (!empty($search_term)): ?>
                 <button type="button" id="clearSearch" class="clear-search">✕</button>
-            <?php //endif; ?>
+            <?php endif; ?>
         </form>
-    </div> -->
+    </div>
 
-    <?php if ($isSuperAdmin || $isAdmin): ?>
+    <?php if ($isSuperAdmin): ?>
         <div class="action-buttons-header">
             <button class="btn-manage-balance" id="manageBalanceBtn">
                 <i class="fas fa-chart-line"></i> Manage Leave Balance
@@ -1369,11 +1360,6 @@ ob_start();
                         <?php if ($isSuperAdmin): ?>
                             <td>
                                 <div class="action-buttons">
-                                    <button class="btn-icon btn-view"
-                                        onclick="viewProfile('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')"
-                                        title="View Profile">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
                                     <button class="btn-icon btn-edit"
                                         onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')"
                                         title="Edit">
@@ -1638,7 +1624,7 @@ ob_start();
                     </div>
                     <div class="form-group">
                         <label>Recruitment Date</label>
-                        <input type="text" id="edit_recruitment_date" name="recruitment_date" class="nepali-datepicker">
+                        <input type="date" id="edit_recruitment_date" name="recruitment_date">
                     </div>
                 </div>
 
@@ -1743,25 +1729,21 @@ ob_start();
                     </div>
                     <div class="form-group">
                         <label>Rank <span class="required-star">*</span></label>
-
-                        <?php
-                        $stmt = $pdo->query("
-            SELECT rank_code, rank_unicode
-            FROM def_rank
-            WHERE is_active = 'Y'
-        ");
-                        $ranks = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                        ?>
-
                         <select id="addRank" name="rank" required>
                             <option value="">Select Rank</option>
-
-                            <?php foreach ($ranks as $rank): ?>
-                                <option value="<?php echo $rank['rank_code']; ?>">
-                                    <?php echo $rank['rank_unicode']; ?>
-                                </option>
-                            <?php endforeach; ?>
-
+                            <option value="General">General</option>
+                            <option value="Lieutenant General">Lieutenant General</option>
+                            <option value="Major General">Major General</option>
+                            <option value="Brigadier General">Brigadier General</option>
+                            <option value="Colonel">Colonel</option>
+                            <option value="Lieutenant Colonel">Lieutenant Colonel</option>
+                            <option value="Major">Major</option>
+                            <option value="Captain">Captain</option>
+                            <option value="Lieutenant">Lieutenant</option>
+                            <option value="Second Lieutenant">Second Lieutenant</option>
+                            <option value="Subedar">Subedar</option>
+                            <option value="Lieutenant Subedar">Lieutenant Subedar</option>
+                            <option value="Jawan">Jawan</option>
                         </select>
                     </div>
                 </div>
@@ -1773,7 +1755,7 @@ ob_start();
                     </div>
                     <div class="form-group">
                         <label>Recruitment Date</label>
-                        <input type="text" id="addRecruitmentDate" name="recruitmentDate" class="nepali-datepicker">
+                        <input type="date" id="addRecruitmentDate" name="recruitmentDate">
                     </div>
                 </div>
 
@@ -1842,7 +1824,7 @@ ob_start();
 <div id="manageBalanceModal" class="modal">
     <div class="modal-content large" style="max-width: 1200px;">
         <div class="modal-header">
-            <h3><i class="fas fa-chart-line"></i> Manage Leave</h3>
+            <h3><i class="fas fa-chart-line"></i> Manage Leave Balance</h3>
             <span class="close" onclick="closeManageBalanceModal()">&times;</span>
         </div>
         <div class="modal-body">
@@ -2179,11 +2161,6 @@ ob_start();
             btn.disabled = false;
         }
     });
-
-    // ==================== VIEW PROFILE ====================
-    function viewProfile(personnelNumber) {
-        window.open('profile.php?personnel_number=' + encodeURIComponent(personnelNumber), '_blank');
-    }
 
     // ==================== OTHER FUNCTIONS ====================
     function viewProfilePhoto(photoPath, name) {
