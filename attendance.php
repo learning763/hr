@@ -94,7 +94,7 @@ ob_start();
 
     body {
         background: #f0f2f5;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-family: 'Kalimati', sans-serif;
     }
 
     /* Search & Action Bar */

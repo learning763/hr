@@ -223,7 +223,7 @@ $show_status_indicator = ($leave['status'] !== 'approved');
         }
 
         body {
-            font-family: 'Times New Roman', 'Kalimati', 'Nirmala UI', serif;
+            font-family: 'Kalimati', 'Times New Roman', 'Nirmala UI', serif;
             background: #d0d0d0;
             padding: 20px;
             font-size: 12.5px;

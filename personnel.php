@@ -1706,7 +1706,7 @@ ob_start();
 <div id="addPersonnelModal" class="modal">
     <div class="modal-content" style="max-width: 900px;">
         <div class="modal-header">
-            <h3><i class="fas fa-user-plus"></i> Add New Personnel</h3>
+            <h3><i class="fas fa-user-plus"></i>नयाँ सैनिक व्यक्ति थप्नुहोस्</h3>
             <span class="close" onclick="closeAddPersonnelModal()">&times;</span>
         </div>
         <div class="modal-body">
@@ -1714,42 +1714,22 @@ ob_start();
             <form id="addPersonnelFormModal">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Personnel Number <span class="required-star">*</span></label>
+                        <label>व्य.न‌ं.<span class="required-star">*</span></label>
                         <input type="text" id="addServiceNo" name="serviceNo" required
                             placeholder="Enter personnel number (e.g., NA-12345)">
-                        <div class="form-hint">Unique personnel number/ID (must be unique)</div>
+                        <!-- <div class="form-hint">Unique personnel number/ID (must be unique)</div> -->
                     </div>
                     <div class="form-group">
-                        <label>Full Name (English) <span class="required-star">*</span></label>
-                        <input type="text" id="addFullName" name="fullName" required placeholder="e.g., John Doe">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Full Name (Nepali)</label>
-                        <input type="text" id="addFullNameNe" name="fullNameNe" placeholder="e.g., जन डो">
-                    </div>
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="addEmail" name="email" placeholder="personnel@example.com">
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Phone Number</label>
-                        <input type="text" id="addPhone" name="phone" placeholder="98XXXXXXXX">
-                    </div>
-                    <div class="form-group">
-                        <label>Rank <span class="required-star">*</span></label>
+                        <label>दर्जा <span class="required-star">*</span></label>
 
                         <?php
-                        $stmt = $pdo->query("
-            SELECT rank_code, rank_unicode
-            FROM def_rank
-            WHERE is_active = 'Y'
-        ");
+                        $stmt = $pdo->query("SELECT 
+                                rank_code,
+                                rank_unicode
+                            FROM def_rank
+                            WHERE is_active = 'Y'
+                            ORDER BY rank_code ASC
+                        ");
                         $ranks = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         ?>
 
@@ -1763,16 +1743,39 @@ ob_start();
                             <?php endforeach; ?>
 
                         </select>
+                    </div>                    
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>नामथर (नेपाली)</label>
+                        <input type="text" id="addFullNameNe" name="fullNameNe" placeholder="e.g., राकेश डंगोल">
+                    </div>
+                    <div class="form-group">
+                        <label>नामथर (अ‌ङ्ग्रेजी) <span class="required-star">*</span></label>
+                        <input type="text" id="addFullName" name="fullName" required placeholder="e.g., John Doe">
+                    </div>
+                                       
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>फोन नं.</label>
+                        <input type="text" id="addPhone" name="phone" placeholder="98XXXXXXXX">
+                    </div> 
+                    <div class="form-group">
+                        <label>ईमेल</label>
+                        <input type="email" id="addEmail" name="email" placeholder="personnel@example.com">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Unit/Branch</label>
+                        <label>युनिट</label>
                         <input type="text" id="addBranch" name="branch" placeholder="e.g., Infantry, Signals">
                     </div>
                     <div class="form-group">
-                        <label>Recruitment Date</label>
+                        <label>भर्ना मिति</label>
                         <input type="text" id="addRecruitmentDate" name="recruitmentDate" class="nepali-datepicker">
                     </div>
                 </div>

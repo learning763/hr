@@ -2,6 +2,40 @@
 header('Content-Type: application/json');
 require_once 'includes/config.php';
 
+//to fetch data from database
+$action = $_GET['action'] ?? '';
+
+if ($action == 'get_dropdowns') {
+
+    // Fetch Rank
+    $rankStmt = $pdo->prepare("
+        SELECT rank_code, rank_unicode
+        FROM def_rank
+        WHERE is_active='Y'
+        ORDER BY rank_code
+    ");
+    $rankStmt->execute();
+    $ranks = $rankStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Fetch Department
+    $deptStmt = $pdo->prepare("
+        SELECT id, name_nep, location
+        FROM def_department
+        WHERE is_active='Y'
+        ORDER BY id
+    ");
+    $deptStmt->execute();
+    $departments = $deptStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode([
+        'success' => true,
+        'ranks' => $ranks,
+        'departments' => $departments
+    ]);
+
+    exit;
+}
+
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'error' => 'Invalid request method']);

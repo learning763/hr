@@ -328,7 +328,7 @@ ob_start();
         }
 
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Kalimati', sans-serif;
             background: #f0f2f5;
         }
 

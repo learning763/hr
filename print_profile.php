@@ -64,7 +64,7 @@ function calculateYearsOfService($join_date) {
         }
         
         body {
-            font-family: 'Times New Roman', Arial, sans-serif;
+            font-family: 'Kalimati', 'Times New Roman', Arial, sans-serif;
             background: white;
             padding: 20px;
         }

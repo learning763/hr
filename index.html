@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>HRMS | Nepali Army Personnel Portal</title>
     <!-- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"> -->
-    <link href="/css/inter.css" rel="stylesheet">
+    <!-- <link href="/hrs/css/inter.css" rel="stylesheet"> -->
 
-    <!-- <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet"> -->
-    <link href="/css/fontawesome.css" rel="stylesheet">
+    <link href="/hrs/css/fontawesome.css" rel="stylesheet">
+    <link href="/hrs/plugins/select2/css/select2.min.css" rel="stylesheet">
+    <link href="/hrs/plugins/select2/css/select2-bootstrap-5-theme.min.css" rel="stylesheet">
 
     <style>
         * {
@@ -18,7 +19,7 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Kalimati';
             background: linear-gradient(135deg, #0a2e25 0%, #1a5a4a 50%, #0d3d32 100%);
             min-height: 100vh;
             display: flex;
@@ -498,12 +499,12 @@
         </div>
         <form id="loginForm">
             <div class="input-field">
-                <label><i class="fas fa-envelope"></i> Email Address <span class="required-star">*</span></label>
+                <label><i class="fa-solid fa-envelope"></i>Email Address <span class="required-star">*</span></label>
                 <div class="input-wrapper">
-                    <i class="fas fa-envelope input-icon"></i>
+                    <i class="fa-solid fa-envelope input-icon"></i>
                     <input type="email" id="loginEmail" placeholder="your.email@nepalarmy.mil.np" autocomplete="email" required>
                 </div>
-            </div>
+            </div><br>
             <div class="input-field">
                 <label><i class="fas fa-lock"></i> Password <span class="required-star">*</span></label>
                 <div class="input-wrapper">
@@ -535,7 +536,7 @@
             <div class="form-grid">
                 <!-- Full name -->
                 <div class="input-field">
-                    <label><i class="fas fa-user"></i> Full Name <span class="required-star">*</span></label>
+                    <label><i class="fas fa-user"></i> Full Name (English)<span class="required-star">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-user input-icon"></i>
                         <input type="text" id="fullName" placeholder="e.g., Rajveer Singh" required>
@@ -552,30 +553,31 @@
                 <!-- Rank dropdown -->
                 <div class="input-field">
                     <label><i class="fas fa-star-of-life"></i> Rank <span class="required-star">*</span></label>
-                    <div class="input-wrapper">
-                        <i class="fas fa-star-of-life input-icon"></i>
-                        <select id="armyRank" required>
-                            <option value="" disabled selected>Select rank</option>
+                    <div class="input-wrapper">                        
+                        <select id="armyRank" required>                            
+                             <option value="">Select Rank</option>
+
+                            <!-- <option value="" disabled selected>Select rank</option>
                             <option>General</option><option>Lieutenant General</option><option>Major General</option>
                             <option>Brigadier General</option><option>Colonel</option><option>Lieutenant Colonel</option>
                             <option>Major</option><option>Captain</option><option>Lieutenant</option>
                             <option>Second Lieutenant</option><option>Subedar Major</option><option>Subedar</option>
                             <option>Naib Subedar</option><option>Havildar</option><option>Naik</option>
-                            <option>Lance Naik</option><option>Sepoy</option>
+                            <option>Lance Naik</option><option>Sepoy</option> -->
                         </select>
                     </div>
                 </div>
                 <!-- Branch / Unit (Arm) -->
                 <div class="input-field">
                     <label><i class="fas fa-building"></i> Unit/Branch <span class="required-star">*</span></label>
-                    <div class="input-wrapper">
-                        <i class="fas fa-building input-icon"></i>
+                    <div class="input-wrapper">                        
                         <select id="branchArm" required>
-                            <option value="" disabled selected>Select branch</option>
+                            <option value="">Select Department</option>
+                            <!-- <option value="" disabled selected>Select branch</option>
                             <option>Infantry</option><option>Armoured Corps</option><option>Artillery</option>
                             <option>Corps of Engineers</option><option>Signals</option><option>Army Aviation</option>
                             <option>Intelligence Corps</option><option>Medical Corps</option><option>Ordnance Corps</option>
-                            <option>EME</option><option>Education Corps</option><option>Judge Advocate General</option>
+                            <option>EME</option><option>Education Corps</option><option>Judge Advocate General</option> -->
                         </select>
                     </div>
                 </div>
@@ -981,6 +983,72 @@
         if(pwdField) updateStrengthMeter('');
         checkMatch();
     });
+
+    //to load rank and department
+    async function loadDropdowns() {
+
+    try {
+
+        const response = await fetch('signup.php?action=get_dropdowns');
+
+        const data = await response.json();
+
+        if (!data.success) return;
+
+        const rank = document.getElementById('armyRank');
+        const dept = document.getElementById('branchArm');
+
+        // Rank
+        data.ranks.forEach(item => {
+
+            const option = document.createElement('option');
+
+            option.value = item.rank_code;
+            option.textContent = `${item.rank_code} - ${item.rank_unicode}`;
+            rank.appendChild(option);
+
+        });
+
+        // Department
+        data.departments.forEach(item => {
+
+            const option = document.createElement('option');
+
+            option.value = item.id;
+            option.textContent = `${item.name_nep}, ${item.location}`;
+
+            dept.appendChild(option);
+
+        });
+
+        // Notify Select2 of new options
+        if (window.$ && $.fn.select2) {
+            $(rank).trigger('change');
+            $(dept).trigger('change');
+        }
+
+    } catch (err) {
+
+        console.error(err);
+
+    }
+
+}
+
+loadDropdowns();
+</script>
+
+<script src="/hrs/js/jquery-3.7.1.min.js"></script>
+<script src="/hrs/plugins/select2/js/select2.min.js"></script>
+<script>
+$(document).ready(function() {
+    $('select').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Select an option',
+        allowClear: true,
+        width: '100%'
+    });
+});
 </script>
 </body>
 </html>

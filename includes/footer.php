@@ -2,7 +2,10 @@
     style="background: #1a3c34; border-top: 1px solid rgba(255,255,255,0.1); padding: 16px 32px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.7); position: sticky; bottom: 0; z-index: 99; margin-top: auto;">
     <span>© 2026 Cyber Directorate HRMS | Version 2.0</span>
     <!-- jQuery (required) -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="/hrs/js/jquery-3.7.1.min.js"></script>
+
+    <!-- Select2 -->
+    <script src="plugins/select2/js/select2.min.js"></script>
 
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -74,7 +77,19 @@
 // });  
 $(document).ready(function () {
     $('.nepali-datepicker').nepaliDatePicker();
-});  
+});
+
+// Initialize Select2 on all select elements (skip if DataTables is used on this page)
+$(document).ready(function () {
+    if ($('.datatable, #contactTable').length === 0) {
+        $('select').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Select an option',
+            allowClear: true,
+            width: '100%'
+        });
+    }
+});
 
     </script>
 </footer>

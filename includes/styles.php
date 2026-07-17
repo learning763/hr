@@ -1,6 +1,13 @@
 <style>
+    @font-face {
+        font-family: 'Kalimati';
+        src: url('/hrs/fonts/kalimati.ttf') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: swap;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f6f9; color: #333; min-height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: 'Kalimati', sans-serif; background: #f4f6f9; color: #333; min-height: 100vh; display: flex; flex-direction: column; }
     a { text-decoration: none; color: inherit; }
     .layout { display: flex; flex: 1; }
     .main-content { flex: 1; display: flex; flex-direction: column; overflow-x: hidden; }
