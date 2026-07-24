@@ -19,7 +19,7 @@ if ($action == 'get_dropdowns') {
 
     // Fetch Department
     $deptStmt = $pdo->prepare("
-        SELECT id, name_nep, location
+        SELECT id, name_nep, name_en, location
         FROM def_department
         WHERE is_active='Y'
         ORDER BY id
@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Get POST data
 $full_name = trim($_POST['full_name'] ?? '');
+$full_name_ne = trim($_POST['full_name_ne'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $rank = trim($_POST['rank'] ?? '');
 $unit = trim($_POST['unit'] ?? '');
@@ -57,6 +58,9 @@ $errors = [];
 
 if (empty($full_name)) {
     $errors[] = 'Full name is required';
+}
+if (empty($full_name_ne)) {
+    $errors[] = 'Nepali full name is required';
 }
 if (empty($email)) {
     $errors[] = 'Email is required';
@@ -114,16 +118,18 @@ try {
     
     // Insert new personnel
     $stmt = $pdo->prepare("
-        INSERT INTO personnel (personnel_number, full_name_en, rank, unit, email, joint_date, password, current_status, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', NOW())
+        INSERT INTO personnel (personnel_number, full_name_en, full_name_ne, rank, unit, email, joint_date, recruitment_date, password, current_status, registered_via, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 'signup', NOW())
     ");
-    
+
     $result = $stmt->execute([
         $personnel_number,
         $full_name,
+        $full_name_ne,
         $rank,
         $unit,
         $email,
+        $joint_date,
         $joint_date,
         $hashed_password
     ]);

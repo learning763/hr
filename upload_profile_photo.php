@@ -5,8 +5,14 @@ require_once 'includes/config.php';
 
 header('Content-Type: application/json');
 
-// Check if user is super admin
-if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] != 2) {
+// Super Admin can update anyone's photo; everyone else may only update their own
+if (!isset($_SESSION['user_role']) || !isset($_SESSION['user_id'])) {
+    echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
+    exit;
+}
+$is_super_admin = ((int) $_SESSION['user_role'] === 2);
+$target_personnel_id = isset($_POST['personnel_id']) ? trim($_POST['personnel_id']) : '';
+if (!$is_super_admin && (string) $target_personnel_id !== (string) $_SESSION['user_id']) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
     exit;
 }

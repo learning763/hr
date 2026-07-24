@@ -11,7 +11,7 @@ $stmt = $pdo->prepare("
         p.rank,
         r.rank_unicode,
         p.unit,
-        p.phone
+        p.contact
     FROM personnel p
     LEFT JOIN def_rank r ON p.rank = r.rank_code
     WHERE p.blood_group = :blood_group
@@ -44,7 +44,7 @@ if (count($rows) > 0) {
                 <td style='text-align:center;'>{$row['rank_unicode']}</td>
                 <td style='text-align:center;'>{$row['full_name_ne']}</td>
                 <td style='text-align:center;'>{$row['unit']}</td>
-                <td style='text-align:center;'>{$row['phone']}</td>
+                <td style='text-align:center;'>{$row['contact']}</td>
               </tr>";
         $i++;
     }

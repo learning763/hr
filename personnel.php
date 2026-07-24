@@ -22,44 +22,30 @@ $offset = ($page - 1) * $records_per_page;
 // Get search term if any
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Build search condition
-$search_condition = "";
+// Build search condition — non-Super Admins are always restricted to their own record
+$where_clauses = [];
 $params = [];
 
-if (!empty($search_term)) {
-    $search_condition = "WHERE personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ?";
-    $search_param = "%$search_term%";
-    $params = [$search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param];
+if (!$isSuperAdmin) {
+    $where_clauses[] = "personnel_number = ?";
+    $params[] = $_SESSION['user_id'] ?? '';
 }
+
+if (!empty($search_term)) {
+    $where_clauses[] = "(personnel_number LIKE ? OR full_name_en LIKE ? OR rank LIKE ? OR unit LIKE ? OR email LIKE ? OR province LIKE ? OR district LIKE ? OR municipality LIKE ? OR village_tole LIKE ?)";
+    $search_param = "%$search_term%";
+    array_push($params, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param, $search_param);
+}
+
+$search_condition = !empty($where_clauses) ? "WHERE " . implode(" AND ", $where_clauses) : "";
 
 // Get statistics
 try {
     $stmt = $pdo->query("SELECT COUNT(*) FROM personnel");
     $total_records = $stmt->fetchColumn();
-
-    $stmt = $pdo->query("SELECT COUNT(*) FROM personnel WHERE current_status = 'Active'");
-    $active_count = $stmt->fetchColumn();
-
-    $stmt = $pdo->query("SELECT COUNT(*) FROM personnel WHERE rank < 30");
-    $officer_count = $stmt->fetchColumn();
-
-    $stmt = $pdo->query("SELECT COUNT(*) FROM personnel WHERE rank BETWEEN 31 AND 37");
-    $jco_count = $stmt->fetchColumn();
-
-    $stmt = $pdo->query("SELECT COUNT(*) FROM personnel WHERE rank > 37");
-    $or_count = $stmt->fetchColumn();
-
-    $stmt = $pdo->query("SELECT COUNT(DISTINCT unit) FROM personnel WHERE unit IS NOT NULL AND unit != ''");
-    $unit_count = $stmt->fetchColumn();
-
 } catch (PDOException $e) {
     error_log("Statistics error: " . $e->getMessage());
     $total_records = 0;
-    $active_count = 0;
-    $officer_count = 0;
-    $jco_count = 0;
-    $or_count = 0;
-    $unit_count = 0;
 }
 
 // Get personnel list
@@ -112,7 +98,7 @@ ob_start();
         height: 150px;
         border-radius: 50%;
         object-fit: cover;
-        border: 3px solid #2c5f4e;
+        border: 3px solid #0e7490;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
 
@@ -120,17 +106,17 @@ ob_start();
         width: 150px;
         height: 150px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #e8f5f0 0%, #d1e8e0 100%);
+        background: linear-gradient(135deg, #e6f4fa 0%, #cfeaf5 100%);
         display: flex;
         align-items: center;
         justify-content: center;
         margin: 0 auto;
-        border: 3px solid #2c5f4e;
+        border: 3px solid #0e7490;
     }
 
     .photo-placeholder-modal i {
         font-size: 60px;
-        color: #2c5f4e;
+        color: #0e7490;
     }
 
     .preview-image-modal {
@@ -217,89 +203,17 @@ ob_start();
         cursor: pointer;
         transition: all 0.3s;
         color: #6c7a8e;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 13px;
     }
 
     .file-input-label:hover {
-        border-color: #2c5f4e;
+        border-color: #0e7490;
         background: #f1f5f9;
     }
 
     .file-input-label i {
         margin-right: 10px;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
-    }
-
-    .stat-card {
-        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-        border-radius: 16px;
-        padding: 20px;
-        display: flex;
-        align-items: center;
-        gap: 18px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        border: 1px solid rgba(44, 95, 78, 0.1);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .stat-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: linear-gradient(90deg, #2c5f4e, #4a9b82);
-    }
-
-    .stat-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-    }
-
-    .stat-icon {
-        width: 55px;
-        height: 55px;
-        background: linear-gradient(135deg, #e8f5f0 0%, #d1e8e0 100%);
-        border-radius: 14px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 26px;
-        color: #2c5f4e;
-        transition: transform 0.3s;
-    }
-
-    .stat-card:hover .stat-icon {
-        transform: scale(1.05);
-    }
-
-    .stat-info {
-        flex: 1;
-    }
-
-    .stat-value {
-        font-size: 32px;
-        font-weight: 800;
-        color: #1a2c3e;
-        line-height: 1.2;
-        letter-spacing: -0.5px;
-    }
-
-    .stat-label {
-        font-size: 13px;
-        color: #6c7a8e;
-        margin-top: 5px;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
     }
 
     .search-section {
@@ -344,8 +258,8 @@ ob_start();
     }
 
     .search-input:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+        border-color: #0e7490;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.08);
     }
 
     .clear-search {
@@ -374,7 +288,7 @@ ob_start();
     }
 
     .btn-add {
-        background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
+        background: linear-gradient(135deg, #10263f 0%, #0e7490 100%);
         color: white;
         border: none;
         padding: 11px 24px;
@@ -385,14 +299,16 @@ ob_start();
         transition: all 0.3s;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 10px;
+        min-width: 200px;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     }
 
     .btn-add:hover {
         transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(44, 95, 78, 0.3);
-        background: linear-gradient(135deg, #14362c 0%, #1e4a3e 100%);
+        box-shadow: 0 5px 15px rgba(14, 116, 144, 0.3);
+        background: linear-gradient(135deg, #0d2036 0%, #14406a 100%);
     }
 
     .btn-manage-balance {
@@ -407,7 +323,9 @@ ob_start();
         transition: all 0.3s;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 10px;
+        min-width: 200px;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     }
 
@@ -489,8 +407,7 @@ ob_start();
     }
 
     .modal-header .close {
-        font-size: 28px;
-        font-weight: bold;
+        font-size: 18px;
         color: #aaa;
         cursor: pointer;
         transition: 0.2s;
@@ -537,8 +454,8 @@ ob_start();
 
     .form-group input:focus,
     .form-group select:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.1);
+        border-color: #0e7490;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.1);
     }
 
     .modal-buttons {
@@ -551,7 +468,7 @@ ob_start();
     }
 
     .btn-save {
-        background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
+        background: linear-gradient(135deg, #10263f 0%, #0e7490 100%);
         color: white;
         border: none;
         padding: 10px 24px;
@@ -564,7 +481,7 @@ ob_start();
 
     .btn-save:hover {
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(44, 95, 78, 0.3);
+        box-shadow: 0 4px 12px rgba(14, 116, 144, 0.3);
     }
 
     .btn-cancel-modal {
@@ -589,11 +506,13 @@ ob_start();
         border-radius: 10px;
         margin-bottom: 20px;
         text-align: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
     .personnel-info p {
         margin: 5px 0;
         color: #334155;
+        font-size: 13px;
     }
 
     .personnel-info strong {
@@ -675,7 +594,7 @@ ob_start();
 
     .profile-preview:hover {
         transform: scale(1.1);
-        border-color: #2c5f4e;
+        border-color: #0e7490;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
@@ -695,9 +614,9 @@ ob_start();
     }
 
     .avatar-placeholder:hover {
-        border-color: #2c5f4e;
-        background: #e8f5f0;
-        color: #2c5f4e;
+        border-color: #0e7490;
+        background: #e6f4fa;
+        color: #0e7490;
     }
 
     .signature-cell {
@@ -755,6 +674,11 @@ ob_start();
         color: #1e40af;
     }
 
+    .badge-mission {
+        background: #ede9fe;
+        color: #5b21b6;
+    }
+
     .role-badge {
         display: inline-block;
         padding: 5px 12px;
@@ -784,6 +708,10 @@ ob_start();
         flex-wrap: wrap;
     }
 
+    .action-buttons-center {
+        justify-content: center;
+    }
+
     .btn-icon {
         background: none;
         border: none;
@@ -795,11 +723,20 @@ ob_start();
     }
 
     .btn-edit {
-        color: #2c5f4e;
+        color: #0e7490;
     }
 
     .btn-edit:hover {
-        background: #e8f5f0;
+        background: #e6f4fa;
+        transform: scale(1.05);
+    }
+
+    .btn-status {
+        color: #059669;
+    }
+
+    .btn-status:hover {
+        background: #d1fae5;
         transform: scale(1.05);
     }
 
@@ -963,12 +900,12 @@ ob_start();
     }
 
     .save-balance-btn {
-        color: #2c5f4e;
-        background: #e8f5f0;
+        color: #0e7490;
+        background: #e6f4fa;
     }
 
     .save-balance-btn:hover {
-        background: #d1e8e0;
+        background: #cfeaf5;
         transform: scale(1.02);
     }
 
@@ -984,14 +921,14 @@ ob_start();
 
     .pagination-link:hover {
         background: #f8fafc;
-        border-color: #2c5f4e;
-        color: #2c5f4e;
+        border-color: #0e7490;
+        color: #0e7490;
         transform: translateY(-1px);
     }
 
     .pagination-link.active {
-        background: linear-gradient(135deg, #1e3a32, #2c5f4e);
-        border-color: #2c5f4e;
+        background: linear-gradient(135deg, #10263f, #0e7490);
+        border-color: #0e7490;
         color: white;
     }
 
@@ -1019,12 +956,12 @@ ob_start();
     }
 
     .records-per-page select:focus {
-        border-color: #2c5f4e;
+        border-color: #0e7490;
         outline: none;
     }
 
     .email-link {
-        color: #2c5f4e;
+        color: #0e7490;
         text-decoration: none;
         font-size: 12px;
         display: inline-flex;
@@ -1034,7 +971,7 @@ ob_start();
 
     .email-link:hover {
         text-decoration: underline;
-        color: #1e4a3e;
+        color: #14406a;
     }
 
     .loading-spinner {
@@ -1043,7 +980,7 @@ ob_start();
         height: 20px;
         border: 3px solid rgba(0, 0, 0, .1);
         border-radius: 50%;
-        border-top-color: #2c5f4e;
+        border-top-color: #0e7490;
         animation: spin 0.6s linear infinite;
     }
 
@@ -1057,7 +994,7 @@ ob_start();
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: #1e3a32;
+        background: #10263f;
         color: white;
         padding: 12px 20px;
         border-radius: 10px;
@@ -1085,25 +1022,6 @@ ob_start();
     }
 
     @media (max-width: 768px) {
-        .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-        }
-
-        .stat-value {
-            font-size: 24px;
-        }
-
-        .stat-icon {
-            width: 45px;
-            height: 45px;
-            font-size: 20px;
-        }
-
-        .stat-card {
-            padding: 15px;
-        }
-
         .search-section {
             flex-direction: column;
             align-items: stretch;
@@ -1163,59 +1081,6 @@ ob_start();
     }
 </style>
 
-<!-- Statistics Cards -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fas fa-user-friends"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($total_records); ?></div>
-            <div class="stat-label">जम्मा नफ्री</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fas fa-user-check"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($active_count); ?></div>
-            <div class="stat-label">बहालवाला</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fa-classic fa-solid fa-person-military-pointing fa-fw"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($officer_count); ?></div>
-            <div class="stat-label">अधिकृत</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fa-classic fa-solid fa-person-military-rifle fa-fw"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($jco_count); ?></div>
-            <div class="stat-label">पदिक</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fa-classic fa-solid fa-person-military-rifle fa-fw"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($or_count); ?></div>
-            <div class="stat-label">अन्य दर्जा</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fa-solid fa-house-user"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($or_count); ?></div>
-            <div class="stat-label">अवकास प्राप्त</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fas fa-building"></i></div>
-        <div class="stat-info">
-            <div class="stat-value"><?php echo number_format($unit_count); ?></div>
-            <div class="stat-label">शाखा</div>
-        </div>
-    </div>
-</div>
-
 <!-- Search and Add Personnel Section -->
 <div class="search-section">
     <!-- <div class="search-container">
@@ -1261,7 +1126,7 @@ ob_start();
                 <?php if ($isAdmin): ?>
                     <th style="text-align:center;">नियुक्ति</th>
                 <?php endif; ?>
-                <?php if ($isSuperAdmin): ?>
+                <?php if (true): // Actions column: full set for Super Admin, self-service Edit only for everyone else ?>
                     <th style="width: 200px;text-align:center;">Actions</th>
                 <?php endif; ?>
             </tr>
@@ -1323,7 +1188,12 @@ ob_start();
                             echo !empty($location_parts) ? htmlspecialchars(implode(', ', $location_parts)) : '—';
                             ?>
                         </td>
-                        <td><?php echo $personnel['recruitment_date'] && $personnel['recruitment_date'] != '0000-00-00' ? date('Y-m-d', strtotime($personnel['recruitment_date'])) : 'N/A'; ?>
+                        <?php
+                        $display_recruitment_date = $personnel['recruitment_date'] && $personnel['recruitment_date'] != '0000-00-00'
+                            ? $personnel['recruitment_date']
+                            : (($personnel['joint_date'] ?? null) && $personnel['joint_date'] != '0000-00-00' ? $personnel['joint_date'] : null);
+                        ?>
+                        <td><?php echo $display_recruitment_date ? date('Y-m-d', strtotime($display_recruitment_date)) : 'N/A'; ?>
                         </td>
                         <td>
                             <?php
@@ -1335,6 +1205,8 @@ ob_start();
                                 $status_class = 'badge-retired';
                             elseif ($status_lower == 'training')
                                 $status_class = 'badge-training';
+                            elseif ($status_lower == 'mission')
+                                $status_class = 'badge-mission';
                             ?>
                             <span class="badge <?php echo $status_class; ?>">
                                 <?php echo htmlspecialchars($personnel['current_status'] ?? 'Active'); ?>
@@ -1366,14 +1238,16 @@ ob_start();
                                 </span>
                             </td>
                         <?php endif; ?>
-                        <?php if ($isSuperAdmin): ?>
+                        <?php if (true): // Actions column: full set for Super Admin, self-service Edit only for everyone else ?>
                             <td>
-                                <div class="action-buttons">
-                                    <button class="btn-icon btn-view"
-                                        onclick="viewProfile('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')"
-                                        title="View Profile">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                                <div class="action-buttons<?php echo !$isSuperAdmin ? ' action-buttons-center' : ''; ?>">
+                                    <?php if ($isSuperAdmin): ?>
+                                        <button class="btn-icon btn-view"
+                                            onclick="viewProfile('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')"
+                                            title="View Profile">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    <?php endif; ?>
                                     <button class="btn-icon btn-edit"
                                         onclick="editPersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>')"
                                         title="Edit">
@@ -1384,22 +1258,29 @@ ob_start();
                                         title="Upload/Edit Photo">
                                         <i class="fas fa-camera"></i>
                                     </button>
-                                    <button class="btn-icon btn-signature"
-                                        onclick="openSignatureModal('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['signature'] ?? ''); ?>')"
-                                        title="Upload/Edit Signature">
-                                        <i class="fas fa-signature"></i>
-                                    </button>
-                                    <button class="btn-icon btn-reset"
-                                        onclick="resetPassword('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')"
-                                        title="Reset Password">
-                                        <i class="fas fa-key"></i>
-                                    </button>
-                                    <?php if ($personnel['personnel_number'] !== ($_SESSION['user_id'] ?? '')): ?>
-                                        <button class="btn-icon btn-delete"
-                                            onclick="deletePersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')"
-                                            title="Delete">
-                                            <i class="fas fa-trash"></i>
+                                    <?php if ($isSuperAdmin): ?>
+                                        <button class="btn-icon btn-status"
+                                            onclick="openStatusModal('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['current_status'] ?? 'Active'); ?>')"
+                                            title="Change Status">
+                                            <i class="fas fa-user-tag"></i>
                                         </button>
+                                        <button class="btn-icon btn-signature"
+                                            onclick="openSignatureModal('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>', '<?php echo htmlspecialchars($personnel['signature'] ?? ''); ?>')"
+                                            title="Upload/Edit Signature">
+                                            <i class="fas fa-signature"></i>
+                                        </button>
+                                        <button class="btn-icon btn-reset"
+                                            onclick="resetPassword('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')"
+                                            title="Reset Password">
+                                            <i class="fas fa-key"></i>
+                                        </button>
+                                        <?php if ($personnel['personnel_number'] !== ($_SESSION['user_id'] ?? '')): ?>
+                                            <button class="btn-icon btn-delete"
+                                                onclick="deletePersonnel('<?php echo htmlspecialchars($personnel['personnel_number']); ?>', '<?php echo htmlspecialchars($personnel['full_name_en']); ?>')"
+                                                title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -1499,7 +1380,7 @@ ob_start();
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="photoModalTitle"><i class="fas fa-camera"></i> Update Profile Photo</h3>
-            <span class="close" onclick="closePhotoModal()">&times;</span>
+            <span class="close" onclick="closePhotoModal()"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <div id="photoAlert" class="alert" style="display: none;"></div>
@@ -1538,7 +1419,7 @@ ob_start();
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="signatureModalTitle"><i class="fas fa-signature"></i> Update Signature</h3>
-            <span class="close" onclick="closeSignatureModal()">&times;</span>
+            <span class="close" onclick="closeSignatureModal()"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <div id="signatureAlert" class="alert" style="display: none;"></div>
@@ -1572,12 +1453,42 @@ ob_start();
     </div>
 </div>
 
+<!-- Change Status Modal -->
+<div id="changeStatusModal" class="modal">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-tag"></i> Change Status</h3>
+            <span class="close" onclick="closeStatusModal()"><i class="fas fa-times"></i></span>
+        </div>
+        <div class="modal-body">
+            <div class="personnel-info" id="statusPersonnelInfo"></div>
+            <form id="changeStatusForm">
+                <input type="hidden" id="statusPersonnelNumber">
+                <div class="form-group">
+                    <label>Status</label>
+                    <select id="statusSelect" required>
+                        <option value="Active">Active</option>
+                        <option value="Training">Training</option>
+                        <option value="Mission">Mission</option>
+                        <option value="Leave">Leave</option>
+                        <option value="Retired">Retired</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel-modal" onclick="closeStatusModal()">Cancel</button>
+                    <button type="submit" class="btn-save">Save Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Personnel Modal -->
 <div id="editPersonnelModal" class="modal">
     <div class="modal-content" style="max-width: 900px;">
         <div class="modal-header">
             <h3 id="editModalTitle"><i class="fas fa-edit"></i> Edit Personnel</h3>
-            <span class="close" onclick="closeEditModal()">&times;</span>
+            <span class="close" onclick="closeEditModal()"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <form id="editPersonnelForm" method="POST">
@@ -1607,26 +1518,28 @@ ob_start();
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label>Phone Number</label>
-                        <input type="text" id="edit_phone" name="phone">
+                        <label>Contact/Mobile</label>
+                        <input type="text" id="edit_contact" name="contact">
                     </div>
                     <div class="form-group">
                         <label>Rank *</label>
+                        <?php
+                        $editRankStmt = $pdo->query("SELECT
+                                rank_code,
+                                rank_unicode
+                            FROM def_rank
+                            WHERE is_active = 'Y'
+                            ORDER BY rank_code ASC
+                        ");
+                        $editRanks = $editRankStmt->fetchAll(PDO::FETCH_ASSOC);
+                        ?>
                         <select id="edit_rank" name="rank" required>
                             <option value="">Select Rank</option>
-                            <option value="General">General</option>
-                            <option value="Lieutenant General">Lieutenant General</option>
-                            <option value="Major General">Major General</option>
-                            <option value="Brigadier General">Brigadier General</option>
-                            <option value="Colonel">Colonel</option>
-                            <option value="Lieutenant Colonel">Lieutenant Colonel</option>
-                            <option value="Major">Major</option>
-                            <option value="Captain">Captain</option>
-                            <option value="Lieutenant">Lieutenant</option>
-                            <option value="Second Lieutenant">Second Lieutenant</option>
-                            <option value="Subedar">Subedar</option>
-                            <option value="Lieutenant Subedar">Lieutenant Subedar</option>
-                            <option value="Jawan">Jawan</option>
+                            <?php foreach ($editRanks as $editRank): ?>
+                                <option value="<?php echo $editRank['rank_code']; ?>">
+                                    <?php echo $editRank['rank_unicode']; ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
@@ -1673,25 +1586,28 @@ ob_start();
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Current Status</label>
-                        <select id="edit_current_status" name="current_status">
-                            <option value="Active">Active</option>
-                            <option value="Leave">Leave</option>
-                            <option value="Training">Training</option>
-                            <option value="Retired">Retired</option>
-                        </select>
+                <?php if ($isSuperAdmin): ?>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Current Status</label>
+                            <select id="edit_current_status" name="current_status">
+                                <option value="Active">Active</option>
+                                <option value="Training">Training</option>
+                                <option value="Mission">Mission</option>
+                                <option value="Leave">Leave</option>
+                                <option value="Retired">Retired</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>User Role</label>
+                            <select id="edit_role" name="role">
+                                <option value="0">User</option>
+                                <option value="1">Admin</option>
+                                <option value="2">Super Admin</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>User Role</label>
-                        <select id="edit_role" name="role">
-                            <option value="0">User</option>
-                            <option value="1">Admin</option>
-                            <option value="2">Super Admin</option>
-                        </select>
-                    </div>
-                </div>
+                <?php endif; ?>
 
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel-modal" onclick="closeEditModal()">Cancel</button>
@@ -1707,7 +1623,7 @@ ob_start();
     <div class="modal-content" style="max-width: 900px;">
         <div class="modal-header">
             <h3><i class="fas fa-user-plus"></i>नयाँ सैनिक व्यक्ति थप्नुहोस्</h3>
-            <span class="close" onclick="closeAddPersonnelModal()">&times;</span>
+            <span class="close" onclick="closeAddPersonnelModal()"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <div id="addPersonnelAlert" class="alert" style="display: none;"></div>
@@ -1760,8 +1676,8 @@ ob_start();
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label>फोन नं.</label>
-                        <input type="text" id="addPhone" name="phone" placeholder="98XXXXXXXX">
+                        <label>सम्पर्क/मोबाइल</label>
+                        <input type="text" id="addContact" name="contact" placeholder="98XXXXXXXX">
                     </div> 
                     <div class="form-group">
                         <label>ईमेल</label>
@@ -1846,7 +1762,7 @@ ob_start();
     <div class="modal-content large" style="max-width: 1200px;">
         <div class="modal-header">
             <h3><i class="fas fa-chart-line"></i> Manage Leave</h3>
-            <span class="close" onclick="closeManageBalanceModal()">&times;</span>
+            <span class="close" onclick="closeManageBalanceModal()"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <div class="search-container" style="margin-bottom: 20px;">
@@ -2195,7 +2111,7 @@ ob_start();
             modal = document.createElement('div');
             modal.id = 'photoViewModal';
             modal.className = 'modal';
-            modal.innerHTML = `<div class="modal-content" style="max-width:450px;text-align:center;"><div class="modal-header"><h3><i class="fas fa-user-circle"></i> Profile Photo</h3><span class="close" style="cursor:pointer;font-size:28px;">&times;</span></div><div class="modal-body"><img src="${photoPath}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;"><p style="margin-top:15px;">${escapeHtml(name)}</p></div></div>`;
+            modal.innerHTML = `<div class="modal-content" style="max-width:450px;text-align:center;"><div class="modal-header"><h3><i class="fas fa-user-circle"></i> Profile Photo</h3><span class="close" style="cursor:pointer;font-size:18px;"><i class="fas fa-times"></i></span></div><div class="modal-body"><img src="${photoPath}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;"><p style="margin-top:15px;">${escapeHtml(name)}</p></div></div>`;
             document.body.appendChild(modal);
             modal.querySelector('.close').onclick = () => modal.style.display = 'none';
         }
@@ -2208,7 +2124,7 @@ ob_start();
             modal = document.createElement('div');
             modal.id = 'signatureViewModal';
             modal.className = 'modal';
-            modal.innerHTML = `<div class="modal-content" style="max-width:400px;text-align:center;"><div class="modal-header"><h3><i class="fas fa-signature"></i> Signature</h3><span class="close" style="cursor:pointer;font-size:28px;">&times;</span></div><div class="modal-body"><img src="${signaturePath}" style="max-width:100%;max-height:150px;"><p style="margin-top:15px;">${escapeHtml(name)}</p></div></div>`;
+            modal.innerHTML = `<div class="modal-content" style="max-width:400px;text-align:center;"><div class="modal-header"><h3><i class="fas fa-signature"></i> Signature</h3><span class="close" style="cursor:pointer;font-size:18px;"><i class="fas fa-times"></i></span></div><div class="modal-body"><img src="${signaturePath}" style="max-width:100%;max-height:150px;"><p style="margin-top:15px;">${escapeHtml(name)}</p></div></div>`;
             document.body.appendChild(modal);
             modal.querySelector('.close').onclick = () => modal.style.display = 'none';
         }
@@ -2220,6 +2136,7 @@ ob_start();
         if (event.target === document.getElementById('photoUploadModal')) closePhotoModal();
         if (event.target === document.getElementById('signatureUploadModal')) closeSignatureModal();
         if (event.target === document.getElementById('editPersonnelModal')) closeEditModal();
+        if (event.target === document.getElementById('changeStatusModal')) closeStatusModal();
         if (event.target === document.getElementById('manageBalanceModal')) closeManageBalanceModal();
         if (event.target === document.getElementById('addPersonnelModal')) closeAddPersonnelModal();
     }
@@ -2237,6 +2154,45 @@ ob_start();
     function closeEditModal() {
         document.getElementById('editPersonnelModal').style.display = 'none';
     }
+
+    // Change Status Modal Functions
+    function openStatusModal(personnelNumber, fullName, currentStatus) {
+        document.getElementById('statusPersonnelNumber').value = personnelNumber;
+        document.getElementById('statusPersonnelInfo').innerHTML = `<p><strong>${escapeHtml(fullName)}</strong> (${escapeHtml(personnelNumber)})</p>`;
+        document.getElementById('statusSelect').value = currentStatus || 'Active';
+        document.getElementById('changeStatusModal').style.display = 'block';
+    }
+
+    function closeStatusModal() {
+        document.getElementById('changeStatusModal').style.display = 'none';
+    }
+
+    document.getElementById('changeStatusForm')?.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const btn = this.querySelector('.btn-save');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<div class="loading-spinner"></div> Saving...';
+        btn.disabled = true;
+        try {
+            const formData = new FormData();
+            formData.append('personnel_number', document.getElementById('statusPersonnelNumber').value);
+            formData.append('current_status', document.getElementById('statusSelect').value);
+            const res = await fetch('update_personnel_status.php', { method: 'POST', body: formData });
+            const result = await res.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                closeStatusModal();
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(result.message || 'Error updating status', 'error');
+            }
+        } catch (error) {
+            showToast('Error updating status', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    });
 
     // Manage Balance Modal Functions
     function closeManageBalanceModal() {
@@ -2259,7 +2215,7 @@ ob_start();
                     document.getElementById('edit_full_name_en').value = p.full_name_en || '';
                     document.getElementById('edit_full_name_ne').value = p.full_name_ne || '';
                     document.getElementById('edit_email').value = p.email || '';
-                    document.getElementById('edit_phone').value = p.phone || '';
+                    document.getElementById('edit_contact').value = p.contact || '';
                     document.getElementById('edit_rank').value = p.rank || '';
                     document.getElementById('edit_unit').value = p.unit || '';
                     document.getElementById('edit_recruitment_date').value = p.recruitment_date || '';
@@ -2267,8 +2223,10 @@ ob_start();
                     document.getElementById('edit_district').value = p.district || '';
                     document.getElementById('edit_municipality').value = p.municipality || '';
                     document.getElementById('edit_village_tole').value = p.village_tole || '';
-                    document.getElementById('edit_current_status').value = p.current_status || 'Active';
-                    document.getElementById('edit_role').value = p.role || 0;
+                    const editStatusEl = document.getElementById('edit_current_status');
+                    if (editStatusEl) editStatusEl.value = p.current_status || 'Active';
+                    const editRoleEl = document.getElementById('edit_role');
+                    if (editRoleEl) editRoleEl.value = p.role || 0;
                     document.getElementById('editPersonnelModal').style.display = 'block';
                 } else {
                     showToast(data.message || 'Error loading data', 'error');

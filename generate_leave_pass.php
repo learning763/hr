@@ -499,7 +499,7 @@ $show_status_indicator = ($leave['status'] !== 'approved');
             font-weight: bold;
         }
         
-        .btn-print { background: #2c5f4e; color: #fff; }
+        .btn-print { background: #0e7490; color: #fff; }
         .btn-back  { background: #6c757d; color: #fff; }
         
         .text-muted {

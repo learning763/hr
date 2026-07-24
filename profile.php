@@ -40,10 +40,26 @@ $offset = ($page - 1) * $limit;
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 $selected_personnel_number = isset($_GET['personnel_number']) ? $_GET['personnel_number'] : '';
 
+// Only Super Admin can view/edit another personnel's profile — everyone else is
+// locked to their own record, regardless of what personnel_number is passed in.
+$profile_current_user_id = $_SESSION['user_id'] ?? '';
+$profile_is_superadmin = (isset($_SESSION['user_role']) && (int) $_SESSION['user_role'] === 2);
+if (!$profile_is_superadmin) {
+    $selected_personnel_number = $profile_current_user_id;
+}
+
 // Handle AJAX requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
     header('Content-Type: application/json');
     $action = $_POST['action'] ?? '';
+
+    // Only Super Admin may act on someone else's record via these AJAX actions.
+    // Loose comparison: personnel_number comes back from PDO as an int, POST data as a string.
+    $ajax_target_id = $_POST['personnel_id'] ?? ($_POST['personnel_number'] ?? '');
+    if (!$profile_is_superadmin && $ajax_target_id !== '' && (string) $ajax_target_id !== (string) $profile_current_user_id) {
+        echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
+        exit;
+    }
 
     if ($action === 'upload_profile_photo') {
         $personnel_id = $_POST['personnel_id'] ?? '';
@@ -333,9 +349,9 @@ ob_start();
         }
 
         .army-header {
-            background: linear-gradient(135deg, #0f2c24 0%, #1a5a4a 60%, #134438 100%);
+            background: linear-gradient(135deg, #081b2e 0%, #0e7490 60%, #134438 100%);
             border-radius: 24px 24px 0 0;
-            padding: 25px 30px;
+            padding: 16px 22px;
             position: relative;
             overflow: hidden;
         }
@@ -347,7 +363,7 @@ ob_start();
             right: -20%;
             width: 60%;
             height: 200%;
-            background: rgba(255, 215, 0, 0.05);
+            background: rgba(34, 211, 238, 0.05);
             transform: rotate(35deg);
             pointer-events: none;
         }
@@ -356,7 +372,7 @@ ob_start();
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 25px;
+            gap: 18px;
             position: relative;
             z-index: 1;
             flex-wrap: wrap;
@@ -365,55 +381,55 @@ ob_start();
         .army-header-brand {
             display: flex;
             align-items: center;
-            gap: 25px;
+            gap: 16px;
         }
 
         .army-logo {
-            width: 70px;
-            height: 70px;
-            background: rgba(255, 215, 0, 0.15);
+            width: 48px;
+            height: 48px;
+            background: rgba(34, 211, 238, 0.15);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 36px;
-            color: #ffd700;
-            border: 2px solid rgba(255, 215, 0, 0.3);
+            font-size: 22px;
+            color: #22d3ee;
+            border: 2px solid rgba(34, 211, 238, 0.3);
             flex-shrink: 0;
         }
 
         .army-title h1 {
-            color: #ffd700;
-            font-size: 28px;
-            letter-spacing: 3px;
-            margin-bottom: 5px;
+            color: #22d3ee;
+            font-size: 18px;
+            letter-spacing: 2px;
+            margin-bottom: 3px;
             font-weight: 700;
         }
 
         .army-title p {
             color: rgba(255, 255, 255, 0.85);
-            font-size: 14px;
-            letter-spacing: 1px;
+            font-size: 12px;
+            letter-spacing: 0.5px;
         }
 
         .army-title span {
-            color: rgba(255, 215, 0, 0.8);
-            font-size: 12px;
+            color: rgba(34, 211, 238, 0.8);
+            font-size: 11px;
             font-weight: 500;
         }
 
         .personnel-list-section {
             background: white;
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 30px;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
         }
 
         .search-container {
             position: relative;
             max-width: 400px;
-            margin-bottom: 25px;
+            margin-bottom: 16px;
         }
 
         .search-icon {
@@ -436,9 +452,9 @@ ob_start();
         }
 
         .search-input:focus {
-            border-color: #1a5a4a;
+            border-color: #0e7490;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1);
+            box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.1);
         }
 
         .clear-search {
@@ -470,18 +486,18 @@ ob_start();
 
         .personnel-table th {
             text-align: left;
-            padding: 15px;
+            padding: 10px 12px;
             background: #f8fafc;
             color: #475569;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
             border-bottom: 2px solid #e2e8f0;
         }
 
         .personnel-table td {
-            padding: 15px;
+            padding: 10px 12px;
             border-bottom: 1px solid #f1f5f9;
-            font-size: 14px;
+            font-size: 13px;
             color: #334155;
         }
 
@@ -495,8 +511,8 @@ ob_start();
         }
 
         .personnel-row.active-row {
-            background: linear-gradient(90deg, #e8f5e9, transparent);
-            border-left: 3px solid #1a5a4a;
+            background: linear-gradient(90deg, #e6f4fa, transparent);
+            border-left: 3px solid #0e7490;
         }
 
         .photo-cell {
@@ -508,7 +524,7 @@ ob_start();
             height: 42px;
             border-radius: 50%;
             object-fit: cover;
-            border: 2px solid #1a5a4a;
+            border: 2px solid #0e7490;
             cursor: pointer;
         }
 
@@ -546,6 +562,16 @@ ob_start();
             color: #9a3412;
         }
 
+        .status-training {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-mission {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
         .status-retired {
             background: #fee2e2;
             color: #991b1b;
@@ -556,7 +582,7 @@ ob_start();
             align-items: center;
             gap: 6px;
             padding: 6px 14px;
-            background: #1a5a4a;
+            background: #0e7490;
             color: white;
             border-radius: 8px;
             text-decoration: none;
@@ -566,7 +592,7 @@ ob_start();
         }
 
         .view-profile-btn:hover {
-            background: #0f3d32;
+            background: #0d2036;
             transform: translateY(-1px);
         }
 
@@ -574,7 +600,7 @@ ob_start();
             background: #2563eb;
             color: white;
             border: none;
-            padding: 10px 24px;
+            padding: 9px 20px;
             border-radius: 10px;
             font-weight: 600;
             cursor: pointer;
@@ -583,7 +609,7 @@ ob_start();
             gap: 8px;
             transition: all 0.2s;
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .download-profile-btn:hover {
@@ -599,12 +625,12 @@ ob_start();
         }
 
         .profile-cover {
-            background: linear-gradient(135deg, #1a5a4a, #0f3d32);
-            padding: 30px;
+            background: linear-gradient(135deg, #0e7490, #0d2036);
+            padding: 20px;
             position: relative;
             display: flex;
             align-items: center;
-            gap: 30px;
+            gap: 20px;
             flex-wrap: wrap;
         }
 
@@ -615,7 +641,7 @@ ob_start();
             right: -10%;
             width: 50%;
             height: 200%;
-            background: rgba(255, 215, 0, 0.04);
+            background: rgba(34, 211, 238, 0.04);
             transform: rotate(35deg);
             pointer-events: none;
         }
@@ -654,7 +680,7 @@ ob_start();
             justify-content: center;
             border: 4px solid rgba(255, 255, 255, 0.85);
             cursor: pointer;
-            color: #ffd700;
+            color: #22d3ee;
             font-size: 60px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
         }
@@ -666,9 +692,9 @@ ob_start();
             width: 38px;
             height: 38px;
             border-radius: 50%;
-            background: #ffd700;
+            background: #22d3ee;
             border: 3px solid white;
-            color: #1a5a4a;
+            color: #0e7490;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -725,16 +751,17 @@ ob_start();
         .badge-rank i,
         .badge-id i,
         .badge-unit i {
-            color: #ffd700;
+            color: #22d3ee;
         }
 
         .edit-main-btn {
-            background: #ffd700;
-            color: #0f2c24;
+            background: #22d3ee;
+            color: #081b2e;
             border: none;
-            padding: 10px 24px;
+            padding: 9px 20px;
             border-radius: 10px;
             font-weight: 700;
+            font-size: 13px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
@@ -743,7 +770,7 @@ ob_start();
         }
 
         .edit-main-btn:hover {
-            background: #ffe44d;
+            background: #67e8f9;
             transform: translateY(-2px);
         }
 
@@ -760,8 +787,8 @@ ob_start();
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            padding: 25px 30px;
+            gap: 12px;
+            padding: 16px 20px;
             background: #f8fafc;
             border-bottom: 1px solid #e2e8f0;
         }
@@ -769,23 +796,24 @@ ob_start();
         .stat-card {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 12px;
             background: white;
-            padding: 15px 20px;
-            border-radius: 16px;
+            padding: 12px 14px;
+            border-radius: 14px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .stat-icon {
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, #e8f5e9, #c8e6d9);
-            border-radius: 14px;
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, #e6f4fa, #cfeaf5);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
-            color: #1a5a4a;
+            font-size: 18px;
+            color: #0e7490;
+            flex-shrink: 0;
         }
 
         .stat-info {
@@ -801,42 +829,42 @@ ob_start();
         }
 
         .stat-value {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             color: #1e293b;
             display: block;
-            margin-top: 4px;
+            margin-top: 3px;
         }
 
         .profile-tabs {
             display: flex;
-            gap: 5px;
-            padding: 0 30px;
+            gap: 4px;
+            padding: 0 20px;
             background: white;
             border-bottom: 1px solid #e2e8f0;
         }
 
         .tab-btn {
-            padding: 15px 25px;
+            padding: 11px 16px;
             background: none;
             border: none;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             color: #64748b;
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 7px;
             transition: all 0.2s;
             position: relative;
         }
 
         .tab-btn:hover {
-            color: #1a5a4a;
+            color: #0e7490;
         }
 
         .tab-btn.active {
-            color: #1a5a4a;
+            color: #0e7490;
         }
 
         .tab-btn.active::after {
@@ -846,13 +874,13 @@ ob_start();
             left: 0;
             right: 0;
             height: 3px;
-            background: #1a5a4a;
+            background: #0e7490;
             border-radius: 3px 3px 0 0;
         }
 
         .tab-pane {
             display: none;
-            padding: 30px;
+            padding: 18px 20px;
             animation: fadeIn 0.3s ease;
         }
 
@@ -875,13 +903,13 @@ ob_start();
         .info-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
+            gap: 12px;
         }
 
         .info-item {
             background: #f8fafc;
-            padding: 16px 20px;
-            border-radius: 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
             transition: all 0.2s;
         }
 
@@ -922,25 +950,27 @@ ob_start();
 
         .info-card {
             background: #f8fafc;
-            border-radius: 16px;
-            margin-bottom: 20px;
+            border-radius: 14px;
+            margin-bottom: 14px;
             overflow: hidden;
         }
 
         .info-card-title {
             background: #f1f5f9;
-            padding: 15px 20px;
+            padding: 11px 14px;
             font-weight: 700;
+            font-size: 14px;
             color: #1e293b;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 9px;
             border-bottom: 1px solid #e2e8f0;
         }
 
         .info-card-content {
-            padding: 20px;
+            padding: 14px;
             line-height: 1.6;
+            font-size: 13px;
             color: #475569;
         }
 
@@ -954,18 +984,18 @@ ob_start();
         }
 
         .training-table th {
-            padding: 12px 15px;
+            padding: 9px 12px;
             text-align: left;
             background: #f1f5f9;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
             color: #475569;
         }
 
         .training-table td {
-            padding: 12px 15px;
+            padding: 9px 12px;
             border-bottom: 1px solid #e2e8f0;
-            font-size: 13px;
+            font-size: 12px;
             color: #334155;
         }
 
@@ -1005,7 +1035,7 @@ ob_start();
         }
 
         .modal-header {
-            padding: 20px 25px;
+            padding: 14px 18px;
             border-bottom: 1px solid #e2e8f0;
             display: flex;
             justify-content: space-between;
@@ -1017,14 +1047,14 @@ ob_start();
         }
 
         .modal-header h3 {
-            font-size: 20px;
+            font-size: 16px;
             color: #1e293b;
         }
 
         .modal-close,
         .modal-close-photo,
         .modal-close-view {
-            font-size: 28px;
+            font-size: 18px;
             cursor: pointer;
             color: #94a3b8;
             transition: all 0.2s;
@@ -1037,19 +1067,19 @@ ob_start();
         }
 
         .modal-body {
-            padding: 25px;
+            padding: 18px;
         }
 
         .form-section-title {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 700;
-            color: #1a5a4a;
-            margin: 20px 0 15px 0;
-            padding-bottom: 8px;
+            color: #0e7490;
+            margin: 14px 0 10px 0;
+            padding-bottom: 6px;
             border-bottom: 2px solid #e2e8f0;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .form-section-title:first-of-type {
@@ -1092,16 +1122,16 @@ ob_start();
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
-            border-color: #1a5a4a;
+            border-color: #0e7490;
             outline: none;
-            box-shadow: 0 0 0 3px rgba(26, 90, 74, 0.1);
+            box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.1);
         }
 
         .dynamic-training-item {
             background: #f8fafc;
-            padding: 15px;
+            padding: 12px;
             border-radius: 12px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             border: 1px solid #e2e8f0;
             position: relative;
         }
@@ -1129,7 +1159,7 @@ ob_start();
         }
 
         .add-training-btn {
-            background: #1a5a4a;
+            background: #0e7490;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -1144,12 +1174,12 @@ ob_start();
         }
 
         .add-training-btn:hover {
-            background: #0f3d32;
+            background: #0d2036;
         }
 
         .training-header {
             font-weight: 600;
-            color: #1a5a4a;
+            color: #0e7490;
             margin-bottom: 12px;
             font-size: 14px;
         }
@@ -1157,38 +1187,41 @@ ob_start();
         .modal-buttons {
             display: flex;
             justify-content: flex-end;
-            gap: 12px;
-            margin-top: 25px;
-            padding-top: 20px;
+            gap: 10px;
+            margin-top: 16px;
+            padding-top: 14px;
             border-top: 1px solid #e2e8f0;
         }
 
         .btn-cancel {
-            padding: 10px 20px;
+            padding: 9px 18px;
             background: #f1f5f9;
             border: none;
             border-radius: 10px;
             cursor: pointer;
             font-weight: 500;
+            font-size: 13px;
         }
 
         .btn-submit {
-            padding: 10px 24px;
-            background: #1a5a4a;
+            padding: 9px 20px;
+            background: #0e7490;
             color: white;
             border: none;
             border-radius: 10px;
             cursor: pointer;
             font-weight: 600;
+            font-size: 13px;
         }
 
         .btn-delete {
-            padding: 10px 20px;
+            padding: 9px 18px;
             background: #dc2626;
             color: white;
             border: none;
             border-radius: 10px;
             cursor: pointer;
+            font-size: 13px;
             display: flex;
             align-items: center;
             gap: 6px;
@@ -1196,10 +1229,10 @@ ob_start();
 
         .photo-preview {
             text-align: center;
-            margin-bottom: 20px;
-            padding: 20px;
+            margin-bottom: 14px;
+            padding: 14px;
             background: #f8fafc;
-            border-radius: 16px;
+            border-radius: 14px;
         }
 
         .photo-preview img {
@@ -1207,7 +1240,7 @@ ob_start();
             height: 120px;
             border-radius: 50%;
             object-fit: cover;
-            border: 3px solid #1a5a4a;
+            border: 3px solid #0e7490;
         }
 
         .status-badge-lg {
@@ -1220,21 +1253,26 @@ ob_start();
 
         .empty-state {
             text-align: center;
-            padding: 60px;
+            padding: 40px 20px;
             background: white;
-            border-radius: 24px;
+            border-radius: 20px;
         }
 
         .empty-state i {
-            font-size: 64px;
+            font-size: 40px;
             color: #cbd5e1;
-            margin-bottom: 20px;
+            margin-bottom: 14px;
         }
 
         .empty-state h3 {
-            font-size: 20px;
+            font-size: 16px;
             color: #475569;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            color: #94a3b8;
         }
 
         .toast {
@@ -1255,9 +1293,9 @@ ob_start();
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 20px;
+            margin-top: 14px;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 12px;
         }
 
         .pagination-info {
@@ -1288,13 +1326,13 @@ ob_start();
         }
 
         .page-btn:hover {
-            border-color: #1a5a4a;
-            color: #1a5a4a;
+            border-color: #0e7490;
+            color: #0e7490;
         }
 
         .page-btn.active {
-            background: #1a5a4a;
-            border-color: #1a5a4a;
+            background: #0e7490;
+            border-color: #0e7490;
             color: white;
         }
 
@@ -1390,15 +1428,15 @@ ob_start();
                     <?php if (!empty($selectedPersonnel['profile_picture_path'])): ?>
                         <img src="<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>"
                             class="profile-avatar" id="mainProfilePhoto"
-                            onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?>')">
+                            onclick="viewProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['profile_picture_path']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne'] ?? ''); ?>')">
                     <?php else: ?>
                         <div class="profile-avatar-placeholder" id="mainProfilePhoto"
-                            onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?>')">
+                            onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne'] ?? ''); ?>')">
                             <i class="fas fa-user"></i>
                         </div>
                     <?php endif; ?>
                     <button class="avatar-edit-btn"
-                        onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne']); ?>')">
+                        onclick="editProfilePhoto('<?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?>', '<?php echo htmlspecialchars($selectedPersonnel['full_name_ne'] ?? ''); ?>')">
                         <i class="fas fa-camera"></i>
                     </button>
                 </div>
@@ -1406,7 +1444,7 @@ ob_start();
                 <!-- Profile Info Bar -->
                 <div class="profile-info-bar" style="margin-top: 55px;">
                     <div class="profile-name-section">
-                        <h2><?php echo $selectedPersonnel['rank_unicode']. ' ' .htmlspecialchars($selectedPersonnel['full_name_ne']); ?></h2>
+                        <h2><?php echo ($selectedPersonnel['rank_unicode'] ?? '') . ' ' . htmlspecialchars($selectedPersonnel['full_name_ne'] ?? ''); ?></h2>
                         <div class="profile-badges">
                             <span class="badge-id"><i class="fas fa-id-card"></i>
                                 <?php echo htmlspecialchars($selectedPersonnel['personnel_number']); ?></span>
@@ -1700,7 +1738,7 @@ ob_start();
             <div class="modal-content">
                 <div class="modal-header">
                     <h3><i class="fas fa-user-edit"></i> Edit Profile</h3>
-                    <span class="modal-close">&times;</span>
+                    <span class="modal-close"><i class="fas fa-times"></i></span>
                 </div>
                 <div class="modal-body">
                     <form id="editProfileForm">
@@ -1718,7 +1756,7 @@ ob_start();
                                     value="<?php echo htmlspecialchars($selectedPersonnel['rank'] ?? ''); ?>"></div>
                             <div class="form-group"><label>Unit</label><input type="text" name="unit"
                                     value="<?php echo htmlspecialchars($selectedPersonnel['unit'] ?? ''); ?>"></div>
-                            <div class="form-group"><label>Date of Birth</label><input type="date" name="dob"
+                            <div class="form-group"><label>Date of Birth</label><input type="text" name="dob" class="nepali-datepicker"
                                     value="<?php echo $selectedPersonnel['dob'] && $selectedPersonnel['dob'] != '0000-00-00' ? $selectedPersonnel['dob'] : ''; ?>">
                             </div>
                             <div class="form-group"><label>Gender</label><select name="gender">
@@ -1761,18 +1799,19 @@ ob_start();
                                     <option value="Single" <?php echo ($selectedPersonnel['military_status'] ?? '') == 'Single' ? 'selected' : ''; ?>>Single</option>
                                     <option value="Married" <?php echo ($selectedPersonnel['military_status'] ?? '') == 'Married' ? 'selected' : ''; ?>>Married</option>
                                 </select></div>
-                            <div class="form-group"><label>Recruitment Date</label><input type="date"
-                                    name="recruitment_date"
+                            <div class="form-group"><label>Recruitment Date</label><input type="text"
+                                    name="recruitment_date" class="nepali-datepicker"
                                     value="<?php echo $selectedPersonnel['recruitment_date'] && $selectedPersonnel['recruitment_date'] != '0000-00-00' ? $selectedPersonnel['recruitment_date'] : ''; ?>">
                             </div>
-                            <div class="form-group"><label>Commission Date</label><input type="date" name="commission_date"
+                            <div class="form-group"><label>Commission Date</label><input type="text" name="commission_date" class="nepali-datepicker"
                                     value="<?php echo $selectedPersonnel['commission_date'] && $selectedPersonnel['commission_date'] != '0000-00-00' ? $selectedPersonnel['commission_date'] : ''; ?>">
                             </div>
                             <div class="form-group"><label>Current Status</label><select name="current_status">
                                     <option value="Active" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Active' ? 'selected' : ''; ?>>Active</option>
+                                    <option value="Training" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Training' ? 'selected' : ''; ?>>Training</option>
+                                    <option value="Mission" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Mission' ? 'selected' : ''; ?>>Mission</option>
                                     <option value="Leave" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Leave' ? 'selected' : ''; ?>>Leave</option>
                                     <option value="Retired" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Retired' ? 'selected' : ''; ?>>Retired</option>
-                                    <option value="Training" <?php echo ($selectedPersonnel['current_status'] ?? '') == 'Training' ? 'selected' : ''; ?>>Training</option>
                                 </select></div>
                         </div>
 
@@ -1950,7 +1989,7 @@ ob_start();
         <div id="photoUploadModal" class="modal">
             <div class="modal-content" style="max-width: 450px;">
                 <div class="modal-header">
-                    <h3><i class="fas fa-camera"></i> Upload Photo</h3><span class="modal-close-photo">&times;</span>
+                    <h3><i class="fas fa-camera"></i> Upload Photo</h3><span class="modal-close-photo"><i class="fas fa-times"></i></span>
                 </div>
                 <div class="modal-body">
                     <form id="photoUploadForm" enctype="multipart/form-data">
@@ -1971,7 +2010,7 @@ ob_start();
         <div id="photoViewModal" class="modal">
             <div class="modal-content" style="max-width: 450px; text-align: center;">
                 <div class="modal-header">
-                    <h3 id="photoViewTitle">Profile Photo</h3><span class="modal-close-view">&times;</span>
+                    <h3 id="photoViewTitle">Profile Photo</h3><span class="modal-close-view"><i class="fas fa-times"></i></span>
                 </div>
                 <div class="modal-body">
                     <div id="photoViewImage"></div>
@@ -2014,6 +2053,11 @@ ob_start();
 
         if (editBtn) editBtn.onclick = () => editModal.style.display = 'flex';
 
+        // Auto-open the edit form when arriving from the "Complete Profile" prompt
+        if (editModal && new URLSearchParams(window.location.search).get('edit') === '1') {
+            editModal.style.display = 'flex';
+        }
+
         function closeModals() {
             document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
         }
@@ -2025,7 +2069,7 @@ ob_start();
         function showToast(msg, type = 'success') {
             const toast = document.getElementById('toast');
             toast.textContent = msg;
-            toast.style.backgroundColor = type === 'success' ? '#1a5a4a' : '#dc2626';
+            toast.style.backgroundColor = type === 'success' ? '#0e7490' : '#dc2626';
             toast.style.display = 'block';
             setTimeout(() => toast.style.display = 'none', 3000);
         }
@@ -2145,7 +2189,7 @@ ob_start();
         }
 
         function viewProfilePhoto(path, name) {
-            document.getElementById('photoViewImage').innerHTML = `<img src="${path}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;border:3px solid #1a5a4a;">`;
+            document.getElementById('photoViewImage').innerHTML = `<img src="${path}" style="width:200px;height:200px;border-radius:50%;object-fit:cover;border:3px solid #0e7490;">`;
             document.getElementById('photoViewName').textContent = name;
             document.getElementById('photoViewModal').style.display = 'flex';
         }

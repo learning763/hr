@@ -30,30 +30,30 @@ ob_start();
     .settings-section {
         background: white;
         border-radius: 12px;
-        padding: 24px;
-        margin-bottom: 24px;
+        padding: 16px 18px;
+        margin-bottom: 16px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    
+
     .settings-section h3 {
-        margin: 0 0 20px 0;
+        margin: 0 0 14px 0;
         color: #1a2c3e;
-        font-size: 18px;
+        font-size: 16px;
         font-weight: 600;
-        padding-bottom: 12px;
+        padding-bottom: 10px;
         border-bottom: 2px solid #eef2f6;
     }
     
     .settings-section h3 i {
         margin-right: 10px;
-        color: #2c5f4e;
+        color: #0e7490;
     }
     
     .info-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 0;
+        padding: 9px 0;
         border-bottom: 1px solid #eef2f6;
     }
     
@@ -73,7 +73,7 @@ ob_start();
     }
     
     .btn-change {
-        background: #2c5f4e;
+        background: #0e7490;
         color: white;
         border: none;
         padding: 6px 16px;
@@ -84,7 +84,7 @@ ob_start();
     }
     
     .btn-change:hover {
-        background: #1e3a32;
+        background: #10263f;
         transform: translateY(-1px);
     }
     
@@ -112,30 +112,30 @@ ob_start();
     }
     
     .password-modal-header {
-        padding: 20px 24px;
+        padding: 14px 18px;
         border-bottom: 1px solid #eef2f6;
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
-    
+
     .password-modal-header h3 {
         margin: 0;
         color: #1a2c3e;
-        font-size: 18px;
+        font-size: 16px;
     }
-    
+
     .password-modal-header h3 i {
         margin-right: 10px;
-        color: #2c5f4e;
+        color: #0e7490;
     }
-    
+
     .password-modal-body {
-        padding: 24px;
+        padding: 18px;
     }
-    
+
     .password-field {
-        margin-bottom: 20px;
+        margin-bottom: 14px;
     }
     
     .password-field label {
@@ -157,8 +157,8 @@ ob_start();
     }
     
     .password-field input:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+        border-color: #0e7490;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.08);
     }
     
     .password-strength {
@@ -194,8 +194,7 @@ ob_start();
     }
     
     .close-modal {
-        font-size: 28px;
-        font-weight: bold;
+        font-size: 18px;
         cursor: pointer;
         color: #9aa9bc;
         transition: 0.2s;
@@ -363,7 +362,7 @@ ob_start();
     <div class="password-modal-content">
         <div class="password-modal-header">
             <h3><i class="fas fa-key"></i> Change Password</h3>
-            <span class="close-modal">&times;</span>
+            <span class="close-modal"><i class="fas fa-times"></i></span>
         </div>
         <div class="password-modal-body">
             <div id="passwordAlert"></div>
@@ -382,7 +381,7 @@ ob_start();
             </div>
             <div class="modal-buttons">
                 <button type="button" class="btn-cancel" id="cancelPasswordBtn" style="padding: 8px 20px; background: #f1f3f5; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
-                <button type="button" class="btn-submit" id="updatePasswordBtn" style="padding: 8px 20px; background: #1e3a32; color: white; border: none; border-radius: 6px; cursor: pointer;">Update Password</button>
+                <button type="button" class="btn-submit" id="updatePasswordBtn" style="padding: 8px 20px; background: #10263f; color: white; border: none; border-radius: 6px; cursor: pointer;">Update Password</button>
             </div>
         </div>
     </div>

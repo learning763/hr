@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fullName = trim($_POST['fullName'] ?? '');
         $fullNameNe = trim($_POST['fullNameNe'] ?? '');
         $email = trim($_POST['email'] ?? '');
-        $phone = trim($_POST['phone'] ?? '');
+        $contact = trim($_POST['contact'] ?? '');
         $rank = $_POST['rank'] ?? '';
         $branch = trim($_POST['branch'] ?? '');
         $recruitmentDate = $_POST['recruitmentDate'] ?? null;
@@ -67,13 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
         
         // Insert new personnel
-        $sql = "INSERT INTO personnel (personnel_number, full_name_en, full_name_ne, email, phone, rank, unit, recruitment_date, province, district, municipality, village_tole, current_status, role, created_at) 
+        $sql = "INSERT INTO personnel (personnel_number, full_name_en, full_name_ne, email, contact, rank, unit, recruitment_date, province, district, municipality, village_tole, current_status, role, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())";
-        
+
         $stmt = $pdo->prepare($sql);
         $result = $stmt->execute([
-            $serviceNo, $fullName, $fullNameNe ?: null, $email ?: null, $phone ?: null, 
-            $rank, $branch ?: null, $recruitmentDate ?: null, $province ?: null, 
+            $serviceNo, $fullName, $fullNameNe ?: null, $email ?: null, $contact ?: null,
+            $rank, $branch ?: null, $recruitmentDate ?: null, $province ?: null,
             $district ?: null, $municipality ?: null, $villageTole ?: null, $status, $role
         ]);
         

@@ -312,27 +312,6 @@ CREATE TABLE IF NOT EXISTS `leave_types` (
 
 -- Dumping data for table hr.leave_types: ~0 rows (approximately)
 
--- Dumping structure for table hr.military_personnel_status
-CREATE TABLE IF NOT EXISTS `military_personnel_status` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `personnel_number` varchar(20) DEFAULT NULL,
-  `personnel_name` varchar(255) NOT NULL,
-  `rank` varchar(100) NOT NULL,
-  `status` enum('present','leave','sick','work','workout','tdy','course') NOT NULL,
-  `record_date` date NOT NULL,
-  `in_time` time DEFAULT NULL,
-  `out_time` time DEFAULT NULL,
-  `remarks` text NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `idx_status` (`status`),
-  KEY `idx_date` (`record_date`),
-  KEY `idx_personnel_number` (`personnel_number`)
-) ENGINE=InnoDB AUTO_INCREMENT=45 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Dumping data for table hr.military_personnel_status: ~0 rows (approximately)
-
 -- Dumping structure for table hr.personnel
 CREATE TABLE IF NOT EXISTS `personnel` (
   `personnel_number` int(10) NOT NULL DEFAULT 0,
@@ -342,7 +321,8 @@ CREATE TABLE IF NOT EXISTS `personnel` (
   `gender` enum('Male','Female') DEFAULT 'Male',
   `blood_group` enum('A+','A-','B+','B-','O+','O-','AB+','AB-') DEFAULT NULL,
   `rank` int(11) DEFAULT NULL,
-  `current_status` enum('Active','Retired') DEFAULT 'Active',
+  `current_status` enum('Active','Training','Mission','Leave','Retired') DEFAULT 'Active',
+  `registered_via` enum('signup','admin') NOT NULL DEFAULT 'admin',
   `unit` varchar(100) DEFAULT NULL,
   `email` varchar(100) NOT NULL,
   `signature` varchar(500) DEFAULT NULL,

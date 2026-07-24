@@ -125,9 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_REQUESTED_WI
             $total = $count_stmt->fetch(PDO::FETCH_ASSOC)['total'];
 
             // Get events
-            $sql = "SELECT e.*, mps.personnel_name as creator_name, mps.rank as creator_rank
+            $sql = "SELECT e.*
                     FROM events e
-                    LEFT JOIN military_personnel_status mps ON e.personnel_id = mps.id
                     WHERE $where
                     ORDER BY 
                         CASE e.status
@@ -427,7 +426,7 @@ ob_start();
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-            <div class="stat-label" style="font-size:16px;">
+            <div class="stat-label" style="font-size:12px;">
                 आगामी कार्यक्रमहरु <br />(Upcoming Events)
             </div>
 
@@ -442,7 +441,7 @@ ob_start();
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-            <div class="stat-label" style="font-size:16px;">
+            <div class="stat-label" style="font-size:12px;">
                 चालु कार्यक्रमहरु <br />(Ongoing Events)
             </div>
 
@@ -457,7 +456,7 @@ ob_start();
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-            <div class="stat-label" style="font-size:16px;">
+            <div class="stat-label" style="font-size:12px;">
                 सम्पन्न भएका कार्यक्रमहरु <br />(Completed Events)
             </div>
 
@@ -473,16 +472,16 @@ ob_start();
     <div class="filter-box">
         <div class="filter-header">
             <h4><i class="fas fa-filter"></i> Advance Filter</h4>
-            <button id="closeAdvancedFilter" class="close-filter">&times;</button>
+            <button id="closeAdvancedFilter" class="close-filter"><i class="fas fa-times"></i></button>
         </div>
         <div class="filter-body">
             <div class="filter-row">
                 <div class="filter-group">
                     <label><i class="fas fa-calendar-alt"></i> मिति (देखि - सम्म)</label>
                     <div class="date-range-group">
-                        <input type="date" id="dateFrom" class="filter-input" placeholder="From Date">
+                        <input type="text" id="dateFrom" class="filter-input nepali-datepicker" placeholder="From Date">
                         <span>देखि</span>
-                        <input type="date" id="dateTo" class="filter-input" placeholder="To Date">
+                        <input type="text" id="dateTo" class="filter-input nepali-datepicker" placeholder="To Date">
                         <span>सम्म</span>
                     </div>
                 </div>
@@ -545,7 +544,6 @@ ob_start();
                 <th style="text-align:center;">स्थान</th>
                 <th style="text-align:center;">प्राथमिकता</th>
                 <th style="text-align:center;">अवस्था</th>
-                <th style="text-align:center;">Created By</th>
                 <?php if ($can_manage_events): ?>
                     <th style="width: 140px;text-align:center;">Actions</th>
                 <?php endif; ?>
@@ -571,7 +569,7 @@ ob_start();
 <!-- Records Per Page -->
 <div class="records-per-page">
     <label>Show:</label>
-    <select id="recordsPerPage">
+    <select id="recordsPerPage" class="no-select2">
         <option value="10">10</option>
         <option value="25">25</option>
         <option value="50">50</option>
@@ -592,7 +590,7 @@ ob_start();
         <div class="modal-content" style="max-width: 650px;">
             <div class="modal-header">
                 <h3 id="modalTitle"><i class="fas fa-calendar-plus"></i> Add New Event</h3>
-                <span class="close">&times;</span>
+                <span class="close"><i class="fas fa-times"></i></span>
             </div>
             <div class="modal-body">
                 <form id="eventForm">
@@ -629,12 +627,12 @@ ob_start();
                         <div class="input-field">
                             <label><i class="fas fa-calendar-day"></i> कार्यक्रम शुरु मिति<span
                                     class="required-star">*</span></label>
-                            <input type="date" id="startDate" name="start_date" required>
+                            <input type="text" id="startDate" name="start_date" class="nepali-datepicker" placeholder="YYYY-MM-DD" autocomplete="off" required>
                         </div>
 
                         <div class="input-field">
                             <label><i class="fas fa-calendar-day"></i>कार्यक्रम समापन मिति</label>
-                            <input type="date" id="endDate" name="end_date">
+                            <input type="text" id="endDate" name="end_date" class="nepali-datepicker" placeholder="YYYY-MM-DD" autocomplete="off">
                             <small>Leave empty if single day event</small>
                         </div>
 
@@ -675,7 +673,7 @@ ob_start();
     <div class="modal-content" style="max-width: 600px;">
         <div class="modal-header">
             <h3><i class="fas fa-info-circle"></i> Event Details</h3>
-            <span class="close-details">&times;</span>
+            <span class="close-details"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body" id="detailsContent"></div>
     </div>
@@ -689,8 +687,8 @@ ob_start();
 <style>
     .page-actions {
         display: flex;
-        gap: 12px;
-        margin-bottom: 25px;
+        gap: 10px;
+        margin-bottom: 16px;
         justify-content: flex-end;
         flex-wrap: wrap;
     }
@@ -699,25 +697,25 @@ ob_start();
     .btn-export,
     .btn-filter-date,
     .btn-reset {
-        padding: 10px 20px;
+        padding: 8px 16px;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 600;
         transition: all 0.2s;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 7px;
         border: none;
     }
 
     .btn-add {
-        background: #1e3a32;
+        background: #10263f;
         color: white;
     }
 
     .btn-add:hover {
-        background: #14362c;
+        background: #0d2036;
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
@@ -733,7 +731,7 @@ ob_start();
     }
 
     .btn-export {
-        background: #2c5f4e;
+        background: #0e7490;
         color: white;
     }
 
@@ -756,21 +754,21 @@ ob_start();
     .advanced-filter-section {
         background: white;
         border-radius: 12px;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         border: 1px solid #eef2f6;
     }
 
     .filter-box {
-        padding: 20px;
+        padding: 16px;
     }
 
     .filter-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
-        padding-bottom: 10px;
+        margin-bottom: 14px;
+        padding-bottom: 8px;
         border-bottom: 1px solid #eef2f6;
     }
 
@@ -783,7 +781,7 @@ ob_start();
     .close-filter {
         background: none;
         border: none;
-        font-size: 24px;
+        font-size: 16px;
         cursor: pointer;
         color: #9aa9bc;
     }
@@ -794,9 +792,9 @@ ob_start();
 
     .filter-row {
         display: flex;
-        gap: 20px;
+        gap: 14px;
         flex-wrap: wrap;
-        margin-bottom: 20px;
+        margin-bottom: 14px;
     }
 
     .filter-group {
@@ -842,7 +840,7 @@ ob_start();
 
     .filter-input:focus,
     .filter-select:focus {
-        border-color: #2c5f4e;
+        border-color: #0e7490;
     }
 
     .filter-buttons-row {
@@ -864,12 +862,12 @@ ob_start();
     }
 
     .btn-apply-filters {
-        background: #1e3a32;
+        background: #10263f;
         color: white;
     }
 
     .btn-apply-filters:hover {
-        background: #14362c;
+        background: #0d2036;
     }
 
     .btn-clear-filters {
@@ -883,7 +881,7 @@ ob_start();
 
     /* Search Section */
     .search-section {
-        margin-bottom: 20px;
+        margin-bottom: 14px;
     }
 
     .search-container {
@@ -911,8 +909,8 @@ ob_start();
     }
 
     .search-input:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+        border-color: #0e7490;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.08);
     }
 
     .clear-search {
@@ -943,11 +941,11 @@ ob_start();
     .active-filters-container {
         background: #f8fafc;
         border-radius: 8px;
-        padding: 12px 15px;
-        margin-bottom: 20px;
+        padding: 9px 12px;
+        margin-bottom: 14px;
         display: flex;
         align-items: center;
-        gap: 15px;
+        gap: 12px;
         flex-wrap: wrap;
         border: 1px solid #e2e8f0;
     }
@@ -991,18 +989,18 @@ ob_start();
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
     }
 
     .stat-card {
         background: white;
-        border-radius: 16px;
-        padding: 20px;
+        border-radius: 12px;
+        padding: 14px 16px;
         display: flex;
         align-items: flex-start;
-        gap: 15px;
+        gap: 12px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         border: 1px solid #eef2f6;
         transition: transform 0.2s, box-shadow 0.2s;
@@ -1014,35 +1012,36 @@ ob_start();
     }
 
     .stat-icon {
-        width: 54px;
-        height: 54px;
+        width: 40px;
+        height: 40px;
         background: #f0fdf4;
-        border-radius: 12px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 24px;
-        color: #2c5f4e;
+        font-size: 17px;
+        color: #0e7490;
+        flex-shrink: 0;
     }
 
     .stat-value {
-        font-size: 28px;
+        font-size: 19px;
         font-weight: 700;
         color: #1a2c3e;
         line-height: 1.2;
     }
 
     .stat-label {
-        font-size: 13px;
+        font-size: 11px;
         color: #6c7a8e;
-        margin-top: 4px;
+        margin-top: 3px;
     }
 
     .data-table {
         overflow-x: auto;
         background: white;
-        border-radius: 16px;
-        padding: 20px;
+        border-radius: 12px;
+        padding: 14px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         border: 1px solid #eef2f6;
     }
@@ -1166,19 +1165,19 @@ ob_start();
     }
 
     .pagination-container {
-        margin-top: 24px;
-        padding-top: 20px;
+        margin-top: 16px;
+        padding-top: 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: 15px;
+        gap: 12px;
         border-top: 1px solid #eef2f6;
     }
 
     .pagination-info {
         color: #6c7a8e;
-        font-size: 14px;
+        font-size: 13px;
     }
 
     .pagination {
@@ -1192,14 +1191,14 @@ ob_start();
     .page-number {
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
+        gap: 0.4rem;
+        padding: 0.4rem 0.8rem;
         background: white;
         border: 1px solid #dee2e6;
         border-radius: 8px;
         color: #495057;
         text-decoration: none;
-        font-size: 0.875rem;
+        font-size: 0.8rem;
         font-weight: 500;
         transition: all 0.2s;
         cursor: pointer;
@@ -1208,32 +1207,32 @@ ob_start();
     .pagination-btn:hover,
     .page-number:hover {
         background: #f8f9fa;
-        border-color: #1e3c72;
-        color: #1e3c72;
+        border-color: #10263f;
+        color: #10263f;
     }
 
     .page-number.active {
-        background: #1e3a32;
-        border-color: #1e3a32;
+        background: #10263f;
+        border-color: #10263f;
         color: white;
     }
 
     .records-per-page {
-        margin-top: 15px;
+        margin-top: 12px;
         display: flex;
         justify-content: flex-end;
         align-items: center;
-        gap: 10px;
-        font-size: 14px;
+        gap: 8px;
+        font-size: 13px;
         color: #6c7a8e;
     }
 
     .records-per-page select {
-        padding: 6px 10px;
+        padding: 5px 9px;
         border: 1.5px solid #e2e8f0;
         border-radius: 6px;
         background: white;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         outline: none;
     }
@@ -1294,7 +1293,7 @@ ob_start();
     }
 
     .modal-header {
-        padding: 20px 24px;
+        padding: 14px 18px;
         border-bottom: 1px solid #eef2f6;
         display: flex;
         justify-content: space-between;
@@ -1304,13 +1303,12 @@ ob_start();
     .modal-header h3 {
         margin: 0;
         color: #1a2c3e;
-        font-size: 20px;
+        font-size: 17px;
     }
 
     .close,
     .close-details {
-        font-size: 28px;
-        font-weight: bold;
+        font-size: 18px;
         cursor: pointer;
         color: #9aa9bc;
         transition: 0.2s;
@@ -1322,7 +1320,7 @@ ob_start();
     }
 
     .modal-body {
-        padding: 24px;
+        padding: 18px;
         max-height: 70vh;
         overflow-y: auto;
     }
@@ -1330,7 +1328,7 @@ ob_start();
     .form-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 20px;
+        gap: 14px;
     }
 
     .input-field {
@@ -1348,10 +1346,10 @@ ob_start();
     .input-field input,
     .input-field select,
     .input-field textarea {
-        padding: 10px 12px;
+        padding: 9px 11px;
         border: 1.5px solid #e2e8f0;
         border-radius: 8px;
-        font-size: 14px;
+        font-size: 13px;
         transition: all 0.2s;
         outline: none;
         font-family: inherit;
@@ -1360,8 +1358,8 @@ ob_start();
     .input-field input:focus,
     .input-field select:focus,
     .input-field textarea:focus {
-        border-color: #2c5f4e;
-        box-shadow: 0 0 0 3px rgba(44, 95, 78, 0.08);
+        border-color: #0e7490;
+        box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.08);
     }
 
     .full-width {
@@ -1374,20 +1372,20 @@ ob_start();
 
     .modal-buttons {
         display: flex;
-        gap: 12px;
+        gap: 10px;
         justify-content: flex-end;
-        margin-top: 24px;
-        padding-top: 20px;
+        margin-top: 18px;
+        padding-top: 14px;
         border-top: 1px solid #eef2f6;
     }
 
     .btn-cancel {
-        padding: 10px 20px;
+        padding: 9px 18px;
         background: #f1f3f5;
         border: none;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 500;
         transition: 0.2s;
     }
@@ -1397,19 +1395,19 @@ ob_start();
     }
 
     .btn-submit {
-        padding: 10px 24px;
-        background: #1e3a32;
+        padding: 9px 20px;
+        background: #10263f;
         color: white;
         border: none;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 600;
         transition: 0.2s;
     }
 
     .btn-submit:hover {
-        background: #14362c;
+        background: #0d2036;
     }
 
     .details-grid {
@@ -1442,7 +1440,7 @@ ob_start();
         position: fixed;
         bottom: 20px;
         right: 20px;
-        background: #1e3a32;
+        background: #10263f;
         color: white;
         padding: 12px 20px;
         border-radius: 8px;
@@ -1614,7 +1612,6 @@ ob_start();
                 <td>${escapeHtml(event.location || '-')}</td>
                 <td><span class="priority-badge priority-${event.priority}">${event.priority}</span></td>
                 <td><span class="status-badge status-${event.status}">${event.status}</span></td>
-                <td>${escapeHtml(event.creator_name || '-')}</td>
             `;
 
             // Add actions column only if user can manage events
@@ -1763,7 +1760,7 @@ ob_start();
             list.innerHTML = filters.map(filter => `
                 <span class="filter-tag">
                     ${filter.text}
-                    <button class="remove-filter-tag" onclick="removeFilter('${filter.type}')">&times;</button>
+                    <button class="remove-filter-tag" onclick="removeFilter('${filter.type}')"><i class="fas fa-times"></i></button>
                 </span>
             `).join('');
         } else {
@@ -1854,7 +1851,6 @@ ob_start();
                 <div class="detail-item"><div class="detail-label">End Date</div><div class="detail-value">${endDate}</div></div>
                 <div class="detail-item"><div class="detail-label">Location</div><div class="detail-value">${escapeHtml(event.location || 'N/A')}</div></div>
                 <div class="detail-item"><div class="detail-label">Status</div><div class="detail-value">${event.status}</div></div>
-                <div class="detail-item"><div class="detail-label">Created By</div><div class="detail-value">${escapeHtml(event.creator_name || 'N/A')}</div></div>
                 <div class="detail-item"><div class="detail-label">Created On</div><div class="detail-value">${createdDate}</div></div>
                 <div class="detail-item full-width"><div class="detail-label">Description</div><div class="detail-value">${escapeHtml(event.event_description || 'No description provided.')}</div></div>
             </div>
@@ -1907,7 +1903,7 @@ ob_start();
         if (!toast || !toastMessage) return;
 
         toastMessage.textContent = message;
-        toast.style.backgroundColor = type === 'success' ? '#1e3a32' : '#dc2626';
+        toast.style.backgroundColor = type === 'success' ? '#10263f' : '#dc2626';
         toast.style.display = 'block';
 
         setTimeout(() => { toast.style.display = 'none'; }, 3000);
@@ -2085,7 +2081,7 @@ ob_start();
             return;
         }
 
-        const rows = [['S.N.', 'Event Title', 'Type', 'Start Date', 'End Date', 'Location', 'Priority', 'Status', 'Description', 'Created By']];
+        const rows = [['S.N.', 'Event Title', 'Type', 'Start Date', 'End Date', 'Location', 'Priority', 'Status', 'Description']];
         const startSerial = ((currentPage - 1) * currentPerPage) + 1;
 
         eventsData.forEach((event, index) => {
@@ -2098,8 +2094,7 @@ ob_start();
                 event.location || '',
                 event.priority,
                 event.status,
-                event.event_description || '',
-                event.creator_name || ''
+                event.event_description || ''
             ]);
         });
 

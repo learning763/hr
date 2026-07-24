@@ -9,10 +9,6 @@ require_once('includes/functions.php');
 $stmt = $pdo->query("SELECT COUNT(*) as total FROM personnel");
 $totalPersonnel = $stmt->fetch()['total'];
 
-// Active Duty (personnel with current_status = 'Active')
-$stmt = $pdo->query("SELECT COUNT(*) as active FROM personnel WHERE current_status = 'Active'");
-$activeDuty = $stmt->fetch()['active'];
-
 // On Leave (personnel with current_status = 'Leave')
 $stmt = $pdo->query("SELECT COUNT(*) as leave_count FROM personnel WHERE current_status = 'Leave'");
 $onLeave = $stmt->fetch()['leave_count'];
@@ -21,13 +17,13 @@ $onLeave = $stmt->fetch()['leave_count'];
 $stmt = $pdo->query("SELECT COUNT(*) as training_count FROM personnel WHERE current_status = 'Training'");
 $inTraining = $stmt->fetch()['training_count'];
 
+// On Mission (peace/UN mission)
+$stmt = $pdo->query("SELECT COUNT(*) as mission_count FROM personnel WHERE current_status = 'Mission'");
+$onMission = $stmt->fetch()['mission_count'];
+
 // Retired personnel
 $stmt = $pdo->query("SELECT COUNT(*) as retired_count FROM personnel WHERE current_status = 'Retired'");
 $retired = $stmt->fetch()['retired_count'];
-
-// Pending Requests (from military_personnel_status where out_time is NULL)
-$stmt = $pdo->query("SELECT COUNT(*) as pending FROM military_personnel_status WHERE out_time IS NULL AND record_date = CURDATE()");
-$pendingRequests = $stmt->fetch()['pending'];
 
 // Gender distribution
 $stmt = $pdo->query("SELECT COUNT(*) as male FROM personnel WHERE gender = 'Male'");
@@ -76,13 +72,6 @@ ob_start();
         </div>
     </div>
     <div class="stat-card">
-        <div class="stat-icon"><i class="fas fa-user-check"></i></div>
-        <div>
-            <div class="stat-value"><?php echo engtouni(number_format($activeDuty)); ?></div>
-            <div class="stat-label">हाजिर संख्या</div>
-        </div>
-    </div>
-    <div class="stat-card">
         <div class="stat-icon"><i class="fas fa-chalkboard-user"></i></div>
         <div>
             <div class="stat-value"><?php echo engtouni(number_format($inTraining)); ?></div>
@@ -99,7 +88,7 @@ ob_start();
     <div class="stat-card">
         <div class="stat-icon"><i class="fa-solid fa-helmet-un"></i></div>
         <div>
-            <div class="stat-value"><?php echo engtouni(number_format($onLeave)); ?></div>
+            <div class="stat-value"><?php echo engtouni(number_format($onMission)); ?></div>
             <div class="stat-label">शान्ति सेना</div>
         </div>
     </div>
@@ -110,13 +99,6 @@ ob_start();
             <div class="stat-label">राजिनामा खाली</div>
         </div>
     </div>
-    <div class="stat-card">
-        <div class="stat-icon"><i class="fas fa-clock"></i></div>
-        <div>
-            <div class="stat-value"><?php echo engtouni(number_format($pendingRequests)); ?></div>
-            <div class="stat-label">बिदाको निवेदन (Pending)</div>
-        </div>
-    </div>
 </div>
 
 <!-- Gender Distribution -->
@@ -125,13 +107,13 @@ ob_start();
 </div>
 <div class="stats-row" style="width:50%">
     <div class="stats-mini-card">
-        <span class="stats-mini-label"><i class="fas fa-mars" style="margin-right:25px;font-size: 32px;"></i><b
-                style="font-size:20px;">पुरुष</b></span>
+        <span class="stats-mini-label"><i class="fas fa-mars" style="margin-right:12px;font-size: 18px;"></i><b
+                style="font-size:14px;">पुरुष</b></span>
         <span class="stats-mini-value"><?php echo engtouni(number_format($maleCount)); ?></span>
     </div>
     <div class="stats-mini-card">
-        <span class="stats-mini-label"><i class="fas fa-venus" style="margin-right:25px;font-size: 32px;"></i> <b
-                style="font-size:20px;">महिला</b></span>
+        <span class="stats-mini-label"><i class="fas fa-venus" style="margin-right:12px;font-size: 18px;"></i> <b
+                style="font-size:14px;">महिला</b></span>
         <span class="stats-mini-value"><?php echo engtouni(number_format($femaleCount)); ?></span>
     </div>
 </div>

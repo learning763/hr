@@ -22,13 +22,21 @@ function sendJsonResponse($success, $message, $data = null) {
     exit;
 }
 
-// Check if user is super admin
-if (!isset($_SESSION['user_role']) || (int)$_SESSION['user_role'] !== 2) {
+// Super Admin can edit anyone; everyone else may only edit their own record, with restricted fields (see below)
+$acting_user_role = isset($_SESSION['user_role']) ? (int) $_SESSION['user_role'] : -1;
+$acting_user_id = $_SESSION['user_id'] ?? '';
+$is_super_admin = ($acting_user_role === 2);
+if ($acting_user_role < 0) {
     sendJsonResponse(false, 'Unauthorized access');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     sendJsonResponse(false, 'Invalid request method');
+}
+
+// Non-Super Admins may only ever update their own record
+if (!$is_super_admin && (string) ($_POST['personnel_number'] ?? '') !== (string) $acting_user_id) {
+    sendJsonResponse(false, 'Unauthorized access');
 }
 
 try {
@@ -37,7 +45,7 @@ try {
     $full_name_en = isset($_POST['full_name_en']) ? trim($_POST['full_name_en']) : '';
     $full_name_ne = isset($_POST['full_name_ne']) ? trim($_POST['full_name_ne']) : '';
     $email = isset($_POST['email']) ? trim($_POST['email']) : '';
-    $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
+    $contact = isset($_POST['contact']) ? trim($_POST['contact']) : '';
     $rank = isset($_POST['rank']) ? $_POST['rank'] : '';
     $unit = isset($_POST['unit']) ? trim($_POST['unit']) : '';
     $recruitment_date = isset($_POST['recruitment_date']) && !empty($_POST['recruitment_date']) ? $_POST['recruitment_date'] : null;
@@ -62,10 +70,18 @@ try {
     }
     
     // Check if personnel exists
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM personnel WHERE personnel_number = ?");
+    $stmt = $pdo->prepare("SELECT role, current_status FROM personnel WHERE personnel_number = ?");
     $stmt->execute([$personnel_number]);
-    if ($stmt->fetchColumn() == 0) {
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$existing) {
         sendJsonResponse(false, 'Personnel not found');
+    }
+
+    // Only Super Admin may change role or status through this form — regular Users
+    // can edit their own/others' personal details but not escalate privileges or status.
+    if (!$is_super_admin) {
+        $role = (int) $existing['role'];
+        $current_status = $existing['current_status'];
     }
     
     // Check if email already exists for another personnel
@@ -78,11 +94,11 @@ try {
     }
     
     // Build update query dynamically
-    $sql = "UPDATE personnel SET 
+    $sql = "UPDATE personnel SET
                 full_name_en = :full_name_en,
                 full_name_ne = :full_name_ne,
                 email = :email,
-                phone = :phone,
+                contact = :contact,
                 rank = :rank,
                 unit = :unit,
                 recruitment_date = :recruitment_date,
@@ -99,7 +115,7 @@ try {
         ':full_name_en' => $full_name_en,
         ':full_name_ne' => !empty($full_name_ne) ? $full_name_ne : null,
         ':email' => !empty($email) ? $email : null,
-        ':phone' => !empty($phone) ? $phone : null,
+        ':contact' => !empty($contact) ? $contact : null,
         ':rank' => $rank,
         ':unit' => !empty($unit) ? $unit : null,
         ':recruitment_date' => $recruitment_date,

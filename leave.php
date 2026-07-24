@@ -940,108 +940,131 @@ ob_start();
     <title>Leave Management System</title>
     <style>
         * { box-sizing: border-box; }
-        .status-pending { background-color: #fff3cd; color: #856404; }
-        .status-verified { background-color: #cce5ff; color: #004085; }
-        .status-initiated { background-color: #d4edda; color: #155724; }
-        .status-approved { background-color: #d4edda; color: #155724; }
-        .status-rejected { background-color: #f8d7da; color: #721c24; }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-verified { background-color: #e6f4fa; color: #0c4a6e; }
+        .status-initiated { background-color: #d1fae5; color: #065f46; }
+        .status-approved { background-color: #d1fae5; color: #065f46; }
+        .status-rejected { background-color: #fee2e2; color: #991b1b; }
         .btn-process { padding: 4px 12px; font-size: 12px; margin: 2px; border-radius: 4px; cursor: pointer; border: none; }
-        .btn-approve { background: #28a745; color: white; }
-        .btn-reject { background: #dc3545; color: white; }
-        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; }
+        .btn-approve { background: #10b981; color: white; }
+        .btn-reject { background: #dc2626; color: white; }
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #0e7490; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+        .leave-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 2px solid #eef2f6; flex-wrap: wrap; }
+        .leave-tab {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 16px; border: none; background: none; cursor: pointer;
+            font-size: 13px; font-weight: 600; color: #6c757d;
+            border-bottom: 2px solid transparent; margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .leave-tab:hover { color: #10263f; background: #f8fafc; }
+        .leave-tab.active { color: #0e7490; border-bottom-color: #0e7490; }
+        .leave-tab .tab-count {
+            background: #dc2626; color: white; border-radius: 20px;
+            padding: 1px 7px; font-size: 11px; font-weight: 700;
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; animation: fadeInPanel 0.2s ease; }
+        @keyframes fadeInPanel { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+        .stat-card { background: white; border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; }
         .stat-card:hover { transform: translateY(-2px); }
-        .stat-card.verifying { border-left: 4px solid #ffc107; }
-        .stat-card.initiating { border-left: 4px solid #17a2b8; }
-        .stat-card.accepting { border-left: 4px solid #28a745; }
-        .stat-value { font-size: 28px; font-weight: bold; }
-        .officer-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+        .stat-card.verifying { border-left: 4px solid #f59e0b; }
+        .stat-card.initiating { border-left: 4px solid #0e7490; }
+        .stat-card.accepting { border-left: 4px solid #10b981; }
+        .stat-value { font-size: 20px; font-weight: bold; }
+        .officer-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
         .officer-card { background: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
-        .officer-card-header { padding: 15px; font-weight: bold; }
-        .officer-card-header.verifying { background: #fff3cd; color: #856404; }
-        .officer-card-header.initiating { background: #cce5ff; color: #004085; }
-        .officer-card-header.accepting { background: #d4edda; color: #155724; }
-        .officer-card-body { padding: 15px; max-height: 400px; overflow-y: auto; }
-        .pending-item { border-bottom: 1px solid #eee; padding: 10px; margin-bottom: 10px; }
+        .officer-card-header { padding: 11px 14px; font-weight: bold; font-size: 14px; }
+        .officer-card-header.verifying { background: #fef3c7; color: #92400e; }
+        .officer-card-header.initiating { background: #e6f4fa; color: #0c4a6e; }
+        .officer-card-header.accepting { background: #d1fae5; color: #065f46; }
+        .officer-card-body { padding: 12px 14px; max-height: 400px; overflow-y: auto; }
+        .pending-item { border-bottom: 1px solid #eee; padding: 8px; margin-bottom: 8px; font-size: 13px; }
         .pending-item:last-child { border-bottom: none; }
-        .badge-new { background: #dc3545; color: white; border-radius: 20px; padding: 2px 8px; font-size: 11px; margin-left: 10px; }
-        .balance-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-        .balance-card { background: white; border-radius: 10px; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .balance-card .days { font-size: 24px; font-weight: bold; color: #007bff; }
-        .filter-section { margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 5px; }
-        .filter-btn { padding: 8px 16px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+        .badge-new { background: #dc2626; color: white; border-radius: 20px; padding: 2px 8px; font-size: 11px; margin-left: 10px; }
+        .balance-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+        .balance-card { background: white; border-radius: 10px; padding: 12px 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .balance-card h4 { font-size: 14px; margin: 0 0 6px 0; }
+        .balance-card .days { font-size: 19px; font-weight: bold; color: #0e7490; }
+        .balance-card small { font-size: 11px; color: #6c757d; }
+        .filter-section { margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 5px; }
+        .filter-btn { padding: 7px 14px; border: 1px solid #ddd; background: white; border-radius: 20px; cursor: pointer; transition: all 0.2s; font-size: 13px; }
         .filter-btn:hover { background: #f0f0f0; }
-        .filter-btn.active { background: #007bff; color: white; border-color: #007bff; }
-        .btn-add { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-size: 14px; margin-bottom: 20px; }
+        .filter-btn.active { background: #0e7490; color: white; border-color: #0e7490; }
+        .btn-add { background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; margin-bottom: 14px; }
         .data-table { background: white; border-radius: 10px; overflow-x: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         table { width: 100%; border-collapse: collapse; min-width: 1200px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; font-weight: 600; position: sticky; top: 0; }
         .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
         .action-btn { padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; }
-        .btn-approve-action { background: #28a745; color: white; }
-        .btn-reject-action { background: #dc3545; color: white; }
-        .btn-view-action { background: #17a2b8; color: white; }
+        .btn-approve-action { background: #10b981; color: white; }
+        .btn-reject-action { background: #dc2626; color: white; }
+        .btn-view-action { background: #0e7490; color: white; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
         .modal-content { background: white; margin: 5% auto; width: 90%; max-width: 700px; border-radius: 10px; max-height: 90vh; overflow-y: auto; }
-        .modal-header { padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; }
-        .modal-body { padding: 20px; }
-        .input-field { margin-bottom: 15px; }
-        .input-field label { display: block; margin-bottom: 5px; font-weight: 600; }
-        .input-field input, .input-field select, .input-field textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; }
+        .modal-header { padding: 12px 16px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; }
+        .modal-header h3 { margin: 0; font-size: 16px; color: #1a2c3e; }
+        .modal-body { padding: 16px; }
+        .input-field { margin-bottom: 12px; }
+        .input-field label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #334155; }
+        .input-field input, .input-field select, .input-field textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; font-family: inherit; }
         .required-star { color: red; }
-        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; position: sticky; bottom: 0; background: white; padding-top: 10px; }
-        .btn-cancel { background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
-        .btn-submit { background: #007bff; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; position: sticky; bottom: 0; background: white; padding-top: 8px; }
+        .btn-cancel { background: #6c757d; color: white; border: none; padding: 7px 16px; border-radius: 5px; cursor: pointer; }
+        .btn-submit { background: #0e7490; color: white; border: none; padding: 7px 16px; border-radius: 5px; cursor: pointer; }
         .toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 12px 20px; border-radius: 5px; display: none; z-index: 1100; }
-        .info-box { background: #e7f3ff; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; border-left: 4px solid #007bff; }
-        .close, .close-action { cursor: pointer; font-size: 24px; line-height: 1; }
-        .approval-steps { margin-bottom: 25px; }
-        .step-card { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-left: 4px solid; }
-        .step-card.step-1 { border-left-color: #ffc107; }
-        .step-card.step-2 { border-left-color: #17a2b8; }
-        .step-card.step-3 { border-left-color: #28a745; }
-        .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-        .step-number { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-weight: bold; font-size: 14px; color: white; }
-        .step-1 .step-number { background: #ffc107; }
-        .step-2 .step-number { background: #17a2b8; }
-        .step-3 .step-number { background: #28a745; }
-        .step-title { font-weight: 600; font-size: 15px; }
-        .step-1 .step-title { color: #856404; }
-        .step-2 .step-title { color: #004085; }
-        .step-3 .step-title { color: #155724; }
-        .step-desc { font-size: 12px; color: #6c757d; margin-bottom: 12px; padding-left: 38px; }
-        .step-card select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; }
-        .officer-hint { font-size: 11px; color: #6c757d; margin-top: 5px; padding-left: 38px; }
-        .date-group { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        .form-section-label {
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            color: #8a99b0; margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid #eef2f6;
+        }
+        .form-section-label:first-child { margin-top: 0; }
+        .close, .close-action { cursor: pointer; font-size: 18px; line-height: 1; }
+        .approval-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 4px; }
+        .step-card { background: #f8f9fa; border-radius: 10px; padding: 10px; border-left: 4px solid; }
+        .step-card.step-1 { border-left-color: #f59e0b; }
+        .step-card.step-2 { border-left-color: #0e7490; }
+        .step-card.step-3 { border-left-color: #10b981; }
+        .step-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .step-number { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%; font-weight: bold; font-size: 12px; color: white; }
+        .step-1 .step-number { background: #f59e0b; }
+        .step-2 .step-number { background: #0e7490; }
+        .step-3 .step-number { background: #10b981; }
+        .step-title { font-weight: 600; font-size: 12px; }
+        .step-1 .step-title { color: #92400e; }
+        .step-2 .step-title { color: #0c4a6e; }
+        .step-3 .step-title { color: #065f46; }
+        .step-desc { font-size: 11px; color: #6c757d; margin-bottom: 8px; }
+        .step-card select { width: 100%; padding: 7px 9px; border: 1px solid #ddd; border-radius: 6px; background: white; font-size: 12px; }
+        .date-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
         .readonly-field { background: #e9ecef; cursor: not-allowed; }
         .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; flex-wrap: wrap; }
         .page-btn { padding: 5px 10px; border: 1px solid #ddd; background: white; cursor: pointer; border-radius: 4px; }
-        .page-btn.active { background: #007bff; color: white; border-color: #007bff; }
+        .page-btn.active { background: #0e7490; color: white; border-color: #0e7490; }
         .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .status-badge { display: inline-block; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
-        .empty-state { text-align: center; padding: 30px; color: #6c757d; }
-        .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        .empty-state { text-align: center; padding: 18px 12px; color: #6c757d; font-size: 13px; }
+        .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 12px; }
         
         .search-bar {
             background: white;
             border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
+            padding: 12px;
+            margin-bottom: 14px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             display: flex;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 12px;
             align-items: flex-end;
         }
         .search-group { flex: 1; min-width: 150px; }
-        .search-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #666; }
-        .search-group input, .search-group select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; }
-        .search-group button { padding: 8px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; }
-        .search-group button:hover { background: #0056b3; }
+        .search-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #666; }
+        .search-group input, .search-group select { width: 100%; padding: 7px 11px; border: 1px solid #ddd; border-radius: 5px; font-size: 13px; }
+        .search-group button { padding: 7px 16px; background: #0e7490; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 13px; }
+        .search-group button:hover { background: #0b5a74; }
         .clear-search { background: #6c757d !important; }
         .clear-search:hover { background: #5a6268 !important; }
         
@@ -1054,6 +1077,9 @@ ob_start();
             .filter-btn { white-space: nowrap; }
             .search-bar { flex-direction: column; }
             .search-group { width: 100%; }
+            .leave-tabs { flex-wrap: nowrap; overflow-x: auto; }
+            .leave-tab { white-space: nowrap; }
+            .approval-steps { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -1061,131 +1087,151 @@ ob_start();
 
 <div class="container">
 
-    <div class="officer-actions">
-        <div class="officer-card">
-            <div class="officer-card-header verifying">
-                📋 प्राप्त गर्ने (Receiving Officer)
-                <span class="badge-new" id="verifyingBadge"><?php echo $verifyingPending; ?></span>
+    <?php $totalPending = $verifyingPending + $initiatingPending + $acceptingPending; ?>
+    <div class="leave-tabs">
+        <button class="leave-tab active" data-tab="actions">
+            <i class="fas fa-inbox"></i> कार्य केन्द्र (Action Center)
+            <span class="tab-count" id="actionTabCount"><?php echo $totalPending; ?></span>
+        </button>
+        <button class="leave-tab" data-tab="balance">
+            <i class="fas fa-wallet"></i> मेरो बिदा बाँकी (My Balance)
+        </button>
+        <button class="leave-tab" data-tab="requests">
+            <i class="fas fa-list"></i> सबै निवेदनहरू (All Requests)
+        </button>
+    </div>
+
+    <div class="tab-panel active" id="panel-actions">
+        <div class="officer-actions">
+            <div class="officer-card">
+                <div class="officer-card-header verifying">
+                    📋 प्राप्त गर्ने (Receiving Officer)
+                    <span class="badge-new" id="verifyingBadge"><?php echo $verifyingPending; ?></span>
+                </div>
+                <div class="officer-card-body" id="verifyingPendingList">
+                    <div class="loading-spinner"></div> Loading...
+                </div>
             </div>
-            <div class="officer-card-body" id="verifyingPendingList">
-                <div class="loading-spinner"></div> Loading...
+
+            <div class="officer-card">
+                <div class="officer-card-header initiating">
+                    📌 Initiating Officer
+                    <span class="badge-new" id="initiatingBadge"><?php echo $initiatingPending; ?></span>
+                </div>
+                <div class="officer-card-body" id="initiatingPendingList">
+                    <div class="loading-spinner"></div> Loading...
+                </div>
             </div>
-        </div>
-        
-        <div class="officer-card">
-            <div class="officer-card-header initiating">
-                📌 Initiating Officer
-                <span class="badge-new" id="initiatingBadge"><?php echo $initiatingPending; ?></span>
-            </div>
-            <div class="officer-card-body" id="initiatingPendingList">
-                <div class="loading-spinner"></div> Loading...
-            </div>
-        </div>
-        
-        <div class="officer-card">
-            <div class="officer-card-header accepting">
-                ✅ Accepting Officer (Final)
-                <span class="badge-new" id="acceptingBadge"><?php echo $acceptingPending; ?></span>
-            </div>
-            <div class="officer-card-body" id="acceptingPendingList">
-                <div class="loading-spinner"></div> Loading...
+
+            <div class="officer-card">
+                <div class="officer-card-header accepting">
+                    ✅ Accepting Officer (Final)
+                    <span class="badge-new" id="acceptingBadge"><?php echo $acceptingPending; ?></span>
+                </div>
+                <div class="officer-card-body" id="acceptingPendingList">
+                    <div class="loading-spinner"></div> Loading...
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="balance-cards">
-        <div class="balance-card">
-            <h4>🏠 घर बिदा</h4>
-            <div class="days" id="gharpariBalance"><?php echo $myBalance['gharpari_bida_days']; ?></div>
-            <small>दिन बाँकी</small>
-        </div>
-        <div class="balance-card">
-            <h4>🎉 पर्व बिदा</h4>
-            <div class="days" id="parbaBalance"><?php echo $myBalance['parba_bida_days']; ?></div>
-            <small>दिन बाँकी</small>
-        </div>
-        <div class="balance-card">
-            <h4>🚨 क्या./भैपरी बिदा</h4>
-            <div class="days" id="bhaeepariBalance"><?php echo $myBalance['bhaeepari_bida_days']; ?></div>
-            <small>दिन बाँकी</small>
-        </div>
-    </div>
-
-    <!-- Search and Filter Bar -->
-    <div class="search-bar">
-        <div class="search-group" style="flex: 2;">
-            <label style="font-size:15px;">🔍 नाम वा व्य.नं.बाट खोजी गर्नुहोस्</label>
-            <input type="text" id="searchInput" placeholder="Type name, rank or personnel number..." autocomplete="off">
-        </div>
-        <div class="search-group">
-            <label style="font-size:15px;">👤 सैनिक व्यक्ति छान्नुहोस्</label>
-            <select id="personnelFilterSelect">
-                <option value="">All Personnel</option>
-                <?php foreach ($personnel_list as $person): ?>
-                    <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
-                        <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="search-group">
-            <label style="font-size:15px;">📅 मिति (देखि)</label>
-            <input type="date" id="dateFromFilter">
-        </div>
-        <div class="search-group">
-            <label style="font-size:15px;">📅 मिति (सम्म)</label>
-            <input type="date" id="dateToFilter">
-        </div>
-        <div class="search-group">
-            <label>&nbsp;</label>
-            <button id="applyFiltersBtn">Apply Filters</button>
-        </div>
-        <div class="search-group">
-            <label>&nbsp;</label>
-            <button id="clearFiltersBtn" class="clear-search">Clear All</button>
+    <div class="tab-panel" id="panel-balance">
+        <div class="balance-cards">
+            <div class="balance-card">
+                <h4>🏠 घर बिदा</h4>
+                <div class="days" id="gharpariBalance"><?php echo $myBalance['gharpari_bida_days']; ?></div>
+                <small>दिन बाँकी</small>
+            </div>
+            <div class="balance-card">
+                <h4>🎉 पर्व बिदा</h4>
+                <div class="days" id="parbaBalance"><?php echo $myBalance['parba_bida_days']; ?></div>
+                <small>दिन बाँकी</small>
+            </div>
+            <div class="balance-card">
+                <h4>🚨 क्या./भैपरी बिदा</h4>
+                <div class="days" id="bhaeepariBalance"><?php echo $myBalance['bhaeepari_bida_days']; ?></div>
+                <small>दिन बाँकी</small>
+            </div>
         </div>
     </div>
 
-    <div class="header-section">
-        <div class="filter-section">
-            <button class="filter-btn active" data-filter="all">All</button>
-            <button class="filter-btn" data-filter="pending">Pending (Receiving)</button>
-            <button class="filter-btn" data-filter="verified">Verified (Initiating)</button>
-            <button class="filter-btn" data-filter="initiating_approved">Awaiting Final</button>
-            <button class="filter-btn" data-filter="approved">Approved</button>
-            <button class="filter-btn" data-filter="rejected">Rejected</button>
+    <div class="tab-panel" id="panel-requests">
+        <!-- Search and Filter Bar -->
+        <div class="search-bar">
+            <div class="search-group" style="flex: 2;">
+                <label style="font-size:12px;">🔍 नाम वा व्य.नं.बाट खोजी गर्नुहोस्</label>
+                <input type="text" id="searchInput" placeholder="Type name, rank or personnel number..." autocomplete="off">
+            </div>
+            <div class="search-group">
+                <label style="font-size:12px;">👤 सैनिक व्यक्ति छान्नुहोस्</label>
+                <select id="personnelFilterSelect">
+                    <option value="">All Personnel</option>
+                    <?php foreach ($personnel_list as $person): ?>
+                        <option value="<?php echo htmlspecialchars($person['personnel_number']); ?>">
+                            <?php echo htmlspecialchars($person['rank_unicode'] . ' ' . $person['full_name_ne'] . ' (' . $person['personnel_number'] . ')'); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="search-group">
+                <label style="font-size:12px;">📅 मिति (देखि)</label>
+                <input type="text" id="dateFromFilter" class="nepali-datepicker">
+            </div>
+            <div class="search-group">
+                <label style="font-size:12px;">📅 मिति (सम्म)</label>
+                <input type="text" id="dateToFilter" class="nepali-datepicker">
+            </div>
+            <div class="search-group">
+                <label>&nbsp;</label>
+                <button id="applyFiltersBtn">Apply Filters</button>
+            </div>
+            <div class="search-group">
+                <label>&nbsp;</label>
+                <button id="clearFiltersBtn" class="clear-search">Clear All</button>
+            </div>
         </div>
-        <div>
-            <button class="btn-add" id="newLeaveBtn">+ New Leave Request</button>
+
+        <div class="header-section">
+            <div class="filter-section">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="pending">Pending (Receiving)</button>
+                <button class="filter-btn" data-filter="verified">Verified (Initiating)</button>
+                <button class="filter-btn" data-filter="initiating_approved">Awaiting Final</button>
+                <button class="filter-btn" data-filter="approved">Approved</button>
+                <button class="filter-btn" data-filter="rejected">Rejected</button>
+            </div>
+            <div>
+                <button class="btn-add" id="newLeaveBtn">+ New Leave Request</button>
+            </div>
         </div>
-    </div>
 
-    <div class="data-table">
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>व्य.नं.</th>
-                    <th>दर्जा</th>  
-                    <th>नामथर</th>                                      
-                    <th>बिदाको प्रकार</th>
-                    <th>बिदाको अवधि</th>
-                    <th>जम्मा दिन</th>
-                    <th>बिदाको कारण</th>
-                    <th>बिदाको अवस्था</th>                    
-                    <th>कार्यभार बुझ्ने</th>
-                    <th>सिफारिस गर्ने</th>
-                    <th>स्वीकृत गर्ने</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="leaveTableBody">
-                <tr><td colspan="14" style="text-align:center">Loading...<\/td></tr>
-            </tbody>
-        </table>
-    </div>
+        <div class="data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>व्य.नं.</th>
+                        <th>दर्जा</th>
+                        <th>नामथर</th>
+                        <th>बिदाको प्रकार</th>
+                        <th>बिदाको अवधि</th>
+                        <th>जम्मा दिन</th>
+                        <th>बिदाको कारण</th>
+                        <th>बिदाको अवस्था</th>
+                        <th>कार्यभार बुझ्ने</th>
+                        <th>सिफारिस गर्ने</th>
+                        <th>स्वीकृत गर्ने</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="leaveTableBody">
+                    <tr><td colspan="14" style="text-align:center">Loading...<\/td></tr>
+                </tbody>
+            </table>
+        </div>
 
-    <div id="paginationContainer"></div>
+        <div id="paginationContainer"></div>
+    </div>
 </div>
 
 <!-- New Leave Request Modal -->
@@ -1193,13 +1239,14 @@ ob_start();
     <div class="modal-content">
         <div class="modal-header">
             <h3> New Leave Request</h3>
-            <span class="close">&times;</span>
+            <span class="close"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <form id="leaveForm">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div class="form-section-label">बिदा विवरण (Leave Details)</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
                     <div class="input-field">
                         <label>बिदा अनुरोधकर्ता<span class="required-star">*</span></label>
                         <select id="personnelId" name="personnel_id" required>
@@ -1211,7 +1258,7 @@ ob_start();
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    
+
                     <div class="input-field">
                         <label>बिदाको प्रकार <span class="required-star">*</span></label>
                         <select id="leaveType" required>
@@ -1222,21 +1269,15 @@ ob_start();
                         </select>
                     </div>
                 </div>
-                
-                <div class="info-box">
-                    <strong>Three-Level Approval Workflow:</strong><br>
-                    1. Receiving Officer receives and verifies the request<br>
-                    2. Initiating Officer approves after verification<br>
-                    3. Accepting Officer gives final approval
-                </div>
-                
+
+                <div class="form-section-label">स्वीकृति प्रक्रिया — ३ चरण (Approval Chain — 3 Steps)</div>
                 <div class="approval-steps">
                     <div class="step-card step-1">
                         <div class="step-header">
                             <span class="step-number">1</span>
-                            <span class="step-title">📬 Receiving Officer (प्राप्त गर्ने)</span>
+                            <span class="step-title">📬 Receiving Officer</span>
                         </div>
-                        <div class="step-desc">This person will receive and verify the request first</div>
+                        <div class="step-desc">Receives &amp; verifies the request first</div>
                         <select id="receivingOfficer" required>
                             <option value="">Select Personnel</option>
                             <?php foreach ($personnel_list as $person): ?>
@@ -1245,15 +1286,14 @@ ob_start();
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="officer-hint"> Step 1: Initial verification</div>
                     </div>
-                    
+
                     <div class="step-card step-2">
                         <div class="step-header">
                             <span class="step-number">2</span>
                             <span class="step-title">✍️ Initiating Officer</span>
                         </div>
-                        <div class="step-desc">First level approval after receiving officer verification</div>
+                        <div class="step-desc">First level approval after verification</div>
                         <select id="initiatingOfficer" required>
                             <option value="">Select Personnel</option>
                             <?php foreach ($personnel_list as $person): ?>
@@ -1262,15 +1302,14 @@ ob_start();
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="officer-hint"> Step 2: First level approval</div>
                     </div>
-                    
+
                     <div class="step-card step-3">
                         <div class="step-header">
                             <span class="step-number">3</span>
                             <span class="step-title">✅ Accepting Officer</span>
                         </div>
-                        <div class="step-desc">Final approval authority - grants the leave</div>
+                        <div class="step-desc">Final approval — grants the leave</div>
                         <select id="acceptingOfficer" required>
                             <option value="">Select Personnel</option>
                             <?php foreach ($personnel_list as $person): ?>
@@ -1279,10 +1318,10 @@ ob_start();
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="officer-hint"> Step 3: Final approval</div>
                     </div>
                 </div>
-                
+
+                <div class="form-section-label">अवधि र कारण (Duration &amp; Reason)</div>
                 <div class="date-group">
                     <div class="input-field">
                         <label>बिदा (देखि)<span class="required-star">*</span></label>
@@ -1293,8 +1332,8 @@ ob_start();
                         <input type="text" id="endDate" class = "nepali-datepicker" required>
                     </div>
                 </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                     <div class="input-field">
                         <label>जम्मा दिन</label>
                         <input type="text" id="totalDays" class="readonly-field" readonly placeholder="Will be calculated automatically">
@@ -1304,12 +1343,12 @@ ob_start();
                         <input type="text" id="availableBalance" class="readonly-field" readonly placeholder="Select leave type first">
                     </div>
                 </div>
-                
+
                 <div class="input-field">
                     <label>बिदा लिनुको कारण<span class="required-star">*</span></label>
                     <textarea id="reason" rows="3" required placeholder="उदाहरणः घरायसी समस्या"></textarea>
                 </div>
-                
+
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" id="cancelBtn"> Cancel</button>
                     <button type="submit" class="btn-submit"> Submit Request</button>
@@ -1324,7 +1363,7 @@ ob_start();
     <div class="modal-content">
         <div class="modal-header">
             <h3 id="actionModalTitle">Process Request</h3>
-            <span class="close-action">&times;</span>
+            <span class="close-action"><i class="fas fa-times"></i></span>
         </div>
         <div class="modal-body">
             <form id="actionForm">
@@ -1675,12 +1714,14 @@ ob_start();
             const result = await response.json();
             
             if (result.success) {
-                document.getElementById('verifyingPending').textContent = result.data.verifying_pending || 0;
-                document.getElementById('verifyingBadge').textContent = result.data.verifying_pending || 0;
-                document.getElementById('initiatingPending').textContent = result.data.initiating_pending || 0;
-                document.getElementById('initiatingBadge').textContent = result.data.initiating_pending || 0;
-                document.getElementById('acceptingPending').textContent = result.data.accepting_pending || 0;
-                document.getElementById('acceptingBadge').textContent = result.data.accepting_pending || 0;
+                const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                setText('verifyingPending', result.data.verifying_pending || 0);
+                setText('verifyingBadge', result.data.verifying_pending || 0);
+                setText('initiatingPending', result.data.initiating_pending || 0);
+                setText('initiatingBadge', result.data.initiating_pending || 0);
+                setText('acceptingPending', result.data.accepting_pending || 0);
+                setText('acceptingBadge', result.data.accepting_pending || 0);
+                updateActionTabCount();
             }
         } catch (e) { console.error(e); }
     }
@@ -1738,7 +1779,7 @@ ob_start();
     function showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
         toast.textContent = message;
-        toast.style.backgroundColor = type === 'success' ? '#28a745' : '#dc3545';
+        toast.style.backgroundColor = type === 'success' ? '#10b981' : '#dc2626';
         toast.style.display = 'block';
         setTimeout(() => { toast.style.display = 'none'; }, 4000);
     }
@@ -1961,6 +2002,24 @@ ob_start();
             filterByStatus(this.getAttribute('data-filter'));
         });
     });
+
+    // Tab switching (Action Center / My Balance / All Requests)
+    document.querySelectorAll('.leave-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.leave-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById('panel-' + this.getAttribute('data-tab')).classList.add('active');
+        });
+    });
+
+    function updateActionTabCount() {
+        const v = parseInt(document.getElementById('verifyingBadge')?.textContent) || 0;
+        const i = parseInt(document.getElementById('initiatingBadge')?.textContent) || 0;
+        const a = parseInt(document.getElementById('acceptingBadge')?.textContent) || 0;
+        const countEl = document.getElementById('actionTabCount');
+        if (countEl) countEl.textContent = v + i + a;
+    }
 
     // Refresh data every 30 seconds
     setInterval(() => {

@@ -22,9 +22,12 @@ if (empty($password)) {
 }
 
 try {
-    // Get user from personnel table only (no military_personnel_status join)
+    // Get user from personnel table, joined with def_rank for a readable rank name
     $stmt = $pdo->prepare("
-        SELECT * FROM personnel WHERE email = ?
+        SELECT p.*, r.rank_name, r.rank_unicode_full
+        FROM personnel p
+        LEFT JOIN def_rank r ON p.rank = r.rank_code
+        WHERE p.email = ?
     ");
     $stmt->execute([$email]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -71,7 +74,8 @@ try {
         'user' => [
             'name' => $user['full_name_en'],
             'email' => $user['email'],
-            'rank' => $user['rank'],
+            'rank' => $user['rank_name'] ?? $user['rank'],
+            'unit' => $user['unit'] ?? 'N/A',
             'role' => $user_role_int,
             'role_text' => $user_role_int == 2 ? 'Super Admin' : ($user_role_int == 1 ? 'Admin' : 'User'),
             'personnel_number' => $user['personnel_number']

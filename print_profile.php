@@ -109,7 +109,7 @@ function calculateYearsOfService($join_date) {
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
             .print-btn {
-                background: #1a5a4a;
+                background: #0e7490;
                 color: white;
                 border: none;
                 padding: 12px 30px;
@@ -121,7 +121,7 @@ function calculateYearsOfService($join_date) {
                 transition: all 0.3s;
             }
             .print-btn:hover {
-                background: #0f3d32;
+                background: #0d2036;
                 transform: translateY(-2px);
             }
             .close-btn {
@@ -154,19 +154,19 @@ function calculateYearsOfService($join_date) {
             display: flex;
             align-items: center;
             gap: 20px;
-            border-bottom: 3px solid #1a5a4a;
+            border-bottom: 3px solid #0e7490;
             padding-bottom: 15px;
             margin-bottom: 20px;
         }
         
         .print-logo {
             font-size: 55px;
-            color: #1a5a4a;
+            color: #0e7490;
         }
         
         .print-title h1 {
             font-size: 24px;
-            color: #1a5a4a;
+            color: #0e7490;
             margin: 0;
             letter-spacing: 2px;
         }
@@ -199,7 +199,7 @@ function calculateYearsOfService($join_date) {
             height: 120px;
             border-radius: 50%;
             object-fit: cover;
-            border: 3px solid #1a5a4a;
+            border: 3px solid #0e7490;
             background: white;
         }
         
@@ -213,7 +213,7 @@ function calculateYearsOfService($join_date) {
             justify-content: center;
             font-size: 50px;
             color: #94a3b8;
-            border: 3px solid #1a5a4a;
+            border: 3px solid #0e7490;
         }
         
         .print-basic-info h2 {
@@ -236,8 +236,8 @@ function calculateYearsOfService($join_date) {
         }
         
         .print-section h3 {
-            color: #1a5a4a;
-            border-bottom: 2px solid #1a5a4a;
+            color: #0e7490;
+            border-bottom: 2px solid #0e7490;
             padding-bottom: 6px;
             margin-bottom: 12px;
             font-size: 16px;
@@ -294,8 +294,8 @@ function calculateYearsOfService($join_date) {
         .print-training-table th {
             background: #f1f5f9;
             font-weight: 700;
-            color: #1a5a4a;
-            border-bottom: 2px solid #1a5a4a;
+            color: #0e7490;
+            border-bottom: 2px solid #0e7490;
         }
         
         .print-training-table td {

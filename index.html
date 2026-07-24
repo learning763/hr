@@ -7,9 +7,10 @@
     <!-- <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"> -->
     <!-- <link href="/hrs/css/inter.css" rel="stylesheet"> -->
 
-    <link href="/hrs/css/fontawesome.css" rel="stylesheet">
-    <link href="/hrs/plugins/select2/css/select2.min.css" rel="stylesheet">
-    <link href="/hrs/plugins/select2/css/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+    <link href="css/fontawesome.css" rel="stylesheet">
+    <link href="plugins/select2/css/select2.min.css" rel="stylesheet">
+    <link href="plugins/select2/css/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+    <link href="css/nepali.datepicker.v4.0.8.min.css" rel="stylesheet">
 
     <style>
         * {
@@ -20,7 +21,7 @@
 
         body {
             font-family: 'Kalimati';
-            background: linear-gradient(135deg, #0a2e25 0%, #1a5a4a 50%, #0d3d32 100%);
+            background: linear-gradient(135deg, #081b2e 0%, #0e7490 50%, #0b2a45 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -42,18 +43,30 @@
             opacity: 0.5;
         }
 
+        @keyframes modalPopIn {
+            from {
+                opacity: 0;
+                transform: scale(0.94) translateY(16px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
         .container {
             width: 100%;
-            max-width: 500px;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            max-width: 400px;
+            transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             z-index: 1;
+            animation: modalPopIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         /* Signup gets wider */
         #signupCard.active-form {
-            max-width: 880px;
-            width: 880px;
+            max-width: 720px;
+            width: 720px;
             margin: 0 auto;
         }
 
@@ -65,19 +78,23 @@
         }
 
         .form-card {
+            position: relative;
+            transition: opacity 0.22s ease, transform 0.22s ease;
+        }
+
+        .form-card-inner {
             background: rgba(255, 255, 255, 0.98);
             backdrop-filter: blur(10px);
-            border-radius: 32px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border-radius: 28px;
+            box-shadow: 0 25px 60px -12px rgba(8, 27, 46, 0.45), 0 12px 30px -14px rgba(14, 116, 144, 0.35);
             overflow: hidden;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         /* Header - Enhanced Military Style */
         .form-header {
-            background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
-            padding: 32px 32px 28px 32px;
+            background: linear-gradient(135deg, #10263f 0%, #0e7490 100%);
+            padding: 28px 28px 16px 28px;
             text-align: center;
             position: relative;
             overflow: hidden;
@@ -90,46 +107,47 @@
             right: -20%;
             width: 60%;
             height: 200%;
-            background: rgba(255, 215, 0, 0.08);
+            background: rgba(34, 211, 238, 0.08);
             transform: rotate(35deg);
         }
 
         .form-header h3 {
-            font-size: 28px;
+            font-size: 19px;
             font-weight: 700;
-            letter-spacing: -0.5px;
-            color: #ffd700;
-            margin-bottom: 8px;
+            letter-spacing: -0.3px;
+            color: #ffffff;
+            margin-bottom: 3px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
+            gap: 8px;
             position: relative;
             z-index: 1;
         }
 
         .form-header h3 i {
-            font-size: 32px;
-            color: #ffd700;
+            font-size: 20px;
+            color: #22d3ee;
         }
 
         .form-header p {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.85);
-            margin-top: 6px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.75);
+            margin-top: 2px;
             position: relative;
             z-index: 1;
+            letter-spacing: 0.2px;
         }
 
         form {
-            padding: 32px 36px 40px;
+            padding: 22px 28px 26px;
         }
 
         /* Grid for signup - two columns */
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px 24px;
+            gap: 12px 16px;
         }
 
         .full-width {
@@ -140,28 +158,28 @@
         .input-field {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 5px;
             position: relative;
         }
 
         .input-field label {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             color: #334155;
             letter-spacing: -0.2px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .input-field label i {
-            font-size: 13px;
-            color: #2c5f4e;
+            font-size: 12px;
+            color: #0e7490;
         }
 
         .input-field .required-star {
             color: #dc2626;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .input-wrapper {
@@ -171,11 +189,11 @@
 
         .input-wrapper i.input-icon {
             position: absolute;
-            left: 14px;
+            left: 13px;
             top: 50%;
             transform: translateY(-50%);
             color: #9aa9bc;
-            font-size: 16px;
+            font-size: 14px;
             pointer-events: none;
             z-index: 2;
             transition: color 0.2s;
@@ -183,10 +201,10 @@
 
         .input-wrapper input, .input-wrapper select {
             width: 100%;
-            padding: 12px 16px 12px 44px;
+            padding: 9px 14px 9px 40px;
             border: 1.5px solid #e2e8f0;
-            border-radius: 14px;
-            font-size: 14px;
+            border-radius: 12px;
+            font-size: 13px;
             transition: all 0.2s;
             outline: none;
             background: #ffffff;
@@ -196,50 +214,76 @@
         }
 
         .input-wrapper select {
-            padding: 12px 40px 12px 44px;
+            padding: 9px 36px 9px 40px;
             cursor: pointer;
             appearance: none;
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23899ab3" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>');
             background-repeat: no-repeat;
-            background-position: right 14px center;
+            background-position: right 12px center;
+        }
+
+        /* Select2 renders its own markup over the <select>; match it to the rest of the form */
+        .select2-container .select2-selection--single {
+            height: auto !important;
+            padding: 9px 36px 9px 40px !important;
+            border: 1.5px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+        }
+        .select2-container .select2-selection__rendered {
+            padding: 0 !important;
+            font-size: 13px !important;
+            color: #1e2a3e !important;
+            line-height: 1.3 !important;
+        }
+        .select2-container .select2-selection__arrow {
+            height: 100% !important;
+        }
+        .select2-dropdown {
+            font-size: 13px;
+        }
+        .select2-results__option {
+            font-size: 13px !important;
+        }
+        .select2-search__field {
+            font-size: 13px !important;
         }
 
         .input-wrapper input:focus, .input-wrapper select:focus {
-            border-color: #2c5f4e;
-            box-shadow: 0 0 0 4px rgba(44, 95, 78, 0.1);
+            border-color: #0e7490;
+            box-shadow: 0 0 0 4px rgba(14, 116, 144, 0.1);
         }
 
         .input-wrapper input:focus + i.input-icon,
         .input-wrapper select:focus + i.input-icon {
-            color: #2c5f4e;
+            color: #0e7490;
         }
 
         .toggle-eye {
             position: absolute;
-            right: 14px;
+            right: 13px;
             top: 50%;
             transform: translateY(-50%);
             cursor: pointer;
             color: #9aa9bc;
-            font-size: 16px;
+            font-size: 14px;
             z-index: 3;
             transition: all 0.2s;
         }
 
         .toggle-eye:hover {
-            color: #2c5f4e;
+            color: #0e7490;
         }
 
         /* Strength meter */
         .strength-wrapper {
-            margin-top: 8px;
+            margin-top: 4px;
         }
         .strength-bar {
             height: 4px;
             background: #edf2f7;
             border-radius: 4px;
             overflow: hidden;
-            margin-top: 8px;
+            margin-top: 5px;
         }
         .strength-fill {
             width: 0%;
@@ -266,10 +310,9 @@
         /* Options row */
         .form-options {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            margin: 20px 0 28px;
-            font-size: 13px;
+            margin: 12px 0 16px;
+            font-size: 12px;
         }
 
         .checkbox {
@@ -285,30 +328,17 @@
             width: 18px;
             height: 18px;
             cursor: pointer;
-            accent-color: #2c5f4e;
-        }
-
-        .link-btn {
-            color: #2c5f4e;
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-
-        .link-btn:hover {
-            color: #1e3a32;
-            text-decoration: underline;
+            accent-color: #0e7490;
         }
 
         .btn-submit {
             width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #1e3a32 0%, #2c5f4e 100%);
+            padding: 11px;
+            background: linear-gradient(135deg, #10263f 0%, #0e7490 100%);
             color: white;
             border: none;
             border-radius: 40px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s;
@@ -322,7 +352,7 @@
 
         .btn-submit:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(30, 58, 50, 0.3);
+            box-shadow: 0 8px 20px rgba(16, 38, 63, 0.3);
         }
 
         .btn-submit:active {
@@ -330,19 +360,19 @@
         }
 
         .terms-box {
-            margin: 10px 0 5px;
+            margin: 6px 0 3px;
         }
 
         .switch-text {
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             color: #6a7b94;
-            margin-top: 28px;
-            padding-top: 8px;
+            margin-top: 16px;
+            padding-top: 4px;
         }
 
         .switch-text a {
-            color: #2c5f4e;
+            color: #0e7490;
             text-decoration: none;
             font-weight: 700;
             cursor: pointer;
@@ -351,7 +381,7 @@
 
         .switch-text a:hover {
             text-decoration: underline;
-            color: #1e3a32;
+            color: #10263f;
         }
 
         /* Toast Container */
@@ -474,16 +504,16 @@
         @media (max-width: 700px) {
             .form-grid {
                 grid-template-columns: 1fr;
-                gap: 16px;
+                gap: 10px;
             }
             .full-width {
                 grid-column: span 1;
             }
             form {
-                padding: 24px 22px;
+                padding: 18px 18px 22px;
             }
             .form-header h3 {
-                font-size: 22px;
+                font-size: 17px;
             }
         }
     </style>
@@ -493,6 +523,7 @@
 <div class="container">
     <!-- LOGIN CARD -->
     <div class="form-card" id="loginCard">
+        <div class="form-card-inner">
         <div class="form-header">
             <h3><i class="fas fa-shield-alt"></i> Nepali Army HRMS</h3>
             <p>Secure Personnel Management System</p>
@@ -517,17 +548,18 @@
                 <label class="checkbox">
                     <input type="checkbox" id="rememberMe"> Keep me signed in
                 </label>
-                <a href="#" class="link-btn" id="forgotBtn">Forgot password?</a>
             </div>
             <button type="submit" class="btn-submit"><i class="fas fa-arrow-right-to-bracket"></i> Sign In</button>
             <div class="switch-text">
                 New to HRMS? <a id="goToSignup">Create account →</a>
             </div>
         </form>
+        </div>
     </div>
 
     <!-- SIGNUP CARD (wider, with army fields + labels) -->
     <div class="form-card" id="signupCard" style="display: none;">
+        <div class="form-card-inner">
         <div class="form-header">
             <h3><i class="fas fa-user-plus"></i> Personnel Registration</h3>
             <p>Complete your military profile to get access</p>
@@ -540,6 +572,14 @@
                     <div class="input-wrapper">
                         <i class="fas fa-user input-icon"></i>
                         <input type="text" id="fullName" placeholder="e.g., Rajveer Singh" required>
+                    </div>
+                </div>
+                <!-- Full name (Nepali) -->
+                <div class="input-field">
+                    <label><i class="fas fa-user"></i> पुरा नाम (नेपाली)<span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" id="fullNameNe" placeholder="जस्तै, राजवीर सिंह" required>
                     </div>
                 </div>
                 <!-- Email -->
@@ -570,15 +610,18 @@
                 <!-- Branch / Unit (Arm) -->
                 <div class="input-field">
                     <label><i class="fas fa-building"></i> Unit/Branch <span class="required-star">*</span></label>
-                    <div class="input-wrapper">                        
+                    <div class="input-wrapper">
                         <select id="branchArm" required>
                             <option value="">Select Department</option>
-                            <!-- <option value="" disabled selected>Select branch</option>
-                            <option>Infantry</option><option>Armoured Corps</option><option>Artillery</option>
-                            <option>Corps of Engineers</option><option>Signals</option><option>Army Aviation</option>
-                            <option>Intelligence Corps</option><option>Medical Corps</option><option>Ordnance Corps</option>
-                            <option>EME</option><option>Education Corps</option><option>Judge Advocate General</option> -->
                         </select>
+                    </div>
+                </div>
+                <!-- Custom unit name, shown only when "Other" is selected above -->
+                <div class="input-field full-width" id="branchArmOtherWrapper" style="display: none;">
+                    <label><i class="fas fa-pen"></i> आफ्नो एकाइको नाम लेख्नुहोस् <span class="required-star">*</span></label>
+                    <div class="input-wrapper">
+                        <i class="fas fa-pen input-icon"></i>
+                        <input type="text" id="branchArmOther" placeholder="Enter your unit/branch name">
                     </div>
                 </div>
                 <!-- Service Number -->
@@ -594,7 +637,7 @@
                     <label><i class="fas fa-calendar-alt"></i> Commission Date <span class="required-star">*</span></label>
                     <div class="input-wrapper">
                         <i class="fas fa-calendar-alt input-icon"></i>
-                        <input type="date" id="commissionDate" required>
+                        <input type="text" id="commissionDate" class="nepali-datepicker" required>
                     </div>
                 </div>
                 <!-- Password (full width) -->
@@ -626,7 +669,7 @@
                 <div class="input-field full-width terms-box">
                     <label class="checkbox">
                         <input type="checkbox" id="termsCheck" required>
-                        <span>I accept the <a href="#" style="color:#2c5f4e;">Terms of Service</a> and <a href="#" style="color:#2c5f4e;">Privacy Policy</a></span>
+                        <span>I accept the <a href="#" style="color:#0e7490;">Terms of Service</a> and <a href="#" style="color:#0e7490;">Privacy Policy</a></span>
                     </label>
                 </div>
             </div>
@@ -635,6 +678,7 @@
                 Already registered? <a id="goToLogin">Sign in →</a>
             </div>
         </form>
+        </div>
     </div>
 </div>
 
@@ -678,19 +722,42 @@
         const signupCard = document.getElementById('signupCard');
         const container = document.querySelector('.container');
 
+        // Cross-fades between the login/signup cards like a modal swapping content
+        function switchCard(hideEl, showEl, maxWidth, onShown) {
+            hideEl.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+            hideEl.style.opacity = '0';
+            hideEl.style.transform = 'scale(0.96) translateY(8px)';
+            setTimeout(() => {
+                hideEl.style.display = 'none';
+                hideEl.style.transition = '';
+                hideEl.style.opacity = '';
+                hideEl.style.transform = '';
+
+                container.style.maxWidth = maxWidth;
+                showEl.style.display = 'block';
+                showEl.style.opacity = '0';
+                showEl.style.transform = 'scale(0.96) translateY(8px)';
+
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        showEl.style.transition = 'opacity 0.28s ease, transform 0.28s ease';
+                        showEl.style.opacity = '1';
+                        showEl.style.transform = 'scale(1) translateY(0)';
+                    });
+                });
+
+                if (onShown) onShown();
+            }, 180);
+        }
+
         function showLoginForm() {
-            loginCard.style.display = 'block';
-            signupCard.style.display = 'none';
-            container.style.maxWidth = '500px';
             signupCard.classList.remove('active-form');
+            switchCard(signupCard, loginCard, '400px');
             document.querySelectorAll('.btn-submit').forEach(btn => btn.classList.remove('loading'));
         }
-        
+
         function showSignupForm() {
-            loginCard.style.display = 'none';
-            signupCard.style.display = 'block';
-            container.style.maxWidth = '880px';
-            signupCard.classList.add('active-form');
+            switchCard(loginCard, signupCard, '720px', () => signupCard.classList.add('active-form'));
             document.querySelectorAll('.btn-submit').forEach(btn => btn.classList.remove('loading'));
             if(document.getElementById('signupPassword')) updateStrengthMeter('');
             checkMatch();
@@ -705,6 +772,24 @@
             e.preventDefault();
             showLoginForm();
         });
+
+        // ========== UNIT/BRANCH "OTHER" TOGGLE ==========
+        const branchArmSelect = document.getElementById('branchArm');
+        const branchArmOtherWrapper = document.getElementById('branchArmOtherWrapper');
+        const branchArmOtherInput = document.getElementById('branchArmOther');
+
+        function toggleBranchArmOther() {
+            if (branchArmSelect.value === 'other') {
+                branchArmOtherWrapper.style.display = 'flex';
+                branchArmOtherInput.setAttribute('required', 'required');
+            } else {
+                branchArmOtherWrapper.style.display = 'none';
+                branchArmOtherInput.removeAttribute('required');
+                branchArmOtherInput.value = '';
+            }
+        }
+
+        branchArmSelect?.addEventListener('change', toggleBranchArmOther);
 
         // ========== PASSWORD TOGGLE ==========
         document.querySelectorAll('.toggle-eye').forEach(icon => {
@@ -848,16 +933,20 @@
             e.preventDefault();
             
             const fullName = document.getElementById('fullName').value.trim();
+            const fullNameNe = document.getElementById('fullNameNe').value.trim();
             const email = document.getElementById('signupEmail').value.trim();
             const rank = document.getElementById('armyRank').value;
-            const branch = document.getElementById('branchArm').value;
+            const branch = branchArmSelect.value;
+            const branchText = branch === 'other'
+                ? branchArmOtherInput.value.trim()
+                : (branchArmSelect.options[branchArmSelect.selectedIndex]?.text || '');
             const serviceNo = document.getElementById('serviceNo').value.trim();
             const commissionDate = document.getElementById('commissionDate').value;
             const password = document.getElementById('signupPassword').value;
             const confirm = document.getElementById('confirmPassword').value;
             const terms = document.getElementById('termsCheck').checked;
 
-            if(!fullName || !email || !rank || !branch || !serviceNo || !commissionDate) {
+            if(!fullName || !fullNameNe || !email || !rank || !branch || !branchText || !serviceNo || !commissionDate) {
                 showToast('All fields are required', 'error');
                 return;
             }
@@ -884,9 +973,10 @@
             try {
                 const formData = new URLSearchParams();
                 formData.append('full_name', fullName);
+                formData.append('full_name_ne', fullNameNe);
                 formData.append('email', email);
                 formData.append('rank', rank);
-                formData.append('unit', branch);
+                formData.append('unit', branchText);
                 formData.append('personnel_number', serviceNo);
                 formData.append('joint_date', commissionDate);
                 formData.append('password', password);
@@ -911,9 +1001,11 @@
                     
                     // Reset signup form
                     document.getElementById('fullName').value = '';
+                    document.getElementById('fullNameNe').value = '';
                     document.getElementById('signupEmail').value = '';
                     document.getElementById('armyRank').value = '';
                     document.getElementById('branchArm').value = '';
+                    toggleBranchArmOther();
                     document.getElementById('serviceNo').value = '';
                     document.getElementById('commissionDate').value = '';
                     document.getElementById('signupPassword').value = '';
@@ -936,17 +1028,6 @@
                 showToast('Registration failed. Please try again.', 'error');
                 btn.classList.remove('loading');
             }
-        });
-
-        // Forgot password handler
-        document.getElementById('forgotBtn')?.addEventListener('click', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('loginEmail').value.trim();
-            if(!email) {
-                showToast('Please enter your email address', 'error');
-                return;
-            }
-            showToast('Password reset link sent to your email', 'success');
         });
 
         // Check if already logged in
@@ -1015,11 +1096,17 @@
             const option = document.createElement('option');
 
             option.value = item.id;
-            option.textContent = `${item.name_nep}, ${item.location}`;
+            option.textContent = item.name_nep;
 
             dept.appendChild(option);
 
         });
+
+        // "Other" always comes last, so the user can type in a unit that isn't listed
+        const otherOption = document.createElement('option');
+        otherOption.value = 'other';
+        otherOption.textContent = 'अन्य (Other)';
+        dept.appendChild(otherOption);
 
         // Notify Select2 of new options
         if (window.$ && $.fn.select2) {
@@ -1038,16 +1125,19 @@
 loadDropdowns();
 </script>
 
-<script src="/hrs/js/jquery-3.7.1.min.js"></script>
-<script src="/hrs/plugins/select2/js/select2.min.js"></script>
+<script src="js/jquery-3.7.1.min.js"></script>
+<script src="plugins/select2/js/select2.min.js"></script>
+<script src="js/nepali.datepicker.v4.0.8.min.js"></script>
 <script>
 $(document).ready(function() {
     $('select').select2({
         theme: 'bootstrap-5',
         placeholder: 'Select an option',
         allowClear: true,
-        width: '100%'
+        width: '100%',
+        minimumResultsForSearch: 10
     });
+    $('.nepali-datepicker').nepaliDatePicker();
 });
 </script>
 </body>
